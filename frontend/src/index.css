@@ -1,0 +1,481 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Manrope:wght@200..800&family=Playfair:ital,opsz,wght@0,5..1200,300..900;1,5..1200,300..900&display=swap');
+
+
+@theme{
+  --color-primary:#0F3D2E;
+  --color-primary-foreground: 40 33% 97%;
+  --color-background:#FAF7F2;
+  --color-foreground:0 0% 15%;
+  --color-card:0 0% 100%;
+  --color-card-foreground:0 0% 15%;
+  --color-popover: 0 0% 100%;
+  --color-popover-foreground: 0 0% 15%;
+  --color-secondary: 40 33% 97%;
+  --color-muted: 30 20% 92%;
+  --color-accent: #6B4F3F;
+  --color-secondary-foreground: 158 60% 15%;
+  --color-muted-foreground: 0 0% 45%;
+  --color-accent-foreground: 40 33% 97%;
+  --color-destructive: 0 84% 60%;
+  --color-destructive-foreground: 0 0% 100%;
+  --color-border: 30 20% 88%;
+  --color-input: 30 20% 88%;
+  --color-ring: 158 60% 15%;
+  --color-chat-sent: 158 60% 15%;
+  --color-chat-sent-foreground: 40 33% 97%;
+  --color-chat-received: 0 0% 100%;
+  --color-chat-received-foreground: 0 0% 15%;
+  --color-sidebar-background: 40 33% 97%;
+  --color-sidebar-foreground: 0 0% 25%;
+  --color-sidebar-primary: 158 60% 15%;
+  --color-sidebar-primary-foreground: 40 33% 97%;
+  --color-sidebar-accent: 30 20% 92%;
+  --color-sidebar-accent-foreground: 0 0% 15%;
+  --color-sidebar-border: 30 20% 88%;
+  --color-sidebar-ring: 158 60% 15%;
+}
+:root {
+    /* PigeonChatApp Premium Theme */
+    --background: 40 33% 97%;
+    /* Soft Cream #FAF7F2 */
+    --foreground: 0 0% 15%;
+    /* Near-black charcoal */
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 15%;
+
+    /* Deep Forest Green */
+    --primary: 158 60% 15%;
+    /* #0F3D2E */
+    --primary-foreground: 40 33% 97%;
+
+    /* Soft Cream for secondary */
+    --secondary: 40 33% 97%;
+    --secondary-foreground: 158 60% 15%;
+    --muted-foreground: 0 0% 45%;
+    --accent-foreground: 40 33% 97%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 20% 88%;
+    --input: 30 20% 88%;
+    --ring: 158 60% 15%;
+
+    --muted: 30 20% 92%;
+
+    /* Espresso Brown accent */
+    --accent: 24 26% 33%;
+    /* #6B4F3F */
+
+
+    --radius: 0.75rem;
+
+    /* Chat-specific colors */
+    --chat-sent: 158 60% 15%;
+    --chat-sent-foreground: 40 33% 97%;
+    --chat-received: 0 0% 100%;
+    --chat-received-foreground: 0 0% 15%;
+
+    /* Sidebar */
+    --sidebar-background: 40 33% 97%;
+    --sidebar-foreground: 0 0% 25%;
+    --sidebar-primary: 158 60% 15%;
+    --sidebar-primary-foreground: 40 33% 97%;
+    --sidebar-accent: 30 20% 92%;
+    --sidebar-accent-foreground: 0 0% 15%;
+    --sidebar-border: 30 20% 88%;
+    --sidebar-ring: 158 60% 15%;
+}
+
+ .dark {
+     --background: 0 0% 10%;
+     --foreground: 40 33% 97%;
+
+     --card: 0 0% 12%;
+     --card-foreground: 40 33% 97%;
+
+     --popover: 0 0% 12%;
+     --popover-foreground: 40 33% 97%;
+
+     --primary: 158 45% 35%;
+     --primary-foreground: 0 0% 100%;
+
+     --secondary: 0 0% 18%;
+     --secondary-foreground: 40 33% 97%;
+
+     --muted: 0 0% 18%;
+     --muted-foreground: 0 0% 65%;
+
+     --accent: 24 20% 45%;
+     --accent-foreground: 40 33% 97%;
+
+     --destructive: 0 62% 30%;
+     --destructive-foreground: 0 0% 100%;
+
+     --border: 0 0% 20%;
+     --input: 0 0% 20%;
+     --ring: 158 45% 35%;
+
+     --chat-sent: 158 45% 30%;
+     --chat-sent-foreground: 40 33% 97%;
+     --chat-received: 0 0% 18%;
+     --chat-received-foreground: 40 33% 97%;
+
+     --sidebar-background: 0 0% 10%;
+     --sidebar-foreground: 40 33% 97%;
+     --sidebar-primary: 158 45% 35%;
+     --sidebar-primary-foreground: 0 0% 100%;
+     --sidebar-accent: 0 0% 18%;
+     --sidebar-accent-foreground: 40 33% 97%;
+     --sidebar-border: 0 0% 20%;
+     --sidebar-ring: 158 45% 35%;
+ }
+/* =========================
+   BASE STYLES
+========================= */
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Inter', ;
+}
+
+.font-display {
+  font-family: 'Playfair';
+}
+
+.text-muted-foreground {
+  color: hsl(var(--muted-foreground));
+}
+.text-primary{
+  color: hsl(var(--primary));
+}
+.text-foreground{
+    color: hsl(var(--foreground));
+}
+
+.fill-primary {
+  fill: hsl(var(--primary))
+}
+
+.fill-background {
+  fill: hsl(var(--background))
+}
+
+.fill-accent {
+  fill: hsl(var(--accent))
+}
+
+.fill-muted {
+  fill: hsl(var(--muted))
+}
+
+.fill-primaryforeground {
+  fill: hsl(var(40 33% 80%))
+}
+
+.bg-card{
+  color: hsl(var(--card));
+}
+/* =========================
+   COMPONENTS
+========================= */
+
+/* Auth Card */
+.auth-card {
+  background-color: hsl(var(--card));
+  border-radius: 1.5rem;
+  border: 1px solid hsla(var(--border), 0.5);
+  padding: 2rem;
+  width: 100%;
+  max-width: 28rem;
+  box-shadow:
+    0 4px 24px -4px rgba(15, 61, 46, 0.08),
+    0 2px 8px -2px rgba(0, 0, 0, 0.04);
+}
+
+/* Auth Input */
+.auth-input {
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--border));
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  transition: all 0.2s ease-out;
+}
+
+.auth-input::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+.auth-input:focus {
+  outline: none;
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsla(var(--primary), 0.2);
+}
+
+/* Primary Button */
+.btn-primary {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease-out;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-primary:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 2px hsla(var(--primary), 0.3),
+    0 0 0 4px hsl(var(--background));
+}
+
+/* =========================
+   CHAT MESSAGES
+========================= */
+
+.message-sent {
+  background-color: hsl(var(--chat-sent));
+  color: hsl(var(--chat-sent-foreground));
+  border-radius: 1.5rem;
+  border-bottom-right-radius: 0.375rem;
+  padding: 0.625rem 1rem;
+  max-width: 75%;
+  margin-left: auto;
+}
+
+.message-received {
+  background-color: hsl(var(--chat-received));
+  color: hsl(var(--chat-received-foreground));
+  border-radius: 1.5rem;
+  border-bottom-left-radius: 0.375rem;
+  padding: 0.625rem 1rem;
+  max-width: 75%;
+  margin-right: auto;
+  border: 1px solid hsla(var(--border), 0.3);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* =========================
+   TABS
+========================= */
+
+.tab-item {
+  padding: 0.75rem 1rem;
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+  position: relative;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.tab-item:hover {
+  color: hsl(var(--foreground));
+}
+
+.tab-item.active {
+  color: hsl(var(--primary));
+}
+
+.tab-item.active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: hsl(var(--primary));
+  border-radius: 9999px;
+}
+
+/* =========================
+   CHAT LIST ITEM
+========================= */
+
+.chat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chat-item:hover {
+  background-color: hsla(var(--muted), 0.5);
+}
+
+.chat-item.active {
+  background-color: hsla(var(--primary), 0.1);
+  border-left: 2px solid hsl(var(--primary));
+}
+
+/* =========================
+   BOTTOM NAV
+========================= */
+
+.bottom-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bottom-nav-item:hover {
+  color: hsl(var(--accent));
+  background-color: hsla(var(--muted), 0.5);
+}
+
+.bottom-nav-item.active {
+  color: hsl(var(--accent));
+  background-color: hsla(var(--muted), 0.5);
+}
+
+/* =========================
+   UTILITIES
+========================= */
+
+.scroll-smooth {
+  scroll-behavior: smooth;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Message animation */
+.message-enter {
+  animation: messageSlideIn 0.25s ease-out forwards;
+}
+
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+/* =========================
+   PIGEON FLOATING (MAIN)
+========================= */
+.pigeon-float {
+  animation: pigeonFloat 3.6s ease-in-out infinite;
+}
+
+@keyframes pigeonFloat {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-10px) scale(1.03);
+  }
+}
+
+/* =========================
+   WINGS
+========================= */
+.wing-left {
+  transform-origin: 45px 50px;
+  animation: wingLeft 1.8s ease-in-out infinite;
+  animation-delay: 0.15s;
+}
+
+.wing-right {
+  transform-origin: 55px 50px;
+  animation: wingRight 1.8s ease-in-out infinite;
+  animation-delay: 0.15s;
+}
+
+@keyframes wingLeft {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-80deg);
+  }
+}
+
+@keyframes wingRight {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(80deg);
+  }
+}
+
+/* =========================
+   TEXT BREATHING
+========================= */
+.loading-text {
+  animation: textFade 2.8s ease-in-out infinite;
+}
+
+@keyframes textFade {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* =========================
+   DOTS (LOADING SIGNAL)
+========================= */
+.loading-dots {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  animation: dots 1.6s steps(4, end) infinite;
+}
+
+@keyframes dots {
+  0% {
+    width: 0ch;
+  }
+  100% {
+    width: 3ch;
+  }
+}
