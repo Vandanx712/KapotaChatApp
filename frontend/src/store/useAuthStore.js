@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { checkUser } from "../lib/axios";
+import { checkUser, logout, register } from "../lib/axios";
+import toast from "react-hot-toast";
 
 export const useAuthStore = create((set) => ({
   authUser: null,
@@ -19,4 +20,27 @@ export const useAuthStore = create((set) => ({
       set({ isCheckingAuth: false });
     }
   },
+
+  signup:async(data)=>{
+    set({isSigningUp:true})
+    try {
+      const resdata = await register(data)
+      toast.success(resdata.message)
+      set({authUser:data})
+    } catch (error) {
+      toast.error(error?.response?.data?.message)
+    }finally{
+      set({isSigningUp:false})
+    }
+  },
+
+  logout:async()=>{
+    try {
+      const data = await logout({})
+      set({authUser:null})
+      toast.success(data.message)
+    } catch (error) {
+      toast.error(error?.response?.data?.message)
+    }
+  }
 }));
