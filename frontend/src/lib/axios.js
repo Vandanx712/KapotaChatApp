@@ -12,6 +12,10 @@ export const register = async(data)=>{
   return response.data
 }
 
+export const loginuser = async(data)=>{
+  const response = await api.post('/auth/login',data)
+  return response.data
+}
 
 export const logout = async(data)=>{
   const response = await api.post('/auth/logout',data)
