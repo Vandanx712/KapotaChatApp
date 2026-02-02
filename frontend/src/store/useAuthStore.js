@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { checkUser, loginuser, logout, register } from "../lib/axios";
+import { checkUser, loginuser, logout, register, updatePic } from "../lib/axios";
 import toast from "react-hot-toast";
 
 export const useAuthStore = create((set) => ({
@@ -58,10 +58,16 @@ export const useAuthStore = create((set) => ({
   },
 
   updateProfile: async(data)=>{
+    set({isUpdateProfile:true})
     try {
-      const resdata = []
+      const resdata = await updatePic(data)
+      set({authUser:data.user})
+      toast.success(resdata.message)
     } catch (error) {
+      toast.error(error.response?.dats?.message)
       console.log(error)
+    }finally{
+      set({isUpdateProfile:false})
     }
   }
 }));

@@ -26,3 +26,10 @@ export const checkUser = async()=>{
   const response = await api.get('/auth/check')
   return response.data
 }
+
+//profile part
+
+export const updatePic = async(data)=>{
+  const response = await api.put('/user/pic',data)
+  return response.data
+}
