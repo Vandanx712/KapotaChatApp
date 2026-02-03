@@ -25,7 +25,7 @@ const Navbar = () => {
             {authUser && (
               <>
                 <Link
-                  to={"/settings"}
+                  to={"/setting"}
                   className={`btn btn-sm gap-2 transition-color`}
                 >
                   <Settings className="w-4 h-4" />
