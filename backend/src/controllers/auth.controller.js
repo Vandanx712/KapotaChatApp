@@ -62,7 +62,7 @@ export const login = asynchandller(async (req, res) => {
   const ispasswordvalid = await bcrypt.compare(password, user.password);
   if (!ispasswordvalid) throw new ApiError(400, "Invalid credentials");
 
-  generateToken(user._id);
+  generateToken(user._id,res);
   return res.status(200).json({
     success: true,
     message: "Login successfully",

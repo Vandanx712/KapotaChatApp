@@ -30,7 +30,7 @@ const preview_message = [
 function Setting() {
   const [activeSection, setActiveSection] = useState('all')
   const { theme, setTheme } = useThemeStore();
-  const { authUser } = useAuthStore();
+  const { authUser, logout } = useAuthStore();
 
   const navigate = useNavigate()
 
@@ -88,18 +88,25 @@ function Setting() {
   const handleItemClick = (label) => {
     if (label == 'Profile') navigate('/profile')
     if (label == 'Chats') setActiveSection('Chats')
+    if(label == 'Logout'){
+      try {
+        logout()
+      } catch (error) {
+        console.log(error)
+      }
+    }
   };
 
   const renderContent = () => {
     switch (activeSection) {
       case 'Chats':
         return (
-          <div className="flex flex-col overflow-hidden p-5">
+          <div className="flex flex-col space-y-5 overflow-hidden p-5">
             <div className=" flex items-center gap-5">
-              <button className="text-secondary text-xl p-2 rounded-full hover:bg-secondary-content">
+              <button onClick={() => setActiveSection('all')} className=" text-xl p-2 rounded-full hover:bg-base-100">
                 <ArrowLeft />
               </button>
-              <p className=" text-xl text-primary">{activeSection}</p>
+              <p className=" text-xl">{activeSection}</p>
             </div>
             <div className="flex flex-col gap-1">
               <h2 className="text-lg font-semibold">Theme</h2>
@@ -112,7 +119,7 @@ function Setting() {
                   key={t}
                   className={`
                 group flex flex-col items-center gap-1.5 p-2 rounded-lg transition-colors
-                ${theme === t ? "bg-base-200" : "hover:bg-base-200/50"}
+                ${theme === t ? "bg-base-300" : "hover:bg-base-200/50"}
               `}
                   onClick={() => setTheme(t)}
                 >
@@ -206,12 +213,12 @@ function Setting() {
   }
 
   return (
-    <div className="h-screen pt-16 max-w-[1600px] grid lg:grid-cols-[400px_1fr] bg-base-100">
+    <div className="h-full pt-16 max-w-[1600px] grid lg:grid-cols-[400px_1fr] bg-base-100">
       {/* Sidebar */}
       <div className={`${activeSection == 'all' ? 'flex' : 'hidden lg:flex'} flex-col border-r pr-3 border-base-300 overflow-hidden`}>
         {/* Profile Section */}
         <div
-          className="flex items-center gap-3 md:gap-4 mt-5 mx-3 p-3 rounded-lg md:px-6 cursor-pointer hover:bg-secondary transition-colors active:bg-base-300"
+          className="flex items-center gap-3 md:gap-4 mt-5 mx-3 p-3 rounded-lg md:px-6 cursor-pointer hover:bg-base-200 transition-colors active:bg-base-300"
           onClick={() => handleItemClick("Profile")}
         >
           <div className=" flex items-center justify-center">
@@ -221,10 +228,10 @@ function Setting() {
             />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-base md:text-lg font-medium text-neutral truncate">
+            <div className="text-base md:text-lg font-medium truncate">
               {authUser.fullname}
             </div>
-            <div className="text-sm text-neutral/60 truncate">
+            <div className="text-sm text-base-content/70 truncate">
               {authUser.bio}
             </div>
           </div>
@@ -237,18 +244,18 @@ function Setting() {
           {settingsItems.map((item, index) => (
             <div
               key={item.id}
-              className="flex items-center gap-4 md:gap-5 px-4 md:px-6 py-3 md:py-4 cursor-pointer hover:bg-secondary hover:mx-3 hover:rounded-lg transition-colors animate-slideIn"
+              className="flex items-center gap-4 md:gap-5 px-4 md:px-6 py-3 md:py-4 cursor-pointer hover:bg-base-200 hover:mx-3 hover:rounded-lg transition-colors animate-slideIn"
               style={{ animationDelay: `${index * 0.05}s` }}
               onClick={() => handleItemClick(item.label)}
             >
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-secondary flex items-center justify-center text-neutral/60 text-base md:text-xl flex-shrink-0">
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary flex items-center justify-center text-primary-content text-base md:text-xl flex-shrink-0">
                 {item.icon}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm md:text-base text-neutral truncate">
+                <div className="text-sm md:text-base truncate">
                   {item.label}
                 </div>
-                <div className="text-xs md:text-sm text-neutral/60 truncate">
+                <div className="text-xs md:text-sm text-base-content/70 truncate">
                   {item.description}
                 </div>
               </div>
@@ -256,18 +263,19 @@ function Setting() {
           ))}
         </div>
 
+        <div className="divider m-5"></div>
+
         {/* Logout */}
         <div
-          className="flex items-center gap-4 md:gap-5 px-4 md:px-6 py-3 md:py-4 cursor-pointer hover:bg-error/5 transition-colors active:bg-error/10 animate-slideIn"
+          className="flex items-center gap-4 mb-4 md:gap-5 px-4 md:px-6 py-3 md:py-4 cursor-pointer hover:bg-error/5 hover:mx-3 hover:rounded-lg transition-colors active:bg-error/10 animate-slideIn"
           style={{ animationDelay: "0.4s" }}
           onClick={() => handleItemClick("Logout")}
         >
-          <div className="divider"></div>
           <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-error/10 flex items-center justify-center text-error text-base md:text-xl flex-shrink-0">
             <ArrowRight />
           </div>
           <div className="flex-1">
-            <div className="text-sm md:text-base text-error font-medium">
+            <div className="text-lg md:text-base text-error font-medium">
               Log out
             </div>
           </div>
@@ -278,9 +286,9 @@ function Setting() {
 
       {/* Main Content - Empty State (Hidden on mobile) */}
       <div className="hidden lg:flex items-center justify-center bg-base-200">
-        {activeSection == 'all' &&  (<div className="text-center">
-          <Settings className="text-8xl md:text-9xl text-base-300 mx-auto mb-6" />
-          <h2 className="text-3xl md:text-4xl font-light text-neutral/60">
+        {activeSection == 'all' && (<div className="text-center">
+          <Settings className="text-8xl md:text-9xl text-base-content/70 mx-auto mb-6" />
+          <h2 className="text-3xl md:text-4xl font-light">
             Settings
           </h2>
         </div>)}

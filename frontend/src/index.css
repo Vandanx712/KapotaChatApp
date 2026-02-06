@@ -1,3 +1,18 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+
+.fab {
+    @apply absolute bottom-0 -right-2;
+}
+
+/* Hide children buttons by default */
+.fab> :not([role="button"]) {
+    @apply scale-0 opacity-0 transition-all duration-200 origin-bottom;
+}
+
+/* Show children when the main button is clicked/focused */
+.fab:focus-within> :not([role="button"]) {
+    @apply scale-100 opacity-100;
+}

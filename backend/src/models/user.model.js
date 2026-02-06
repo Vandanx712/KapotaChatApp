@@ -24,6 +24,10 @@ const userSchema = new mongoose.Schema(
     loginlimits: {
       type: Number,
     },
+    isOnline:{
+      type:Boolean,
+      default:false
+    }
   },
   { timestamps: true }
 );

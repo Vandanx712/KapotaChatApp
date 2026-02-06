@@ -33,3 +33,22 @@ export const updatePic = async(data)=>{
   const response = await api.put('/user/pic',data)
   return response.data
 }
+
+//conversation part
+
+export const getConversations = async()=>{
+  const response = await api.get('/conversation/')
+  return response.data
+}
+
+// message part
+
+export const getMessages = async(id)=>{
+  const response = await api.get(`/message/${id}`)
+  return response.data
+}
+
+export const sendMessage = async(id,data)=>{
+  const response = await api.post(`/message/${id}`,data)
+  return response.data
+}

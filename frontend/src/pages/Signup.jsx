@@ -33,7 +33,7 @@ function Signup() {
 
 
   return (
-    <div className='min-h-screen mt-5 grid lg:grid-cols-2'>
+    <div className='h-auto pt-5 grid lg:grid-cols-2'>
       <div className=' flex flex-col justify-center items-center p-6 sm:p-12'>
         <div className=' w-full max-w-md space-y-8'>
           <div className="text-center mb-8">
@@ -123,16 +123,16 @@ function Signup() {
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <UserCheck className="size-5 text-base-content/40" />
                 </div>
-                <select onChange={(e) => setFormData({ ...formData, gender: e.target.value })} value={formData.gender} className="select select-primary w-full pl-10">
+                <select onChange={(e) => setFormData({ ...formData, gender: e.target.value })} value={formData.gender} className="select select-secondary  w-full pl-10">
                   <option value=''>Select gender</option>
                   <option value='male'>Male</option>
                   <option value='female'>Female</option>
                 </select>
               </div>
             </div>
-            <button type='submit' className='btu btn-primary w-full' disabled={isSigningUp}>
+            <button type='submit' className='btn btn-primary w-full' disabled={isSigningUp}>
               {isSigningUp ? (<>
-                <Loader2 className='size-5 animate-spin' />
+                <Loader2 className='h-5 w-5 animate-spin' />
               </>) : ("Create Account")}
             </button>
           </form>

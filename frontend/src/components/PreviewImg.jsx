@@ -8,8 +8,8 @@ function PreviewImg({ detail, onclose }) {
                 <div className='p-5 items-center md:mt-5 mt-10'>
                     <img src={detail.profilePic.url} className="md:size-[600px] size-fit object-cover pl-10" />
                 </div>
-                <div className=''>
-                    <button onClick={onclose}><X className='size-10 text-primary-content' /></button>
+                <div className='lg:mt-3'>
+                    <button className='text-xl p-2 rounded-full hover:bg-base-100' onClick={onclose}><X/></button>
                 </div>
             </div>
         </div>

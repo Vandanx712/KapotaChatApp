@@ -23,6 +23,7 @@ export const getConversation = asynchandller(async (req, res) => {
 
     return {
       conversationId: con._id,
+      oruserId:user._id,
       name: user.fullname,
       profilePic: user.profilePic,
       groupname : con.groupname,

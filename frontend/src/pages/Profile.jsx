@@ -46,11 +46,11 @@ function Profile() {
                   alt="Profile"
                   className="size-32 rounded-full object-cover border-4 "
                 />
-                <div className="fab absolute bottom-0 -right-2">
+                <div className="fab">
                   <div
                     tabIndex={0}
                     role="button"
-                    className="btn btn-lg btn-circle"
+                    className="btn btn-md btn-circle"
                   >
                     <UserPen
                       className={`size-10 text-base-200 
@@ -60,14 +60,14 @@ function Profile() {
                   ${isUpdateProfile ? "animate-pulse pointer-events-none" : ""}`}
                     />
                   </div>
-                  <div className="flex md:flex-nowrap flex-wrap absolute left-12 bottom-0">
+                  <div className="flex md:space-x-1 md:space-y-0 space-x-1 space-y-1 md:flex-nowrap flex-wrap absolute left-12 bottom-0">
                     <button
                       onClick={() => setPreview(true)}
-                      className="btn btn-lg btn-circle"
+                      className="btn btn-md btn-circle"
                     >
                       <ViewIcon className="size-6" />
                     </button>
-                    <button className="btn btn-lg btn-circle">
+                    <button className="btn btn-md btn-circle">
                       <label htmlFor="avatar-upload">
                         <Image className=" size-6" />
                         <input
@@ -80,7 +80,7 @@ function Profile() {
                         />
                       </label>
                     </button>
-                    <button className="btn btn-lg btn-circle">
+                    <button className="btn btn-md btn-circle">
                       <User2Icon className="size-6" />
                     </button>
                   </div>
