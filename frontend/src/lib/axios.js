@@ -29,6 +29,11 @@ export const checkUser = async()=>{
 
 //profile part
 
+export const getAvatars = async(data)=>{
+  const response = await api.post('/user/getavatar',data)
+  return response.data
+}
+
 export const updatePic = async(data)=>{
   const response = await api.put('/user/pic',data)
   return response.data

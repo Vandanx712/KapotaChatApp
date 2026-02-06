@@ -33,6 +33,7 @@ export const signup = asynchandller(async (req, res) => {
     email,
     password: hashedpassword,
     profilePic:genderImages[index],
+    gender:gender,
     bio:'Hello ladies & gentleman! I am using Kapota'
   });
 

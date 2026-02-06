@@ -1,32 +1,55 @@
 import React, { useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import {
-  Camera,
   Image,
   Mail,
+  Pen,
   User,
   User2Icon,
   UserPen,
   ViewIcon,
 } from "lucide-react";
 import PreviewImg from "../components/PreviewImg";
+import { getAvatars } from "../lib/axios";
+import toast from "react-hot-toast";
 
 function Profile() {
   const { authUser, isUpdateProfile, updateProfile } = useAuthStore();
   const [selectedImg, setSelectedImg] = useState(null);
   const [preview, setPreview] = useState(false);
+  const [avatars, setAvatars] = useState([])
+
+  const loadavatars = async () => {
+    if (avatars.length > 0) return;
+    try {
+      const resdata = await getAvatars({ gender: authUser.gender })
+      setAvatars(resdata.avatars)
+    } catch (error) {
+      console.log(error)
+    }
+  }
 
   const handleProfilePic = async (e) => {
     e.preventDefault();
     const file = e.target.files[0]
     const reader = new FileReader()
     reader.readAsDataURL(file)
-    reader.onload = async()=>{
+    reader.onload = async () => {
       const base64Image = reader.result
       setSelectedImg(base64Image)
-      await updateProfile({profilePic:base64Image})
+      await updateProfile({ profilePic: base64Image })
     }
   };
+
+  const handleProfileAvatar = async (avatar) => {
+    try {
+      await updateProfile({ picUrl: avatar })
+      setSelectedImg(avatar.url)
+    } catch (error) {
+      toast.error(error.response.data.message)
+      console.log(error)
+    }
+  }
   return (
     <div className="h-screen pt-20">
       {!preview && (
@@ -80,9 +103,27 @@ function Profile() {
                         />
                       </label>
                     </button>
-                    <button className="btn btn-md btn-circle">
-                      <User2Icon className="size-6" />
-                    </button>
+                    <div className="dropdown dropdown-end ">
+                      <button tabIndex={0} onClick={() => loadavatars()} role="button" className="btn btn-md btn-circle"><User2Icon className="size-6" /></button>
+                      <div tabIndex={0} className="dropdown-content rounded-box mt-5 bg-base-200 p-2 border border-primary space-y-5">
+                        <label className="text-sm font-medium text-muted-foreground px-1">Choose an avatar</label>
+                        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar px-1">
+                          {avatars.map((avatar) => (
+                            <button
+                              key={avatar.url}
+                              type="button"
+                              onClick={() => handleProfileAvatar(avatar)} 
+                              className={`flex-shrink-0 w-14 h-14 rounded-xl transition-all ${authUser.profilePic.url === avatar.url
+                                  ? "mt-1 ring-2 ring-primary ring-offset-2 ring-offset-card"
+                                  : "opacity-60 hover:opacity-100"
+                                }`}
+                            >
+                              <img src={avatar.url} alt="Avatar option" className="w-full h-full rounded-xl" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -99,8 +140,9 @@ function Profile() {
                   <User className="w-4 h-4" />
                   Full Name
                 </div>
-                <p className="px-4 py-2.5 bg-base-200 rounded-lg border">
+                <p className="px-4 flex justify-between py-2.5 bg-base-200 rounded-lg border">
                   {authUser?.fullname}
+                  <Pen className="size-5" />
                 </p>
               </div>
 
@@ -109,8 +151,9 @@ function Profile() {
                   <Mail className="w-4 h-4" />
                   Email Address
                 </div>
-                <p className="px-4 py-2.5 bg-base-200 rounded-lg border">
+                <p className="px-4 flex justify-between py-2.5 bg-base-200 rounded-lg border">
                   {authUser?.email}
+                  <Pen className="size-5" />
                 </p>
               </div>
             </div>

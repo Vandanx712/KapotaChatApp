@@ -62,7 +62,6 @@ export const useAuthStore = create((set) => ({
     set({isUpdateProfile:true})
     try {
       const resdata = await updatePic(data)
-      set({authUser:data.user})
       toast.success(resdata.message)
     } catch (error) {
       toast.error(error.response?.dats?.message)

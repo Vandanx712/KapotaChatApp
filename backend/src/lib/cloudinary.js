@@ -28,7 +28,10 @@ export const getAvatars = async (path) => {
 export const uploadChatPic = async(path,pic)=>{
   try {
      const uploadResponse = await cloudinary.uploader.upload(pic,{folder:path});
-     return uploadResponse
+     return {
+      key:uploadResponse.public_id,
+      url:uploadResponse.secure_url
+     }
   } catch (error) {
     console.log(`Error in uploadPic: ${error}`)
   }
