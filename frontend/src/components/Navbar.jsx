@@ -24,15 +24,15 @@ const Navbar = () => {
           <div className="flex items-center md:gap-9 gap-5">
             {authUser && (
               <>
-                <Link to={'/status'} className={`hover:text-base-200 transition-color tooltip tooltip-bottom`}data-tip='Status'>
+                <Link to={'/status'} className={`hover:text-secondary transition-color tooltip tooltip-bottom`}data-tip='Status'>
                   <CircleFadingPlusIcon className="size-5"/>
                 </Link>
-                <Link to={'/explore'} className={`hover:text-base-200 transition-color tooltip tooltip-bottom`}data-tip='Explore'>
+                <Link to={'/explore'} className={`hover:text-secondary transition-color tooltip tooltip-bottom`}data-tip='Explore'>
                   <Compass className="size-5" />
                 </Link>
                 <Link
                   to={"/setting"}
-                  className={`hover:text-base-200 transition-color tooltip tooltip-bottom`}data-tip='Setting'
+                  className={`hover:text-secondary transition-color tooltip tooltip-bottom`}data-tip='Setting'
                 >
                   <Settings className="size-5" />
                 </Link>

@@ -4,6 +4,7 @@ import { Message } from "../models/message.model.js";
 import { ApiError } from "../util/apierror.js";
 import { asynchandller } from "../util/asynchandller.js";
 import { StoragePath } from "../util/filepath.js";
+import { getReceiverSocketId, io} from '../lib/socket.js'
 
 export const getMessages = asynchandller(async (req, res) => {
   const { id } = req.params;
@@ -32,6 +33,9 @@ export const sendMessage = asynchandller(async (req, res) => {
   if (!text || !image) throw new ApiError(401, "Missings Field");
   if (!id) throw new ApiError(401, "Select Conversation");
 
+  const conversation = await Conversation.findById(id).lean()
+  if(!conversation) throw new ApiError(400,'Conversation not found')
+
   let messageimage;
 
   if (image) {
@@ -50,8 +54,12 @@ export const sendMessage = asynchandller(async (req, res) => {
     text:text,
     image:messageimage
   })
+  const oruser = conversation.participants.find((user)=>user.userId!==senderId)
 
-  // socket logic 
+  const receiversocketId = getReceiverSocketId(oruser.userId)
+  if(receiversocketId){
+    io.to(receiversocketId).emit('newmessage',newMessage)
+  }
 
   return res.status(200).json({
     success:true,
