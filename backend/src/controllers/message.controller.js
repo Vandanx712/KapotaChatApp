@@ -30,7 +30,6 @@ export const sendMessage = asynchandller(async (req, res) => {
   const { text, image } = req.body;
   const senderId = req.user._id;
 
-  if (!text || !image) throw new ApiError(401, "Missings Field");
   if (!id) throw new ApiError(401, "Select Conversation");
 
   const conversation = await Conversation.findById(id).lean()
@@ -54,7 +53,7 @@ export const sendMessage = asynchandller(async (req, res) => {
     text:text,
     image:messageimage
   })
-  const oruser = conversation.participants.find((user)=>user.userId!==senderId)
+  const oruser = conversation.participants.find((user)=>user.userId.toString()!==senderId.toString())
 
   const receiversocketId = getReceiverSocketId(oruser.userId)
   if(receiversocketId){

@@ -15,8 +15,8 @@ const ChatHeader = () => {
             <button className="btn" onClick={() => setSelectedConversation(null)}>
                 <ArrowLeft />
             </button>
-            <div className="size-10 rounded-full relative">
-              <img src={selectedConversation.profilePic.url || "/avatar.png"} alt={selectedUser.fullName} />
+            <div className="size-10 rounded-full ">
+              <img src={selectedConversation.profilePic.url || "/avatar.png"}/>
             </div>
           </div>
 

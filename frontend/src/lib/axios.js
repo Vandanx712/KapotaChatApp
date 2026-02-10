@@ -39,10 +39,22 @@ export const updatePic = async(data)=>{
   return response.data
 }
 
+// explore part
+
+export const getSurroundUsers = async()=>{
+  const response = await api.get('/conversation/getusers')
+  return response.data
+}
+
 //conversation part
 
 export const getConversations = async()=>{
   const response = await api.get('/conversation/')
+  return response.data
+}
+
+export const createConversation = async(data)=>{
+  const response = await api.post(`/conversation/${data}`)
   return response.data
 }
 

@@ -10,28 +10,32 @@ export const getConversation = asynchandller(async (req, res) => {
   const conversations = await Conversation.find({
     "participants.userId": { $eq: _id },
   })
-    .select("participants.userId groupname groupIcon lastMessage")
+    .select("participants groupname groupIcon lastMessage")
     .lean();
 
-  const filtered = conversations.map(async (con) => {
-    const otheruser = con.participants.find((par) => par.userId !== _id);
-    const [user, message] = await Promise.all([
-      User.findById(otheruser.userId).select("name profilePic").lean(),
-      con.lastMessage
-        ? Message.findById(con.lastMessage).select("content").lean()
-        : "",
-    ]);
+  const filtered = await Promise.all(
+    conversations.map(async (con) => {
+      const otheruser = con.participants.filter(
+        (par) => par.userId.toString() != _id.toString()
+      );
+      const [user, message] = await Promise.all([
+        User.findById(otheruser[0].userId).select(" fullname profilePic ").lean(),
+        con.lastMessage
+          ? Message.findById(con.lastMessage).select("content").lean()
+          : "",
+      ]);
 
-    return {
-      conversationId: con._id,
-      oruserId:user._id,
-      name: user.fullname,
-      profilePic: user.profilePic,
-      groupname : con.groupname,
-      groupIcon : con.groupIcon,
-      lasmessage: con.lastMessage ? message.content:'',
-    };
-  });
+      return {
+        conversationId: con._id,
+        oruserId: user._id,
+        name: user.fullname,
+        profilePic: user.profilePic,
+        groupname: con.groupname,
+        groupIcon: con.groupIcon,
+        lasmessage: con.lastMessage ? message.content : "",
+      };
+    }),
+  );
 
   return res.status(200).json({
     success: true,
@@ -40,24 +44,44 @@ export const getConversation = asynchandller(async (req, res) => {
   });
 });
 
-export const createConversation = asynchandller(async(req,res)=>{
-  const {oruserId} = req.params
-  const {_id} = req.user
+export const createConversation = asynchandller(async (req, res) => {
+  const { oruserId } = req.params;
+  const { _id } = req.user;
 
-  if(!oruserId) throw new ApiError(401,'Please select user to start new conversation')
+  if (!oruserId)
+    throw new ApiError(401, "Please select user to start new conversation");
 
-  const existed = await Conversation.findOne({"participants.userId":{$all:[oruserId,_id]}}).select('_id').lean()
-  if(existed) return res.status(400).json({
-    success:false,
-    message:'Conversation with this user is allready exist'
+  const existed = await Conversation.findOne({
+    "participants.userId": { $all: [oruserId, _id] },
   })
+    .select("_id")
+    .lean();
+  if (existed)
+    return res.status(400).json({
+      success: false,
+      message: "Conversation with this user is allready exist",
+    });
 
   await Conversation.create({
-    participants:[{userId:_id},{userId:oruserId}]
-  })
+    participants: [{ userId: _id }, { userId: oruserId }],
+  });
 
   return res.status(200).json({
-    success:true,
-    message:'New conversation create successfully'
-  })
-})
+    success: true,
+    message: "New conversation create successfully",
+  });
+});
+
+//get surrounding users
+export const getSurrUsers = asynchandller(async (req, res) => {
+  const { _id } = req.user;
+  const users = await User.find({ _id: { $ne: _id } })
+    .select("-password")
+    .lean();
+
+  return res.status(200).json({
+    success: true,
+    message: "Fetch all users successfully",
+    users,
+  });
+});

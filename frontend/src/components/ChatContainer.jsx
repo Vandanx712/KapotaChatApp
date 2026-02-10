@@ -14,6 +14,7 @@ function ChatContainer() {
   useEffect(() => {
     getMessage(selectedConversation.conversationId)
     onlineToMessage()
+    console.log(getMessage(selectedConversation.conversationId))
     return ()=>offlineToMessage
   }, [selectedConversation.conversationId, getMessage,onlineToMessage,offlineToMessage])
 
@@ -31,13 +32,13 @@ function ChatContainer() {
       <ChatHeader />
       <div className='flex-1 overflow-y-auto p-4 space-y-4'>
         {message.map((m) => (
-          <div key={m._id} className={`chat ${m.sender !== authUser._Id ? 'chat-end' : 'chat-start'}`} ref={messageEndRef}>
+          <div key={m._id} className={`chat ${m.sender == authUser._Id ? 'chat-end' : 'chat-start'}`} ref={messageEndRef}>
             <div className='chat-image avatar'>
               <div className='size-10 rounded-full border'>
                 <img src={m.sender === authUser._Id ? authUser.profilePic.url || '' : selectedConversation.profilePic.url || ''} />
               </div>
             </div>
-            <div className='chat-header mb-1'>
+            <div className='chat-footer mb-1'>
               <time className='text-sm opacity-50 ml-1'>
                 {formatMessageTime(m.createdAt)}
               </time>

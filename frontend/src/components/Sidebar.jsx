@@ -5,7 +5,7 @@ import { Users } from 'lucide-react'
 import { useAuthStore } from '../store/useAuthStore'
 
 function Sidebar() {
-    const { getConversation, conversations=[], setSelectedConversation, selectedConversation, isConversationLoading } = useChatStore()
+    const { getConversation, conversations, setSelectedConversation, selectedConversation, isConversationLoading } = useChatStore()
     const {onlineUsers} = useAuthStore()
 
     useEffect(() => {

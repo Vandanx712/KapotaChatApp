@@ -248,7 +248,7 @@ function Setting() {
               style={{ animationDelay: `${index * 0.05}s` }}
               onClick={() => handleItemClick(item.label)}
             >
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary flex items-center justify-center text-primary-content text-base md:text-xl flex-shrink-0">
+              <div className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center text-primary-content text-base md:text-xl flex-shrink-0">
                 {item.icon}
               </div>
               <div className="flex-1 min-w-0">
@@ -271,7 +271,7 @@ function Setting() {
           style={{ animationDelay: "0.4s" }}
           onClick={() => handleItemClick("Logout")}
         >
-          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-error/10 flex items-center justify-center text-error text-base md:text-xl flex-shrink-0">
+          <div className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center text-error text-base md:text-xl flex-shrink-0">
             <ArrowRight />
           </div>
           <div className="flex-1">
