@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import express from "express";
 import http from "http";
+import { updateMsgStatus } from "../controllers/message.controller.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -22,6 +23,30 @@ io.on("connection", (socket) => {
   // io.emit() is used to send events to all connected clients
 
   io.emit("getonlineusers", Object.keys(userSocketMap));
+
+  //message part
+  socket.on("istyping", ({ receiverId }) => {
+    const receiverSocketId = userSocketMap[receiverId];
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("istyping");
+    }
+  });
+
+  socket.on("StopTyping", ({ receiverId }) => {
+    const receiverSocketId = userSocketMap[receiverId];
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("StopTyping");
+    }
+  });
+
+  socket.on('msgseen',async({msgId,senderId})=>{
+    const receiverSocketId = userSocketMap[senderId]
+    if(receiverSocketId){
+      await updateMsgStatus(msgId,userId)
+      io.to(receiverSocketId).emit('msgseen',{msgId})
+    }
+  })
+
   socket.on("disconnect", () => {
     console.log("A user disconnected", socket.id);
     delete userSocketMap[userId];

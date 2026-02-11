@@ -4,7 +4,7 @@ import { Message } from "../models/message.model.js";
 import { ApiError } from "../util/apierror.js";
 import { asynchandller } from "../util/asynchandller.js";
 import { StoragePath } from "../util/filepath.js";
-import { getReceiverSocketId, io} from '../lib/socket.js'
+import { getReceiverSocketId, io } from "../lib/socket.js";
 
 export const getMessages = asynchandller(async (req, res) => {
   const { id } = req.params;
@@ -32,37 +32,49 @@ export const sendMessage = asynchandller(async (req, res) => {
 
   if (!id) throw new ApiError(401, "Select Conversation");
 
-  const conversation = await Conversation.findById(id).lean()
-  if(!conversation) throw new ApiError(400,'Conversation not found')
+  const conversation = await Conversation.findById(id).lean();
+  if (!conversation) throw new ApiError(400, "Conversation not found");
 
   let messageimage;
 
   if (image) {
-    const key = StoragePath({
+    const key = StoragePath("", {
       includeMainFolder: true,
       includeAvatarFolder: false,
       includeUserProfilePic: false,
       includeMessageFolder: true,
     });
-    messageimage = uploadChatPic(key,image)
+    messageimage = await uploadChatPic(key, image);
   }
 
   const newMessage = await Message.create({
-    conversationId:id,
-    sender:senderId,
-    text:text,
-    image:messageimage
-  })
-  const oruser = conversation.participants.find((user)=>user.userId.toString()!==senderId.toString())
+    conversationId: id,
+    sender: senderId,
+    text: text,
+    image: messageimage,
+  });
+  const oruser = conversation.participants.find(
+    (user) => user.userId.toString() !== senderId.toString(),
+  );
 
-  const receiversocketId = getReceiverSocketId(oruser.userId)
-  if(receiversocketId){
-    io.to(receiversocketId).emit('newmessage',newMessage)
+  const receiversocketId = getReceiverSocketId(oruser.userId);
+  if (receiversocketId) {
+    io.to(receiversocketId).emit("newmessage", newMessage);
   }
 
   return res.status(200).json({
-    success:true,
-    message:'Message create successfully',
-    newMessage
-  })
+    success: true,
+    message: "Message create successfully",
+    newMessage,
+  });
 });
+
+export const updateMsgStatus = async (id,userId) => {  try {
+    await Message.updateOne(
+      {
+        _id:id,
+      },
+      { seenBy:userId ,isSeen:true},
+    );
+  } catch (error) {console.log(error)}
+};

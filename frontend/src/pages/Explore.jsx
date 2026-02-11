@@ -20,7 +20,7 @@ function Explore() {
     navigate('/')
   }
   return (
-    <div className="h-screen w-full bg-base-100 mt-16">
+    <div className="h-screen w-full bg-base-100 pt-16">
       {/* DESKTOP + MOBILE WRAPPER */}
       <div className="h-full grid grid-cols-1 md:grid-cols-[360px_1fr]">
         <aside className="border-r border-base-300 flex flex-col">

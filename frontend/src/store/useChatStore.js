@@ -31,12 +31,22 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  getMessage: async(conversationId) => {
+  getMessage: async () => {
     set({ isMessageLoading: true });
-    const { selectedConversation} = get();
+    const { selectedConversation } = get();
+    const authUser = useAuthStore.getState().authUser;
     try {
-      const resdata = await getMessages(conversationId);
-      set({ messages: resdata.messages });
+      const resdata = await getMessages(selectedConversation.conversationId);
+      set({ message: resdata.messages });
+      resdata.messages.forEach(msg => {
+        if(msg.sender!==authUser._id && msg.isSeen == false){
+          const socket = useAuthStore.getState().socket;
+          socket.emit("msgseen",{
+            msgId:msg._id,
+            senderId:msg.sender
+          })
+        }
+      });
     } catch (error) {
       toast.error(error.response?.data.message);
     } finally {
@@ -71,6 +81,21 @@ export const useChatStore = create((set, get) => ({
   offlineToMessage: () => {
     const socket = useAuthStore.getState().socket;
     socket.off("newmessage");
+  },
+
+  setIsTyping: (selectedConversation) => {
+    const socket = useAuthStore.getState().socket;
+    socket.emit("istyping",{receiverId:selectedConversation.oruserId});
+  },
+
+  setStopTyping:(selectedConversation)=>{
+    const socket = useAuthStore.getState().socket;
+    socket.emit("StopTyping",{receiverId:selectedConversation.oruserId});
+  },
+
+  setMsgSeen:(msgId)=>{
+    const {message} = get()
+    set({message:message.map((msg)=>msg._id==msgId ? {...msg,isSeen:true}:msg)})
   },
 
   setSelectedConversation: (selectedConversation) =>

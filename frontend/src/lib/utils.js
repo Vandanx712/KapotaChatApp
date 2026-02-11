@@ -1,7 +1,17 @@
 export function formatMessageTime(data) {
-    return new Date(data).toLocaleDateString('en-Us', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-    })
+  const today = new Date();
+  const msgDate = new Date(data);
+  if (today.toDateString() == msgDate.toDateString()) {
+    return msgDate.toLocaleTimeString("en-uk", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } else {
+    return msgDate.toLocaleDateString("en-uk", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  }
 }

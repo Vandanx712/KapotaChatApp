@@ -11,10 +11,10 @@ const ChatHeader = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {/* Avatar */}
-          <div className="avatar">
-            <button className="btn" onClick={() => setSelectedConversation(null)}>
+            <button onClick={() => setSelectedConversation(null)}>
                 <ArrowLeft />
             </button>
+          <div className="avatar">
             <div className="size-10 rounded-full ">
               <img src={selectedConversation.profilePic.url || "/avatar.png"}/>
             </div>
