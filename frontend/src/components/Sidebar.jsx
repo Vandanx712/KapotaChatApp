@@ -63,7 +63,7 @@ function Sidebar() {
               ${selectedConversation?.conversationId === conversation.conversationId ? "bg-base-300 ring-1 ring-base-300" : ""}
             `}
           >
-            <div className="relative mx-auto lg:mx-0">
+            <div className="relative max-w-12 mx-auto lg:mx-0">
               <img
                 src={conversation.profilePic.url || "/avatar.png"}
                 className="size-12 object-cover rounded-full"
@@ -71,20 +71,23 @@ function Sidebar() {
               {onlineUsers.includes(conversation.oruserId) && (
                 <span
                   className="absolute bottom-0 right-0 size-3 bg-green-500 
-                  rounded-full ring-2 ring-zinc-900"
+                  rounded-full"
                 />
               )}
             </div>
 
             {/* User info - only visible on larger screens */}
-            <div className="hidden lg:block text-left min-w-0">
-              <div className="font-medium truncate">{conversation.name}</div>
-              <div className="text-sm text-zinc-400">
-                {onlineUsers.includes(conversation.oruserId) && !Typing
+            <div className="hidden lg:block text-left max-w-[200px] min-w-0">
+              <div className=" flex justify-between items-center">
+                <div className="font-medium  text-sm truncate">{conversation.name}</div>
+                <div className="rounded-full flex justify-center items-center bg-base-300 text-primary text-xs size-3">{conversation.unseenMsg}</div>
+              </div>
+              <div className="text-xs text-zinc-400 truncate">
+                {onlineUsers.includes(conversation.oruserId) &&!conversation.lasmessage && !Typing
                   ? "Online"
                   : Typing
                     ? "typing..."
-                    : "Offline"}
+                    : conversation.lasmessage ?? 'Offline'}
               </div>
             </div>
           </button>

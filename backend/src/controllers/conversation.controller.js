@@ -21,7 +21,7 @@ export const getConversation = asynchandller(async (req, res) => {
       const [user, message] = await Promise.all([
         User.findById(otheruser[0].userId).select(" fullname profilePic ").lean(),
         con.lastMessage
-          ? Message.findById(con.lastMessage).select("content").lean()
+          ? Message.find({conversationId:con._id,isSeen:false}).select("text").lean()
           : "",
       ]);
 
@@ -32,7 +32,8 @@ export const getConversation = asynchandller(async (req, res) => {
         profilePic: user.profilePic,
         groupname: con.groupname,
         groupIcon: con.groupIcon,
-        lasmessage: con.lastMessage ? message.content : "",
+        unseenMsg:message.length,
+        lasmessage: message[message.length - 1].text,
       };
     }),
   );

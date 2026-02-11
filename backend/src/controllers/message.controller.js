@@ -53,9 +53,13 @@ export const sendMessage = asynchandller(async (req, res) => {
     text: text,
     image: messageimage,
   });
+
+  const udconversation = await Conversation.findByIdAndUpdate(id,{lastMessage:newMessage._id},{new:true})
   const oruser = conversation.participants.find(
     (user) => user.userId.toString() !== senderId.toString(),
   );
+
+  
 
   const receiversocketId = getReceiverSocketId(oruser.userId);
   if (receiversocketId) {
