@@ -16,13 +16,18 @@ export const getConversation = asynchandller(async (req, res) => {
   const filtered = await Promise.all(
     conversations.map(async (con) => {
       const otheruser = con.participants.filter(
-        (par) => par.userId.toString() != _id.toString()
+        (par) => par.userId.toString() != _id.toString(),
       );
-      const [user, message] = await Promise.all([
-        User.findById(otheruser[0].userId).select(" fullname profilePic ").lean(),
-        con.lastMessage
-          ? Message.find({conversationId:con._id,isSeen:false}).select("text").lean()
-          : "",
+      const [user, message, unseen] = await Promise.all([
+        User.findById(otheruser[0].userId)
+          .select(" fullname profilePic ")
+          .lean(),
+        Message.find({ conversationId: con._id })
+          .sort({ createdAt: -1 })
+          .limit(1)
+          .select("sender text")
+          .lean(),
+        Message.countDocuments({ conversationId: con._id, isSeen: false }),
       ]);
 
       return {
@@ -32,8 +37,8 @@ export const getConversation = asynchandller(async (req, res) => {
         profilePic: user.profilePic,
         groupname: con.groupname,
         groupIcon: con.groupIcon,
-        unseenMsg:message.length,
-        lasmessage: message[message.length - 1].text,
+        unseenMsg: unseen,
+        lastmessage: message.length > 0 ? message[0] : '',
       };
     }),
   );

@@ -11,15 +11,17 @@ function Sidebar() {
     setSelectedConversation,
     selectedConversation,
     isConversationLoading,
+    setNmsgInCon,
   } = useChatStore();
-  const { onlineUsers, socket } = useAuthStore();
-  const [Typing,setTyping] = useState(false)
+  const { onlineUsers, socket, authUser } = useAuthStore();
+  const [Typing, setTyping] = useState(false);
 
   useEffect(() => {
     getConversation();
   }, [getConversation]);
 
   useEffect(() => {
+    socket.on("newmessage", (newMessage) => setNmsgInCon(newMessage));
     socket.on("istyping", () => setTyping(true));
     socket.on("StopTyping", () => setTyping(false));
     return () => {
@@ -78,16 +80,18 @@ function Sidebar() {
 
             {/* User info - only visible on larger screens */}
             <div className="hidden lg:block text-left max-w-[200px] min-w-0">
-              <div className=" flex justify-between items-center">
-                <div className="font-medium  text-sm truncate">{conversation.name}</div>
-                <div className="rounded-full flex justify-center items-center bg-base-300 text-primary text-xs size-3">{conversation.unseenMsg}</div>
+              <div className=" flex gap-28 items-center">
+                <div className="font-medium text-sm truncate">
+                  {conversation.name}
+                </div>
+                <div
+                  className={`rounded-full ${conversation.unseenMsg == 0 || conversation.lastmessage.sender == authUser._id ? "hidden" : "flex"} justify-center items-center bg-base-300 text-xs size-3`}
+                >
+                  {conversation.unseenMsg}
+                </div>
               </div>
               <div className="text-xs text-zinc-400 truncate">
-                {onlineUsers.includes(conversation.oruserId) &&!conversation.lasmessage && !Typing
-                  ? "Online"
-                  : Typing
-                    ? "typing..."
-                    : conversation.lasmessage ?? 'Offline'}
+                {Typing ? "typing..." : conversation?.lastmessage.text || ""}
               </div>
             </div>
           </button>

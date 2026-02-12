@@ -38,13 +38,13 @@ export const useChatStore = create((set, get) => ({
     try {
       const resdata = await getMessages(selectedConversation.conversationId);
       set({ message: resdata.messages });
-      resdata.messages.forEach(msg => {
-        if(msg.sender!==authUser._id && msg.isSeen == false){
+      resdata.messages.forEach((msg) => {
+        if (msg.sender !== authUser._id && msg.isSeen == false) {
           const socket = useAuthStore.getState().socket;
-          socket.emit("msgseen",{
-            msgId:msg._id,
-            senderId:msg.sender
-          })
+          socket.emit("msgseen", {
+            msgId: msg._id,
+            senderId: msg.sender,
+          });
         }
       });
     } catch (error) {
@@ -85,21 +85,59 @@ export const useChatStore = create((set, get) => ({
 
   setIsTyping: (selectedConversation) => {
     const socket = useAuthStore.getState().socket;
-    socket.emit("istyping",{receiverId:selectedConversation.oruserId});
+    socket.emit("istyping", { receiverId: selectedConversation.oruserId });
   },
 
-  setStopTyping:(selectedConversation)=>{
+  setStopTyping: (selectedConversation) => {
     const socket = useAuthStore.getState().socket;
-    socket.emit("StopTyping",{receiverId:selectedConversation.oruserId});
+    socket.emit("StopTyping", { receiverId: selectedConversation.oruserId });
   },
 
-  setMsgSeen:(msgId)=>{
-    const {message} = get()
-    set({message:message.map((msg)=>msg._id==msgId ? {...msg,isSeen:true}:msg)})
+  setMsgSeen: (msgId) => {
+    set((state) => ({
+      message: state.message.map((msg) =>
+        msg._id == msgId ? { ...msg, isSeen: true } : msg,
+      ),
+    }));
   },
 
-  setSelectedConversation: (selectedConversation) =>
-    set({ selectedConversation }),
+  setNmsgInCon: (newMessage) => {
+    const authUser = useAuthStore.getState().authUser;
+    set((state) => ({
+      conversations: state.conversations.map((con) => {
+        if (con.conversationId !== newMessage.conversationId) {
+          return con;
+        }
+
+        const isOwnMessage = newMessage.sender === authUser._id;
+        const isOpenConversation =
+          state.currentConversationId === newMessage.conversationId;
+
+        return {
+          ...con,
+          lastmessage: newMessage,
+          unseenMsg:
+            isOwnMessage || isOpenConversation ? 0 : (con.unseenMsg || 0) + 1,
+        };
+      }),
+    }));
+  },
+
+  setSelectedConversation: (selectedConversation) => {
+    const authUser = useAuthStore.getState().authUser;
+    set((state) => ({
+      selectedConversation,
+      conversations: state.conversations.map((con) =>
+        con.conversationId === selectedConversation.conversationId
+          ? { ...con, unseenMsg: 0 }
+          : con
+      ),
+    }));
+  },
+
+  setUnselectedConversation:(selectedConversation)=>{
+    set({selectedConversation})
+  },
 
   getSurroundingUsers: async () => {
     try {

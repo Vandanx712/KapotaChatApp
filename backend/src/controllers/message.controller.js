@@ -54,12 +54,19 @@ export const sendMessage = asynchandller(async (req, res) => {
     image: messageimage,
   });
 
-  const udconversation = await Conversation.findByIdAndUpdate(id,{lastMessage:newMessage._id},{new:true})
+  await Conversation.updateOne(
+    {_id:id},
+    { lastMessage: newMessage._id }
+  );
+  
   const oruser = conversation.participants.find(
     (user) => user.userId.toString() !== senderId.toString(),
   );
 
-  
+  const mysocketId = getReceiverSocketId(senderId);
+  if (mysocketId) {
+    io.to(mysocketId).emit("newmessage", newMessage);
+  }
 
   const receiversocketId = getReceiverSocketId(oruser.userId);
   if (receiversocketId) {
@@ -73,12 +80,15 @@ export const sendMessage = asynchandller(async (req, res) => {
   });
 });
 
-export const updateMsgStatus = async (id,userId) => {  try {
+export const updateMsgStatus = async (id, userId) => {
+  try {
     await Message.updateOne(
       {
-        _id:id,
+        _id: id,
       },
-      { seenBy:userId ,isSeen:true},
+      { seenBy: userId, isSeen: true },
     );
-  } catch (error) {console.log(error)}
+  } catch (error) {
+    console.log(error);
+  }
 };

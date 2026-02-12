@@ -3,7 +3,7 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 
 const ChatHeader = () => {
-  const { selectedConversation, setSelectedConversation } = useChatStore();
+  const { selectedConversation, setUnselectedConversation } = useChatStore();
   const { onlineUsers } = useAuthStore();
 
   return (
@@ -11,7 +11,7 @@ const ChatHeader = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {/* Avatar */}
-            <button onClick={() => setSelectedConversation(null)}>
+            <button onClick={() => setUnselectedConversation(null)}>
                 <ArrowLeft />
             </button>
           <div className="avatar">

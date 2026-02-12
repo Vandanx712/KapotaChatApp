@@ -6,6 +6,7 @@ import MessageSkeleton from "../components/skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
 import { formatMessageTime } from "../lib/utils";
 import { Check, CheckCheck } from "lucide-react";
+import PreviewImg from "./PreviewImg";
 
 function ChatContainer() {
   const {
@@ -20,6 +21,8 @@ function ChatContainer() {
   const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
   const [Typing, setTyping] = useState(false);
+  const [imageView,setImageView] = useState(false)
+  const [image,setImage] = useState('')
 
   useEffect(() => {
     getMessage();
@@ -61,6 +64,12 @@ function ChatContainer() {
         <MessageInput />
       </div>
     );
+
+  const handleImgview=(detail)=>{
+    setImageView(true)
+    setImage(detail)
+  }
+
   return (
     <div className="flex-1 flex flex-col overflow-auto">
       <ChatHeader />
@@ -92,6 +101,7 @@ function ChatContainer() {
             >
               {m.image && (
                 <img
+                  onClick={()=>handleImgview(m.image.url)}
                   src={m.image.url}
                   className="sm:max-w-[200px] rounded-md mb-2"
                 />
@@ -117,6 +127,7 @@ function ChatContainer() {
         <span className="loading loading-dots loading-md mt-5 ml-6"></span>
       )}
       <MessageInput />
+      {imageView && <PreviewImg detail={image} onclose={()=>{setImageView(false);setImage('')}}/>}
     </div>
   );
 }
