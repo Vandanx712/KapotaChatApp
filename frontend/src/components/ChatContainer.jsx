@@ -4,7 +4,6 @@ import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
 import MessageSkeleton from "../components/skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
-import PreviewImg from "./PreviewImg";
 import MessageItem from "./MessageItem";
 import { Virtuoso } from "react-virtuoso";
 
@@ -21,8 +20,6 @@ function ChatContainer() {
   const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
   const [Typing, setTyping] = useState(false);
-  const [imageView, setImageView] = useState(false);
-  const [image, setImage] = useState("");
 
   useEffect(() => {
     getMessage();
@@ -95,15 +92,6 @@ function ChatContainer() {
         <span className="loading loading-dots loading-md mt-5 ml-6"></span>
       )}
       <MessageInput />
-      {imageView && (
-        <PreviewImg
-          detail={image}
-          onclose={() => {
-            setImageView(false);
-            setImage("");
-          }}
-        />
-      )}
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import React, { memo } from "react";
 import { formatMessageTime } from "../lib/utils";
 import { Check, CheckCheck } from "lucide-react";
+import { PhotoProvider, PhotoView } from "react-photo-view";
+import "react-photo-view/dist/react-photo-view.css";
 
 const MessageItem = memo(
   ({ m, authUser, selectedConversation, onImageClick }) => {
@@ -25,12 +27,15 @@ const MessageItem = memo(
           className={`chat-bubble ${isSentByMe ? "chat-bubble-primary" : "chat-bubble-accent"} flex flex-col`}
         >
           {m.image && (
-            <img
-              onClick={() => onImageClick(m.image.url)}
-              src={m.image.url}
-              className="sm:max-w-[200px] rounded-md mb-2 cursor-pointer"
-              alt="attachment"
-            />
+            <PhotoProvider>
+              <PhotoView src={m.image.url}>
+                <img
+                  src={m.image.url}
+                  className="sm:max-w-[200px] rounded-md mb-2 cursor-pointer"
+                  alt="attachment"
+                />
+              </PhotoView>
+            </PhotoProvider>
           )}
           {m.text && <p>{m.text}</p>}
 

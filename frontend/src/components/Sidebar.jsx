@@ -3,6 +3,8 @@ import { useChatStore } from "../store/useChatStore";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton";
 import { Users } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
+import { PhotoProvider, PhotoView } from "react-photo-view";
+import "react-photo-view/dist/react-photo-view.css";
 
 function Sidebar() {
   const {
@@ -32,7 +34,9 @@ function Sidebar() {
 
   if (isConversationLoading) return <SidebarSkeleton />;
   return (
-    <aside className={`h-full w-full lg:w-72 border-r border-base-300 flex flex-col transition-all duration-200 ${selectedConversation ? "hidden lg:flex" : ""}`}>
+    <aside
+      className={`h-full w-full lg:w-72 border-r border-base-300 flex flex-col transition-all duration-200 ${selectedConversation ? "hidden lg:flex" : ""}`}
+    >
       <div className=" border-b border-base-300 w-full p-5">
         <div className="flex items-center gap-2">
           <Users className="size-6" />
@@ -59,10 +63,14 @@ function Sidebar() {
             `}
           >
             <div className="relative max-w-12 lg:mx-0">
-              <img
-                src={conversation.profilePic.url || "/avatar.png"}
-                className="size-12 object-cover rounded-full"
-              />
+              <PhotoProvider>
+                <PhotoView src={conversation.profilePic.url}>
+                  <img
+                    src={conversation.profilePic.url || "/avatar.png"}
+                    className="size-12 object-cover rounded-full"
+                  />
+                </PhotoView>
+              </PhotoProvider>
               {onlineUsers.includes(conversation.oruserId) && (
                 <span
                   className="absolute bottom-0 right-0 size-3 bg-green-500 

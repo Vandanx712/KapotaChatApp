@@ -7,8 +7,9 @@ function MessageInput() {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
-  const typingRef = useRef(null)
-  const { selectedConversation, sendMessage, setIsTyping,setStopTyping } = useChatStore();
+  const typingRef = useRef(null);
+  const { selectedConversation, sendMessage, setIsTyping, setStopTyping } =
+    useChatStore();
 
   const handleimagechange = (e) => {
     const file = e.target.files[0];
@@ -66,27 +67,46 @@ function MessageInput() {
 
       <form onSubmit={handlesendmessage} className="flex items-center gap-2">
         <div className="flex-1 flex gap-2">
-          <input
-            type="text"
-            className="w-full input input-bordered rounded-lg input-sm sm:input-md"
-            placeholder="Type a message..."
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              if(e.target.value.trim().length>0)setIsTyping(selectedConversation);
-              clearTimeout(typingRef.current)
-              typingRef.current = setTimeout(()=>{
-                setStopTyping(selectedConversation)
-              },800)
-            }}
-          />
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            ref={fileInputRef}
-            onChange={handleimagechange}
-          />
+          <label className="input w-full input-bordered flex items-center gap-5 input-md">
+            <input
+              type="text"
+              className="w-full rounded-lg "
+              placeholder="Type a message..."
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value);
+                if (e.target.value.trim().length > 0)
+                  setIsTyping(selectedConversation);
+                clearTimeout(typingRef.current);
+                typingRef.current = setTimeout(() => {
+                  setStopTyping(selectedConversation);
+                }, 800);
+              }}
+            />
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={handleimagechange}
+            />
+            <button
+              type="button"
+              className={`flex sm:hidden
+                     ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Image size={20} />
+            </button>
+            <button
+            type="button"
+            className={`flex sm:hidden
+                     ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <SmileIcon size={20} />
+          </button>
+          </label>
           <button
             type="button"
             className={`hidden sm:flex btn btn-circle
