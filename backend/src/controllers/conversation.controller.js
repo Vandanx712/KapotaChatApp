@@ -11,6 +11,7 @@ export const getConversation = asynchandller(async (req, res) => {
     "participants.userId": { $eq: _id },
   })
     .select("participants groupname groupIcon lastMessage")
+    .populate('lastMessage','text sender')
     .lean();
 
   const filtered = await Promise.all(
@@ -18,14 +19,9 @@ export const getConversation = asynchandller(async (req, res) => {
       const otheruser = con.participants.filter(
         (par) => par.userId.toString() != _id.toString(),
       );
-      const [user, message, unseen] = await Promise.all([
+      const [user, unseen] = await Promise.all([
         User.findById(otheruser[0].userId)
           .select(" fullname profilePic ")
-          .lean(),
-        Message.find({ conversationId: con._id })
-          .sort({ createdAt: -1 })
-          .limit(1)
-          .select("sender text")
           .lean(),
         Message.countDocuments({ conversationId: con._id, isSeen: false }),
       ]);
@@ -38,7 +34,8 @@ export const getConversation = asynchandller(async (req, res) => {
         groupname: con.groupname,
         groupIcon: con.groupIcon,
         unseenMsg: unseen,
-        lastmessage: message.length > 0 ? message[0] : '',
+        bgImage: con.bgImage,
+        lastmessage: con.lastMessage ? con.lastMessage : '',
       };
     }),
   );
@@ -82,12 +79,25 @@ export const createConversation = asynchandller(async (req, res) => {
 export const getSurrUsers = asynchandller(async (req, res) => {
   const { _id } = req.user;
   const users = await User.find({ _id: { $ne: _id } })
-    .select("-password")
+    .select("-password -email")
     .lean();
+
+  const conversations = await Conversation.find({
+    "participants.userId": { $eq: _id },
+  })
+    .select("participants")
+    .lean();
+
+  const filtered = users.filter((user) => {
+    const exist = conversations.find((con) =>
+      con.participants.find(  (par) => par.userId.toString() === user._id.toString()),
+    );
+    return !exist;
+  });
 
   return res.status(200).json({
     success: true,
     message: "Fetch all users successfully",
-    users,
+    filtered,
   });
 });

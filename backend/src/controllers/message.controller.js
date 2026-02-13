@@ -11,16 +11,11 @@ export const getMessages = asynchandller(async (req, res) => {
 
   if (!id) throw new ApiError(401, "Select Conversation");
 
-  const [conversationDetail, messages] = await Promise.all([
-    Conversation.findById(id).lean(),
-    Message.find({ conversationId: id }).lean(),
-  ]);
+  const messages = await Message.find({ conversationId: id }).lean()
 
   return res.status(200).json({
     success: true,
     message: "Fetch all messages successfully",
-    conversationId: conversationDetail._id,
-    bgImage: conversationDetail.bgImage,
     messages,
   });
 });

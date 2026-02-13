@@ -61,7 +61,9 @@ export const useChatStore = create((set, get) => ({
         selectedConversation.conversationId,
         messageData,
       );
-      set({ message: [...message, resdata.newMessage] });
+      set((state) => ({
+        message: [...state.message, resdata.newMessage],
+      }));
     } catch (error) {
       toast.error(error.response.data.message);
     }
@@ -74,7 +76,9 @@ export const useChatStore = create((set, get) => ({
     const socket = useAuthStore.getState().socket;
     socket.on("newmessage", (newmsg) => {
       if (newmsg.sender !== selectedConversation.oruserId) return;
-      set({ message: [...get().message, newmsg] });
+      set((state) => ({
+        message: [...state.message, newmsg],
+      }));
     });
   },
 
@@ -142,7 +146,7 @@ export const useChatStore = create((set, get) => ({
   getSurroundingUsers: async () => {
     try {
       const resdata = await getSurroundUsers();
-      set({ users: resdata.users });
+      set({ users: resdata.filtered });
     } catch (error) {
       console.log(error);
     }

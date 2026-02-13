@@ -32,25 +32,18 @@ function Sidebar() {
 
   if (isConversationLoading) return <SidebarSkeleton />;
   return (
-    <aside className="h-full w-20 lg:w-72 border-r border-base-300 flex flex-col transition-all duration-200">
+    <aside className={`h-full w-full lg:w-72 border-r border-base-300 flex flex-col transition-all duration-200 ${selectedConversation ? "hidden lg:flex" : ""}`}>
       <div className=" border-b border-base-300 w-full p-5">
         <div className="flex items-center gap-2">
           <Users className="size-6" />
-          <span className="font-medium hidden lg:block">Contacts</span>
+          <span className="font-medium block">Contacts</span>
         </div>
-        <div className="mt-3 hidden lg:flex items-center gap-2">
-          <label className="cursor-pointer flex items-center gap-2">
-            <input
-              type="checkbox"
-              // checked={showOnlineOnly}
-              // onChange={(e) => setShowOnlineOnly(e.target.checked)}
-              className="checkbox checkbox-sm"
-            />
-            <span className="text-sm">Show online only</span>
-          </label>
-          <span className="text-xs text-zinc-500">
-            ({onlineUsers.length - 1} online)
-          </span>
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Search Conversation"
+            className="input input-bordered w-full mt-3"
+          />
         </div>
       </div>
 
@@ -65,7 +58,7 @@ function Sidebar() {
               ${selectedConversation?.conversationId === conversation.conversationId ? "bg-base-300 ring-1 ring-base-300" : ""}
             `}
           >
-            <div className="relative max-w-12 mx-auto lg:mx-0">
+            <div className="relative max-w-12 lg:mx-0">
               <img
                 src={conversation.profilePic.url || "/avatar.png"}
                 className="size-12 object-cover rounded-full"
@@ -79,7 +72,7 @@ function Sidebar() {
             </div>
 
             {/* User info - only visible on larger screens */}
-            <div className="hidden lg:block text-left max-w-[200px] min-w-0">
+            <div className="block text-left max-w-[200px] min-w-0">
               <div className=" flex gap-28 items-center">
                 <div className="font-medium text-sm truncate">
                   {conversation.name}
