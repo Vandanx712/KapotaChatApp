@@ -24,7 +24,6 @@ export const getAvatars = async (path) => {
   }
 };
 
-
 export const uploadChatPic = async(path,pic)=>{
   try {
      const uploadResponse = await cloudinary.uploader.upload(pic,{folder:path});
@@ -34,5 +33,13 @@ export const uploadChatPic = async(path,pic)=>{
      }
   } catch (error) {
     console.log(`Error in uploadPic: ${error}`)
+  }
+}
+
+export const deleteImage = async(oldkey)=>{
+  try {
+    await cloudinary.uploader.destroy(oldkey)
+  } catch (error) {
+    console.log(`Error in deletePic: ${error}`)
   }
 }

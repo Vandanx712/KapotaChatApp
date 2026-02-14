@@ -6,6 +6,7 @@ import {
   getMessages,
   getSurroundUsers,
   sendMessage,
+  updateConBgimage,
 } from "../lib/axios";
 import { useAuthStore } from "./useAuthStore";
 
@@ -161,4 +162,23 @@ export const useChatStore = create((set, get) => ({
       toast.error(error.response.data.message);
     }
   },
+
+  setConBgimage:async(data)=>{
+    const socket = useAuthStore.getState().socket
+    const {selectedConversation} = get()
+    try {
+      const resdata = await updateConBgimage(data)
+      toast.success(resdata.message)
+      socket.emit('changeBgimage',{conversation:selectedConversation,bgImage:resdata.bgimage})
+    } catch (error) {
+      toast.error(error.response.data.message)
+      console.log(error)
+    }
+  },
+
+  conBgimage:(id,image)=>{
+    set((state)=>({
+      selectedConversation:(state.selectedConversation.conversationId==id) && {...state.selectedConversation,bgImage:image}
+    }))
+  }
 }));

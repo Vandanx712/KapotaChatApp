@@ -3,8 +3,23 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 
 const ChatHeader = () => {
-  const { selectedConversation, setUnselectedConversation } = useChatStore();
+  const { selectedConversation, setUnselectedConversation,setConBgimage } = useChatStore();
   const { onlineUsers } = useAuthStore();
+
+  const handleimagechange = (e) => {
+    e.preventDefault();
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const base64Image = reader.result;
+      setConBgimage({
+        id: selectedConversation.conversationId,
+        oldkey: selectedConversation?.bgImage.key,
+        image: base64Image,
+      });
+    };
+  };
 
   return (
     <div className="p-2.5 border-b border-base-300">
@@ -46,19 +61,17 @@ const ChatHeader = () => {
                 <a>Item 1</a>
               </li>
               <li>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  // ref={fileInputRef}
-                  // onChange={handleimagechange}
-                />
-                <button
-                  type="button"
-                  className={`flex`}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  Chat Theme
+                <button>
+                  <label htmlFor="avatar-upload">
+                    Chat Theme
+                    <input
+                      type="file"
+                      id="avatar-upload"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleimagechange}
+                    />
+                  </label>
                 </button>
               </li>
             </ul>

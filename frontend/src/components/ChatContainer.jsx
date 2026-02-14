@@ -16,6 +16,7 @@ function ChatContainer() {
     onlineToMessage,
     offlineToMessage,
     setMsgSeen,
+    conBgimage
   } = useChatStore();
   const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
@@ -42,6 +43,9 @@ function ChatContainer() {
     socket.on("msgseen", ({ msgId }) => {
       setMsgSeen(msgId);
     });
+    socket.on('changeBgimage',({conversationId,bgImage})=>{
+      conBgimage(conversationId,bgImage)
+    })
     socket.on("istyping", () => setTyping(true));
     socket.on("StopTyping", () => setTyping(false));
     onlineToMessage();
@@ -70,7 +74,7 @@ function ChatContainer() {
   return (
     <div className="flex-1 flex flex-col overflow-auto">
       <ChatHeader />
-      <div className="flex-1 ">
+      <div className={`flex-1 ${selectedConversation.bgImage ? `bg-[url(${selectedConversation.bgImage})] object-cover`:'' }`}>
         <Virtuoso
           style={{ height: "100%" }}
           data={message}

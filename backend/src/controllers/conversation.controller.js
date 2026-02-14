@@ -3,6 +3,8 @@ import { Conversation } from "../models/conversation.model.js";
 import { User } from "../models/user.model.js";
 import { Message } from "../models/message.model.js";
 import { ApiError } from "../util/apierror.js";
+import { deleteImage, uploadChatPic } from "../lib/cloudinary.js";
+import { StoragePath } from "../util/filepath.js";
 
 export const getConversation = asynchandller(async (req, res) => {
   const { _id } = req.user;
@@ -11,7 +13,7 @@ export const getConversation = asynchandller(async (req, res) => {
     "participants.userId": { $eq: _id },
   })
     .select("participants groupname groupIcon lastMessage")
-    .populate('lastMessage','text sender')
+    .populate("lastMessage", "text sender")
     .lean();
 
   const filtered = await Promise.all(
@@ -35,7 +37,7 @@ export const getConversation = asynchandller(async (req, res) => {
         groupIcon: con.groupIcon,
         unseenMsg: unseen,
         bgImage: con.bgImage,
-        lastmessage: con.lastMessage ? con.lastMessage : '',
+        lastmessage: con.lastMessage ? con.lastMessage : "",
       };
     }),
   );
@@ -75,6 +77,34 @@ export const createConversation = asynchandller(async (req, res) => {
   });
 });
 
+export const setBgimage = asynchandller(async (req, res) => {
+  const { id, oldkey, image } = req.body;
+
+  const conversation = await Conversation.findById(id).select("_id").lean();
+  if (!conversation) throw new ApiError(400, "Conversation not found");
+
+  if (oldkey) {
+    await deleteImage(oldkey);
+  }
+
+  const path = StoragePath("", {
+    includeMainFolder: true,
+    includeAvatarFolder: false,
+    includeUserProfilePic: false,
+    includeConversation: true,
+    includeMessageFolder: false,
+  });
+
+  const bgimage = await uploadChatPic(path,image)
+
+  await Conversation.updateOne({_id:conversation._id},{bgImage:bgimage})
+  return res.status(200).json({
+    success:true,
+    message:'Update Chat theme successfully',
+    bgimage
+  })
+});
+
 //get surrounding users
 export const getSurrUsers = asynchandller(async (req, res) => {
   const { _id } = req.user;
@@ -90,7 +120,9 @@ export const getSurrUsers = asynchandller(async (req, res) => {
 
   const filtered = users.filter((user) => {
     const exist = conversations.find((con) =>
-      con.participants.find(  (par) => par.userId.toString() === user._id.toString()),
+      con.participants.find(
+        (par) => par.userId.toString() === user._id.toString(),
+      ),
     );
     return !exist;
   });

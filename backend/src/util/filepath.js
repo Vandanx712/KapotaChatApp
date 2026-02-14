@@ -5,6 +5,7 @@ export const StoragePath = (gender, options = {}) => {
     includeMainFolder = true,
     includeAvatarFolder = true,
     includeUserProfilePic = false,
+    includeConversation = false,
     includeMessageFolder = false
   } = options;
 
@@ -13,6 +14,7 @@ export const StoragePath = (gender, options = {}) => {
     includeAvatarFolder ? "avatars" : null,
     includeAvatarFolder && gender ? gender : null,
     includeUserProfilePic ? "profilepic" : null,
+    includeConversation ? 'conversationPic' : nulll,
     includeMessageFolder ? 'messagepic' : null
   ].filter(Boolean);
   

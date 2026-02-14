@@ -47,6 +47,17 @@ io.on("connection", (socket) => {
     }
   })
 
+  socket.on('changeBgimage',({conversation,bgImage})=>{
+    const receiverSocketId = userSocketMap[conversation.oruserId]
+    const mysocketId = userSocketMap[userId]
+    if(receiverSocketId){
+      io.to(receiverSocketId).emit('changeBgimage',{conversationId:conversation.conversationId,bgImage})
+    }
+    if(mysocketId){
+      io.to(mysocketId).emit('changeBgimage',{conversationId:conversation.conversationId,bgImage})
+    }
+  })
+
   socket.on("disconnect", () => {
     console.log("A user disconnected", socket.id);
     delete userSocketMap[userId];
