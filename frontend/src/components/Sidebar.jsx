@@ -14,6 +14,7 @@ function Sidebar() {
     selectedConversation,
     isConversationLoading,
     setNmsgInCon,
+    setUpdatedMessage
   } = useChatStore();
   const { onlineUsers, socket, authUser } = useAuthStore();
   const [Typing, setTyping] = useState(false);
@@ -26,6 +27,7 @@ function Sidebar() {
     socket.on("newmessage", (newMessage) => setNmsgInCon(newMessage));
     socket.on("istyping", () => setTyping(true));
     socket.on("StopTyping", () => setTyping(false));
+    socket.on('reacted',(msg)=>setUpdatedMessage(msg))
     return () => {
       socket.off("istyping");
       socket.off("StopTyping");

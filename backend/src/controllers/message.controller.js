@@ -11,7 +11,7 @@ export const getMessages = asynchandller(async (req, res) => {
 
   if (!id) throw new ApiError(401, "Select Conversation");
 
-  const messages = await Message.find({ conversationId: id }).lean()
+  const messages = await Message.find({ conversationId: id }).lean();
 
   return res.status(200).json({
     success: true,
@@ -49,11 +49,8 @@ export const sendMessage = asynchandller(async (req, res) => {
     image: messageimage,
   });
 
-  await Conversation.updateOne(
-    {_id:id},
-    { lastMessage: newMessage._id }
-  );
-  
+  await Conversation.updateOne({ _id: id }, { lastMessage: newMessage._id });
+
   const oruser = conversation.participants.find(
     (user) => user.userId.toString() !== senderId.toString(),
   );
@@ -87,3 +84,55 @@ export const updateMsgStatus = async (id, userId) => {
     console.log(error);
   }
 };
+
+export const updateMessage = asynchandller(async (req, res) => {
+  const { conversationId, text, emoji } = req.body;
+  const { id } = req.params;
+  const { _id } = req.user;
+
+  if (!conversationId || !text || !emoji)
+    throw new ApiError(401, "Missing field");
+
+  const conversation = await Conversation.findById(conversationId)
+    .select("_id participants")
+    .lean();
+  if (!conversation) throw new ApiError(400, "Conversation not found");
+
+  let message = {}
+  if(emoji){
+    message = await Message.findOneAndUpdate(
+      { conversationId: conversation._id, _id: id },
+      { reacted: emoji },
+      { new: true },
+    );
+  }
+  else{
+     message = await Message.findOneAndUpdate(
+      { conversationId: conversation._id, _id: id },
+      { text: text },
+      { new: true },
+    );
+  }
+  if (!message) throw new ApiError(401, "Message not found");
+
+  const oruser = conversation.participants.find(
+    (user) => user.userId.toString() !== senderId.toString(),
+  );
+
+
+  const msg = {...message,userId:_id}
+  const mysocketId = getReceiverSocketId(_id);
+  if (mysocketId) {
+    io.to(mysocketId).emit("reacted", msg);
+  }
+
+  const receiversocketId = getReceiverSocketId(oruser.userId);
+  if (receiversocketId) {
+    io.to(receiversocketId).emit("reacted", msg);
+  }
+
+  return res.status(200).json({
+    success:true,
+    message:'Upadte message successfully'
+  })
+});

@@ -79,3 +79,7 @@ export const sendMessage = async(id,data)=>{
   const response = await api.post(`/message/${id}`,data)
   return response.data
 }
+
+export const updateMessage = async(id,data)=>{
+  await api.put(`/message/${id}`,data)
+}

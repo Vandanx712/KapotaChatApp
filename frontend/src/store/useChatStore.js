@@ -7,6 +7,7 @@ import {
   getSurroundUsers,
   sendMessage,
   updateConBgimage,
+  updateMessage,
 } from "../lib/axios";
 import { useAuthStore } from "./useAuthStore";
 
@@ -129,19 +130,18 @@ export const useChatStore = create((set, get) => ({
   },
 
   setSelectedConversation: (selectedConversation) => {
-    const authUser = useAuthStore.getState().authUser;
     set((state) => ({
       selectedConversation,
       conversations: state.conversations.map((con) =>
         con.conversationId === selectedConversation.conversationId
           ? { ...con, unseenMsg: 0 }
-          : con
+          : con,
       ),
     }));
   },
 
-  setUnselectedConversation:(selectedConversation)=>{
-    set({selectedConversation})
+  setUnselectedConversation: (selectedConversation) => {
+    set({ selectedConversation });
   },
 
   getSurroundingUsers: async () => {
@@ -163,22 +163,53 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  setConBgimage:async(data)=>{
-    const socket = useAuthStore.getState().socket
-    const {selectedConversation} = get()
+  setConBgimage: async (data) => {
+    const socket = useAuthStore.getState().socket;
+    const { selectedConversation } = get();
     try {
-      const resdata = await updateConBgimage(data)
-      toast.success(resdata.message)
-      socket.emit('changeBgimage',{conversation:selectedConversation,bgImage:resdata.bgimage})
+      const resdata = await updateConBgimage(data);
+      toast.success(resdata.message);
+      socket.emit("changeBgimage", {
+        conversation: selectedConversation,
+        bgImage: resdata.bgimage,
+      });
     } catch (error) {
-      toast.error(error.response.data.message)
-      console.log(error)
+      toast.error(error.response.data.message);
+      console.log(error);
     }
   },
 
-  conBgimage:(id,image)=>{
-    set((state)=>({
-      selectedConversation:(state.selectedConversation.conversationId==id) && {...state.selectedConversation,bgImage:image}
-    }))
-  }
+  conBgimage: (id, image) => {
+    set((state) => ({
+      selectedConversation: state.selectedConversation.conversationId == id && {
+        ...state.selectedConversation,
+        bgImage: image,
+      },
+    }));
+  },
+
+  messageUpdate: async (id, data) => {
+    try {
+      await updateMessage(id, data);
+    } catch (error) {
+      toast.error(error);
+      console.log(error);
+    }
+  },
+
+  setUpdatedMessage: (message) => {
+    const authUser = useAuthStore.getState().authUser;
+    set((state) => ({
+      conversations: state.conversations.map((con) => {
+        return {
+          ...con,
+          lastmessage: message.reacted
+            ? authUser._id == message.userId
+              ? `You reacted ${message?.reacted} to '${message.text}'`
+              : `${con.name} reacted ${message.reacted} to '${message.text}'`
+            : message.text,
+        };
+      }),
+    }));
+  },
 }));

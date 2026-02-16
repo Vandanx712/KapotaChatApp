@@ -9,15 +9,19 @@ import {
 import { PhotoProvider, PhotoView } from "react-photo-view";
 import "react-photo-view/dist/react-photo-view.css";
 import EmojiPicker from "emoji-picker-react";
+import { useChatStore } from "../store/useChatStore";
 
 const MessageItem = memo(
-  ({ m, authUser, selectedConversation, onImageClick }) => {
+  ({ m, authUser, selectedConversation }) => {
     const isSentByMe = m.sender === authUser._id;
+    const { messageUpdate } = useChatStore();
     const [showPicker, setShowPicker] = useState(false);
-    const [attach, setAttach] = useState("");
 
-    const onEmojiClick = (emojiData) => {
-      setAttach(emojiData.emoji);
+    const onEmojiClick = (id, emojiData) => {
+      messageUpdate(id, {
+        conversationId: selectedConversation.conversationId,
+        emoji: emojiData.emoji,
+      });
     };
     return (
       <div className={`ml-1 chat ${isSentByMe ? "chat-end" : "chat-start"}`}>
@@ -80,7 +84,7 @@ const MessageItem = memo(
                   <div className="shadow-2xl border border-base-300 rounded-xl overflow-hidden scale-95 md:scale-100 animate-in zoom-in duration-200">
                     <EmojiPicker
                       onEmojiClick={(emojiData) => {
-                        onEmojiClick(emojiData);
+                        onEmojiClick(m._id, emojiData);
                         setShowPicker(false);
                       }}
                       theme="dark"
@@ -95,7 +99,9 @@ const MessageItem = memo(
             )}
           </div>
         </div>
-        <div className="chat-footer">{attach}</div>
+        <div className={`${m?.reacted ? "chat-footer" : "hidden"}`}>
+          {m.reacted}
+        </div>
       </div>
     );
   },

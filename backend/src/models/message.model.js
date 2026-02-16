@@ -25,6 +25,9 @@ const messageSchema = new mongoose.Schema(
     },
     image:{
       type:mongoose.Schema.Types.Mixed
+    },
+    reacted:{
+      type:String
     }
   },
   { timestamps: true },
