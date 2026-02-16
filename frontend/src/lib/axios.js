@@ -39,6 +39,11 @@ export const updatePic = async(data)=>{
   return response.data
 }
 
+export const updateProfile = async(data)=>{
+  const response = await api.put('/user/updateprofile',data)
+  return response.data
+}
+
 // explore part
 
 export const getSurroundUsers = async()=>{

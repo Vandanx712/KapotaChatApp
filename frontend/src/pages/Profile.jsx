@@ -15,9 +15,13 @@ import { PhotoProvider, PhotoView } from "react-photo-view";
 import "react-photo-view/dist/react-photo-view.css";
 
 function Profile() {
-  const { authUser, isUpdateProfile, updateProfile } = useAuthStore();
+  const { authUser, isUpdateProfile, updateProfile,updateDetails } = useAuthStore();
   const [selectedImg, setSelectedImg] = useState(null);
   const [avatars, setAvatars] = useState([]);
+  const [profile, setProfile] = useState({
+    fullname: authUser.fullname,
+    bio: authUser.bio,
+  });
 
   const loadavatars = async () => {
     if (avatars.length > 0) return;
@@ -50,6 +54,14 @@ function Profile() {
       console.log(error);
     }
   };
+
+  const handleProfileUpdate = () => {
+    if(profile.fullname === authUser.fullname && profile.bio === authUser.bio) return;
+    if(!profile.fullname || !profile.bio) return toast.error("Fullname and Bio are required")
+    if(profile.fullname.length > 20) return toast.error("Fullname must be less than 20 characters")
+    if(profile.bio.length > 40) return toast.error("Bio must be less than 40 characters")
+    updateDetails(profile)
+  }
   return (
     <div className="h-screen pt-20">
       <div className="max-w-2xl mx-auto p-4 py-8">
@@ -159,8 +171,39 @@ function Profile() {
                 Full Name
               </div>
               <p className="px-4 flex justify-between py-2.5 bg-base-200 rounded-lg border">
-                {authUser?.fullname}
-                <Pen className="size-5" />
+                <input
+                  type="text"
+                  onChange={(e) => {
+                    const ischanging = e.target.value !== authUser.fullname;
+                    if (ischanging) {
+                      setProfile({ fullname: e.target.value });
+                    }
+                  }}
+                  className="w-full bg-inherit focus:outline-none"
+                  value={profile.fullname}
+                />
+                <Pen onClick={handleProfileUpdate} className="size-5 cursor-pointer" />
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-sm text-zinc-400 flex items-center gap-2">
+                <UserPen className="w-4 h-4" />
+                Bio
+              </div>
+              <p className="px-4 flex justify-between py-2.5 bg-base-200 rounded-lg border">
+                <input
+                  type="text"
+                  onChange={(e) =>{
+                    const ischanging = e.target.value !== authUser.bio;
+                    if(ischanging){
+                      setProfile({...profile, bio: e.target.value})
+                    }
+                  }}
+                  className="w-full bg-inherit focus:outline-none"
+                  value={profile.bio}
+                />
+                <Pen onClick={handleProfileUpdate} className="size-5 cursor-pointer" />
               </p>
             </div>
 
@@ -169,9 +212,8 @@ function Profile() {
                 <Mail className="w-4 h-4" />
                 Email Address
               </div>
-              <p className="px-4 flex justify-between py-2.5 bg-base-200 rounded-lg border">
+              <p className="px-4 py-2.5 bg-base-200 rounded-lg border">
                 {authUser?.email}
-                <Pen className="size-5" />
               </p>
             </div>
           </div>

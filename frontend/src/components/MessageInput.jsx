@@ -2,10 +2,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { Image, Send, SmileIcon, X } from "lucide-react";
 import toast from "react-hot-toast";
+import EmojiPicker from "emoji-picker-react";
 
 function MessageInput() {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
+  const [showPicker, setShowPicker] = useState(false);
   const fileInputRef = useRef(null);
   const typingRef = useRef(null);
   const { selectedConversation, sendMessage, setIsTyping, setStopTyping } =
@@ -43,8 +45,12 @@ function MessageInput() {
     }
   };
 
+  const onEmojiClick = (emojiData) => {
+    setText((prev) => prev + emojiData.emoji);
+  };
+
   return (
-    <div className="p-4 w-full">
+    <div className="p-4 w-full relative">
       {imagePreview && (
         <div className="mb-3 flex items-center gap-2">
           <div className="relative">
@@ -63,6 +69,32 @@ function MessageInput() {
             </button>
           </div>
         </div>
+      )}
+
+      {showPicker && (
+        <>
+          {/* Dark Backdrop: Closes picker when clicking anywhere else */}
+          <div
+            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
+            onClick={() => setShowPicker(false)}
+          />
+
+          {/* Centered Picker Container */}
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
+            <div className="shadow-2xl border border-base-300 rounded-xl overflow-hidden scale-95 md:scale-100 animate-in zoom-in duration-200">
+              <EmojiPicker
+                onEmojiClick={(emojiData, event) => {
+                  onEmojiClick(emojiData, event);
+                }}
+                theme="dark"
+                autoFocusSearch={true}
+                width={window.innerWidth < 450 ? 280 : 350}
+                height={400}
+                lazyLoadEmojis={true}
+              />
+            </div>
+          </div>
+        </>
       )}
 
       <form onSubmit={handlesendmessage} className="flex items-center gap-2">
@@ -99,13 +131,13 @@ function MessageInput() {
               <Image size={20} />
             </button>
             <button
-            type="button"
-            className={`flex sm:hidden
+              type="button"
+              className={`flex sm:hidden
                      ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <SmileIcon size={20} />
-          </button>
+              onClick={() => setShowPicker((prev) => !prev)}
+            >
+              <SmileIcon size={20} />
+            </button>
           </label>
           <button
             type="button"
@@ -119,7 +151,7 @@ function MessageInput() {
             type="button"
             className={`hidden sm:flex btn btn-circle
                      ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => setShowPicker((prev) => !prev)}
           >
             <SmileIcon size={20} />
           </button>

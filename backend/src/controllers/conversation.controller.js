@@ -12,7 +12,7 @@ export const getConversation = asynchandller(async (req, res) => {
   const conversations = await Conversation.find({
     "participants.userId": { $eq: _id },
   })
-    .select("participants groupname groupIcon lastMessage")
+    .select("participants groupname bgImage groupIcon lastMessage")
     .populate("lastMessage", "text sender")
     .lean();
 

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { checkUser, loginuser, logout, register, updatePic } from "../lib/axios";
+import { checkUser, loginuser, logout, register, updatePic, updateProfile } from "../lib/axios";
 import toast from "react-hot-toast";
 import {io} from 'socket.io-client'
 
@@ -77,6 +77,20 @@ export const useAuthStore = create((set, get) => ({
     }finally{
       set({isUpdateProfile:false})
     }
+  },
+
+  updateDetails:async(data)=>{
+    set({isUpdateProfile:true}) 
+    try {
+      const resdata = await updateProfile(data)
+      set({authUser:resdata.user})
+      toast.success(resdata.message)
+    } catch (error) {
+      toast.error(error.response?.dats?.message)
+      console.log(error)
+    }finally{
+      set({isUpdateProfile:false})
+    } 
   },
 
   connectSocket:()=>{

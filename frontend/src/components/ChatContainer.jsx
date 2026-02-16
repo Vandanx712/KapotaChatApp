@@ -16,7 +16,7 @@ function ChatContainer() {
     onlineToMessage,
     offlineToMessage,
     setMsgSeen,
-    conBgimage
+    conBgimage,
   } = useChatStore();
   const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
@@ -43,9 +43,9 @@ function ChatContainer() {
     socket.on("msgseen", ({ msgId }) => {
       setMsgSeen(msgId);
     });
-    socket.on('changeBgimage',({conversationId,bgImage})=>{
-      conBgimage(conversationId,bgImage)
-    })
+    socket.on("changeBgimage", ({ conversationId, bgImage }) => {
+      conBgimage(conversationId, bgImage);
+    });
     socket.on("istyping", () => setTyping(true));
     socket.on("StopTyping", () => setTyping(false));
     onlineToMessage();
@@ -74,12 +74,17 @@ function ChatContainer() {
   return (
     <div className="flex-1 flex flex-col overflow-auto">
       <ChatHeader />
-      <div className={`flex-1 ${selectedConversation.bgImage ? `bg-[url(${selectedConversation.bgImage})] object-cover`:'' }`}>
+      <div
+        style={{
+          backgroundImage: `url('${selectedConversation.bgImage?.url}')`,
+        }}
+        className={`flex-1 ${selectedConversation.bgImage ? `bg-cover bg-center bg-no-repeat` : ""}`}
+      >
         <Virtuoso
           style={{ height: "100%" }}
           data={message}
           initialTopMostItemIndex={message?.length - 1}
-          followOutput="auto" 
+          followOutput="auto"
           itemContent={(index, m) => (
             <MessageItem
               key={m._id}

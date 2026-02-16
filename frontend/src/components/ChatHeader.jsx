@@ -1,4 +1,4 @@
-import { ArrowLeft, EllipsisVerticalIcon, VideoIcon, X } from "lucide-react";
+import { ArrowLeft, EllipsisVerticalIcon, ImageIcon, VideoIcon, X } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 
@@ -15,7 +15,7 @@ const ChatHeader = () => {
       const base64Image = reader.result;
       setConBgimage({
         id: selectedConversation.conversationId,
-        oldkey: selectedConversation?.bgImage.key,
+        oldkey: selectedConversation.bgImage?.key || '',
         image: base64Image,
       });
     };
@@ -55,22 +55,22 @@ const ChatHeader = () => {
             </button>
             <ul
               tabIndex={0}
-              className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow"
+              className="dropdown-content menu mt-5 bg-base-100 rounded-box z-[1] w-52 p-2 shadow"
             >
               <li>
                 <a>Item 1</a>
               </li>
               <li>
-                <button>
-                  <label htmlFor="avatar-upload">
-                    Chat Theme
+                <button onClick={()=>alert('Must be dimension 800x600 or above')}>
+                  <label className="flex gap-2 items-center" htmlFor="avatar-upload">
+                    <ImageIcon className="size-4"/> Chat Theme
                     <input
                       type="file"
                       id="avatar-upload"
                       className="hidden"
                       accept="image/*"
                       onChange={handleimagechange}
-                    />
+                    /> 
                   </label>
                 </button>
               </li>
