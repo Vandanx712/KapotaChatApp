@@ -17,7 +17,7 @@ function Sidebar() {
     setUpdatedMessage
   } = useChatStore();
   const { onlineUsers, socket, authUser } = useAuthStore();
-  const [Typing, setTyping] = useState(false);
+  const [Typing, setTyping] = useState('');
 
   useEffect(() => {
     getConversation();
@@ -25,12 +25,14 @@ function Sidebar() {
 
   useEffect(() => {
     socket.on("newmessage", (newMessage) => setNmsgInCon(newMessage));
-    socket.on("istyping", () => setTyping(true));
-    socket.on("StopTyping", () => setTyping(false));
+    socket.on("istyping", (userId) => setTyping(userId));
+    socket.on("StopTyping", (userId) => setTyping(userId == Typing ? '' : Typing));
     socket.on('reacted',(msg)=>setUpdatedMessage(msg))
     return () => {
       socket.off("istyping");
       socket.off("StopTyping");
+      socket.off("newmessage");
+      socket.off('reacted');
     };
   }, [socket]);
 
@@ -94,7 +96,7 @@ function Sidebar() {
                 </div>
               </div>
               <div className="text-xs text-zinc-400 truncate">
-                {Typing ? "typing..." : conversation?.lastmessage.text || ""}
+                {Typing==conversation.oruserId ? "typing..." : conversation?.lastmessage.text || ""}
               </div>
             </div>
           </button>

@@ -201,15 +201,30 @@ export const useChatStore = create((set, get) => ({
     const authUser = useAuthStore.getState().authUser;
     set((state) => ({
       conversations: state.conversations.map((con) => {
+        if (con.conversationId !== message.conversationId) {
+          return con;
+        }
         return {
           ...con,
-          lastmessage: message.reacted
-            ? authUser._id == message.userId
-              ? `You reacted ${message?.reacted} to '${message.text}'`
-              : `${con.name} reacted ${message.reacted} to '${message.text}'`
-            : message.text,
+          lastmessage: {
+            ...con.lastmessage,
+            text: message.reacted
+              ? authUser._id == message.userId
+                ? `You reacted ${message?.reacted} to '${message.text}'`
+                : `${con.name} reacted ${message.reacted} to '${message.text}'`
+              : message.text,
+          },
         };
       }),
+    }));
+    console.log(get().conversations, "updated con");
+  },
+
+  setReactedMsg: (message) => {
+    set((state) => ({
+      message: state.message.map((msg) =>
+        msg._id === message._id ? { ...msg, reacted: message.reacted } : msg,
+      ),
     }));
   },
 }));

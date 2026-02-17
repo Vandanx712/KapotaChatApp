@@ -46,8 +46,8 @@ function ChatContainer() {
     socket.on("changeBgimage", ({ conversationId, bgImage }) => {
       conBgimage(conversationId, bgImage);
     });
-    socket.on("istyping", () => setTyping(true));
-    socket.on("StopTyping", () => setTyping(false));
+    socket.on("istyping", (userId) => setTyping(userId));
+    socket.on("StopTyping", (userId) => setTyping(userId == Typing ? '' : Typing));
     onlineToMessage();
     return () => {
       offlineToMessage();
@@ -82,7 +82,7 @@ function ChatContainer() {
       >
         <Virtuoso
           style={{ height: "100%" }}
-          data={message}
+          data={[...message, ...(Typing === selectedConversation.oruserId ? [{ _id: "typing" }] : [])]}
           initialTopMostItemIndex={message?.length - 1}
           followOutput="auto"
           itemContent={(index, m) => (
@@ -97,9 +97,9 @@ function ChatContainer() {
         />
         <div ref={messageEndRef} />
       </div>
-      {Typing && (
+      {/* {Typing == selectedConversation.oruserId && (
         <span className="loading loading-dots loading-md mt-5 ml-6"></span>
-      )}
+      )} */}
       <MessageInput />
     </div>
   );

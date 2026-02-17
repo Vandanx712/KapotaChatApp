@@ -81,5 +81,5 @@ export const sendMessage = async(id,data)=>{
 }
 
 export const updateMessage = async(id,data)=>{
-  await api.put(`/message/${id}`,data)
+  await api.put(`/message/update/${id}`,data)
 }

@@ -90,7 +90,7 @@ export const updateMessage = asynchandller(async (req, res) => {
   const { id } = req.params;
   const { _id } = req.user;
 
-  if (!conversationId || !text || !emoji)
+  if (!conversationId || (!text && !emoji))
     throw new ApiError(401, "Missing field");
 
   const conversation = await Conversation.findById(conversationId)
@@ -116,11 +116,12 @@ export const updateMessage = asynchandller(async (req, res) => {
   if (!message) throw new ApiError(401, "Message not found");
 
   const oruser = conversation.participants.find(
-    (user) => user.userId.toString() !== senderId.toString(),
+    (user) => user.userId.toString() !== _id.toString(),
   );
 
 
-  const msg = {...message,userId:_id}
+  const msg = {...message._doc,userId:_id}
+  console.log(msg, "updated msg in controller");
   const mysocketId = getReceiverSocketId(_id);
   if (mysocketId) {
     io.to(mysocketId).emit("reacted", msg);
