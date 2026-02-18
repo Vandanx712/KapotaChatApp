@@ -118,7 +118,7 @@ export const useChatStore = create((set, get) => ({
 
         const isOwnMessage = newMessage.sender === authUser._id;
         const isOpenConversation =
-          state.currentConversationId === newMessage.conversationId;
+          state.selectedConversation.conversationId === newMessage.conversationId;
 
         return {
           ...con,
@@ -241,6 +241,7 @@ export const useChatStore = create((set, get) => ({
 
   setDeletedMessage: (message) => {
     const authUser = useAuthStore.getState().authUser;
+    console.log(message)
     set((state) => {
       if (message.deletedForEveryone) {
         return {
@@ -276,6 +277,7 @@ export const useChatStore = create((set, get) => ({
           return {
             ...con,
             lastmessage: message,
+            unseen:0
           };
         } else return con;
       }),

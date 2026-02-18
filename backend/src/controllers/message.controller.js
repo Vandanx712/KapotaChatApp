@@ -152,13 +152,23 @@ export const deleteMessage = asynchandller(async (req, res) => {
   }).lean();
   if (!msg) throw new ApiError(400, "Message not found");
 
+  const oruser = conversation.participants.find(
+    (user) => user.userId.toString() !== _id.toString(),
+  );
+
   let message;
   if (deleteType === "deleteForMe") {
-    message = await Message.findOneAndUpdate(
-      { conversationId: conversation._id, _id: id },
-      { $addToSet: { deletedFor: _id } },
-      { new: true },
-    );
+    const isDelete = msg.deletedFor.find((user)=>user.toString()==oruser.userId.toString())
+    if (isDelete) {
+      await Message.deleteOne({ _id: msg._id});
+      return;
+    } else {
+      message = await Message.findOneAndUpdate(
+        { conversationId: conversation._id, _id: id },
+        { $addToSet: { deletedFor: _id } },
+        { new: true },
+      );
+    }
   } else {
     message = await Message.findOneAndUpdate(
       { conversationId: conversation._id, _id: id },
@@ -176,21 +186,19 @@ export const deleteMessage = asynchandller(async (req, res) => {
         { lastMessage: message._id },
       );
     }
-    msg.image && await deleteImage(msg.image?.key);
+    msg.image && (await deleteImage(msg.image?.key));
   }
 
-  const oruser = conversation.participants.find(
-    (user) => user.userId.toString() !== _id.toString(),
-  );
+  if (message) {
+    const mysocketId = getReceiverSocketId(_id);
+    if (mysocketId) {
+      io.to(mysocketId).emit("delete", message);
+    }
 
-  const mysocketId = getReceiverSocketId(_id);
-  if (mysocketId) {
-    io.to(mysocketId).emit("delete", msg);
-  }
-
-  const receiversocketId = getReceiverSocketId(oruser.userId);
-  if (receiversocketId) {
-    io.to(receiversocketId).emit("delete", msg);
+    const receiversocketId = getReceiverSocketId(oruser.userId);
+    if (receiversocketId) {
+      io.to(receiversocketId).emit("delete", message);
+    }
   }
 
   return res.status(200).json({
