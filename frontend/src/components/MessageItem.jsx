@@ -1,10 +1,13 @@
-import React, { memo, useEffect, useState } from "react";
+import React, { memo, useEffect, useRef, useState } from "react";
 import { formatMessageTime } from "../lib/utils";
 import {
   Check,
   CheckCheck,
+  Edit2,
   EllipsisVerticalIcon,
   SmileIcon,
+  Trash2Icon,
+  X,
 } from "lucide-react";
 import { PhotoProvider, PhotoView } from "react-photo-view";
 import "react-photo-view/dist/react-photo-view.css";
@@ -13,16 +16,40 @@ import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
 
 const MessageItem = memo(({ m, authUser, selectedConversation }) => {
-  const isSentByMe = m.sender === authUser._id;
+  const isSentByMe = m?.sender === authUser._id;
   const { messageUpdate } = useChatStore();
   const [showPicker, setShowPicker] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [editedText, setEditedText] = useState(m?.text);
   const { socket } = useAuthStore();
-  const { setReactedMsg } = useChatStore();
+  const { setReactedMsg,messageDelete } = useChatStore();
+  const [openUp, setOpenUp] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const handleOpen = () => {
+    const rect = dropdownRef.current.getBoundingClientRect();
+    const spaceAbove = rect.top;
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    if (spaceBelow < 150 && spaceAbove > 150) {
+      setOpenUp(true);
+    } else {
+      setOpenUp(false);
+    }
+  };
+
+  const now = new Date().getTime();
+  const createdAt = new Date(m?.createdAt).getTime();
+  const TEN_MIN = 10 * 60 * 1000;
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  const updatefor = now <= createdAt + TEN_MIN;
+  const deletefor = now <= createdAt + ONE_DAY;
 
   useEffect(() => {
     socket.on("reacted", (msg) => {
       setReactedMsg(msg);
-    })
+    });
   }, [socket]);
 
   const onEmojiClick = (id, emojiData) => {
@@ -32,8 +59,34 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
       emoji: emojiData.emoji,
     });
   };
+
+  const handleSaveEdit = () => {
+    messageUpdate(m._id, {
+      conversationId: selectedConversation.conversationId,
+      text: editedText.trim(),
+      emoji: "",
+    });
+    m.text = editedText.trim();
+    setEditing(false);
+  };
+
+  const handledeleteForMe = () => {
+    messageDelete(m._id, {
+      conversationId: selectedConversation.conversationId,
+      deleteType: "deleteForMe",
+    });
+    setDeleting(false);
+  };
+
+  const handleDeleteEeveryone = () => {
+    messageDelete(m._id, {
+      conversationId: selectedConversation.conversationId,
+      deleteType: "deleteForEveryone",
+    });
+    setDeleting(false);
+  }
   return (
-    <div className={`ml-1 chat ${isSentByMe ? "chat-end" : "chat-start"}`}>
+    <div className={`ml-1 chat ${isSentByMe ? "chat-end" : "chat-start"} ${m?.deletedFor?.includes(authUser._id) ? "hidden" : ""}`}>
       <div className="chat-image hidden md:avatar">
         <div className="size-10 rounded-full border">
           <img
@@ -48,7 +101,7 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
       </div>
 
       <div
-        className={`group relative chat-bubble ${isSentByMe ? "chat-bubble-primary" : "chat-bubble-accent"} ${m._id === "typing"?'hidden':""} flex flex-col`}
+        className={`group relative chat-bubble ${isSentByMe ? "chat-bubble-primary" : "chat-bubble-accent"} ${m._id === "typing" ? "hidden" : ""} flex flex-col`}
       >
         {m.image && (
           <PhotoProvider>
@@ -73,9 +126,41 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
             ))}
         </time>
         <div
-          className={`group-hover:flex flex-col hidden absolute ${isSentByMe ? "-left-6 pr-10" : "-right-6 pl-10"} top-1 gap-2 items-center`}
+          className={`hidden flex-col ${m?.deletedForEveryone ? "hidden":'group-hover:flex'} absolute ${isSentByMe ? "-left-6 pr-10" : "-right-6 pl-10"} top-1 gap-2 items-center`}
         >
-          <EllipsisVerticalIcon className="size-5 cursor-pointer" />
+          <div
+            ref={dropdownRef}
+            className={`dropdown ${
+              isSentByMe ? "dropdown-start mr-2" : "ml-2 dropdown-end"
+            } ${openUp ? "dropdown-top" : "dropdown-bottom"}`}
+          >
+            <button onClick={handleOpen}>
+              <EllipsisVerticalIcon className="size-5 cursor-pointer" />
+            </button>
+            <ul
+              tabIndex={0}
+              className="dropdown-content menu bg-base-100 rounded-box z-[1] min-w-44 p-2 shadow"
+            >
+              <li
+                className={`${m.sender == authUser._id && m.isSeen == false && updatefor ? "" : "hidden"}`}
+              >
+                <button
+                  onClick={() => setEditing((pre) => !pre)}
+                  className="flex text-sm items-center gap-3"
+                >
+                  <Edit2 className="size-4" /> Edit Message
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => setDeleting((pre) => !pre)}
+                  className="flex text-sm items-center gap-3"
+                >
+                  <Trash2Icon className="size-4" /> Delete Message
+                </button>
+              </li>
+            </ul>
+          </div>
           <SmileIcon
             onClick={(e) => {
               e.stopPropagation();
@@ -111,9 +196,83 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
       <div className={`${m?.reacted ? "chat-footer" : "hidden"}`}>
         {m.reacted}
       </div>
-      <div className={`${m._id === "typing" ? "chat-bubble chat-bubble-accent" : "hidden" }`}>
-          <span className="loading loading-dots loading-md"></span>
+      <div
+        className={`${m._id === "typing" ? "chat-bubble chat-bubble-accent" : "hidden"}`}
+      >
+        <span className="loading loading-dots loading-md"></span>
       </div>
+      {editing && (
+        <>
+          <div className="fixed inset-0 z-[60]">
+            <div className="fixed min-w-[300px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] shadow-2xl bg-base-100/80 md:p-5 p-3 rounded-xl overflow-hidden">
+              <div className="flex flex-col space-y-5">
+                <div className="flex gap-2 items-center">
+                  <X
+                    className="size-6 cursor-pointer"
+                    onClick={() => {
+                      setEditing((prv) => !prv);
+                      setEditedText(m.text);
+                    }}
+                  />
+                  <h2 className="text-lg font-medium">Edit Message</h2>
+                </div>
+                <div className="chat-bubble chat-bubble-primary">
+                  {editedText}
+                </div>
+                <div className="md:p-5 p-1 flex gap-5">
+                  <input
+                    value={editedText}
+                    onChange={(e) => setEditedText(e.target.value)}
+                    className="input input-bordered w-full "
+                    rows={2}
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveEdit}
+                    disabled={editedText.trim() === m.text}
+                    className="btn btn-circle"
+                  >
+                    <Check className="size-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+      {deleting && (
+        <>
+          <div className="fixed inset-0 z-[60]">
+            <div className="fixed min-w-[300px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] shadow-2xl bg-base-100/80 md:p-5 p-3 rounded-xl overflow-hidden">
+              <div className="flex flex-col space-y-5">
+                <div className="flex gap-2 items-center">
+                  <X
+                    className="size-6 cursor-pointer"
+                    onClick={() => {
+                      setDeleting((prv) => !prv);
+                    }}
+                  />
+                  <h2 className="text-lg font-medium">Delete Message?</h2>
+                </div>
+                <div className="md:p-5 p-1 flex flex-col gap-3 items-end">
+                  <button
+                    onClick={handleDeleteEeveryone}
+                    className={`${deletefor && m.sender==authUser._id ? "" : "hidden"} btn cursor-pointer rounded-2xl text-error`}
+                  >
+                    Delete for everyone
+                  </button>
+                  <button
+                    onClick={handledeleteForMe}
+                    className="btn cursor-pointer rounded-2xl text-error"
+                  >
+                    Delete for me
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 });

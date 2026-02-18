@@ -76,7 +76,7 @@ function Profile() {
           <div className="flex flex-col items-center gap-4">
             <div className="relative">
               <img
-                src={selectedImg || authUser.profilePic.url}
+                src={selectedImg || authUser?.profilePic.url}
                 alt="Profile"
                 className="size-32 rounded-full object-cover border-4 "
               />

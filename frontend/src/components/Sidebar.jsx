@@ -14,7 +14,8 @@ function Sidebar() {
     selectedConversation,
     isConversationLoading,
     setNmsgInCon,
-    setUpdatedMessage
+    setUpdatedMessage,
+    setDeletedMessageForSlider
   } = useChatStore();
   const { onlineUsers, socket, authUser } = useAuthStore();
   const [Typing, setTyping] = useState('');
@@ -27,12 +28,14 @@ function Sidebar() {
     socket.on("newmessage", (newMessage) => setNmsgInCon(newMessage));
     socket.on("istyping", (userId) => setTyping(userId));
     socket.on("StopTyping", (userId) => setTyping(userId == Typing ? '' : Typing));
-    socket.on('reacted',(msg)=>setUpdatedMessage(msg))
+    socket.on('reacted',(msg)=>setUpdatedMessage(msg));
+    socket.on('delete',(msg)=>setDeletedMessageForSlider(msg));
     return () => {
       socket.off("istyping");
       socket.off("StopTyping");
       socket.off("newmessage");
       socket.off('reacted');
+      socket.off('delete');
     };
   }, [socket]);
 

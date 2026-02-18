@@ -2,6 +2,7 @@ import { create } from "zustand";
 import toast from "react-hot-toast";
 import {
   createConversation,
+  deleteMessage,
   getConversations,
   getMessages,
   getSurroundUsers,
@@ -208,11 +209,12 @@ export const useChatStore = create((set, get) => ({
           ...con,
           lastmessage: {
             ...con.lastmessage,
-            text: message.reacted
-              ? authUser._id == message.userId
-                ? `You reacted ${message?.reacted} to '${message.text}'`
-                : `${con.name} reacted ${message.reacted} to '${message.text}'`
-              : message.text,
+            text:
+              message.reacted !== con.lastmessage.reacted
+                ? authUser._id == message.userId
+                  ? `You reacted ${message?.reacted} to '${message.text}'`
+                  : `${con.name} reacted ${message.reacted} to '${message.text}'`
+                : message.text,
           },
         };
       }),
@@ -225,6 +227,58 @@ export const useChatStore = create((set, get) => ({
       message: state.message.map((msg) =>
         msg._id === message._id ? { ...msg, reacted: message.reacted } : msg,
       ),
+    }));
+  },
+
+  messageDelete: async (id, data) => {
+    try {
+      await deleteMessage(id, data);
+    } catch (error) {
+      toast.error(error.response?.data.message);
+      console.log(error);
+    }
+  },
+
+  setDeletedMessage: (message) => {
+    const authUser = useAuthStore.getState().authUser;
+    set((state) => {
+      if (message.deletedForEveryone) {
+        return {
+          message: state.message.map((msg) =>
+            msg?._id === message?._id &&
+            !message.deletedFor.includes(authUser._id)
+              ? {
+                  ...msg,
+                  text: message.text,
+                  reacted: message.reacted,
+                  image: message.image,
+                }
+              : msg,
+          ),
+        };
+      }
+      if (message.deletedFor.includes(authUser._id)) {
+        return {
+          message: state.message.filter((msg) => msg?._id !== message?._id),
+        };
+      }
+      return state;
+    });
+  },
+
+  setDeletedMessageForSlider: (message) => {
+    set((state) => ({
+      conversations: state.conversations.map((con) => {
+        if (
+          con?.lastmessage._id === message._id &&
+          message.deletedForEveryone
+        ) {
+          return {
+            ...con,
+            lastmessage: message,
+          };
+        } else return con;
+      }),
     }));
   },
 }));

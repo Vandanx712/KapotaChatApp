@@ -17,6 +17,7 @@ function ChatContainer() {
     offlineToMessage,
     setMsgSeen,
     conBgimage,
+    setDeletedMessage
   } = useChatStore();
   const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
@@ -48,12 +49,15 @@ function ChatContainer() {
     });
     socket.on("istyping", (userId) => setTyping(userId));
     socket.on("StopTyping", (userId) => setTyping(userId == Typing ? '' : Typing));
+    socket.on('delete',(msg)=>setDeletedMessage(msg))
     onlineToMessage();
     return () => {
       offlineToMessage();
       socket.off("msgseen");
       socket.off("istyping");
       socket.off("StopTyping");
+      socket.off("changeBgimage");
+      socket.off('delete');
     };
   }, [socket]);
 
@@ -87,7 +91,7 @@ function ChatContainer() {
           followOutput="auto"
           itemContent={(index, m) => (
             <MessageItem
-              key={m._id}
+              key={m?._id}
               m={m}
               authUser={authUser}
               selectedConversation={selectedConversation}

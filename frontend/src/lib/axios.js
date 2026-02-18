@@ -83,3 +83,7 @@ export const sendMessage = async(id,data)=>{
 export const updateMessage = async(id,data)=>{
   await api.put(`/message/update/${id}`,data)
 }
+
+export const deleteMessage = async(id,data)=>{
+  await api.put(`/message/delete/${id}`,data)
+}

@@ -16,19 +16,28 @@ const messageSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
-    isSeen:{
-      type:Boolean,
-      default:false
+    isSeen: {
+      type: Boolean,
+      default: false,
     },
     text: {
       type: String,
     },
-    image:{
-      type:mongoose.Schema.Types.Mixed
+    image: {
+      type: mongoose.Schema.Types.Mixed,
     },
-    reacted:{
-      type:String
-    }
+    reacted: {
+      type: String,
+    },
+    deletedFor: {
+      type: [mongoose.Schema.Types.ObjectId],
+      ref: "User",
+      default: [],
+    },
+    deletedForEveryone: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true },
 );

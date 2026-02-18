@@ -1,4 +1,4 @@
-import { uploadChatPic } from "../lib/cloudinary.js";
+import { deleteImage, uploadChatPic } from "../lib/cloudinary.js";
 import { Conversation } from "../models/conversation.model.js";
 import { Message } from "../models/message.model.js";
 import { ApiError } from "../util/apierror.js";
@@ -98,17 +98,16 @@ export const updateMessage = asynchandller(async (req, res) => {
     .lean();
   if (!conversation) throw new ApiError(400, "Conversation not found");
 
-  let message = {}
-  if(emoji){
+  let message = {};
+  if (emoji) {
     message = await Message.findOneAndUpdate(
       { conversationId: conversation._id, _id: id },
       { reacted: emoji },
       { new: true },
     );
-  }
-  else{
-     message = await Message.findOneAndUpdate(
-      { conversationId: conversation._id, _id: id },
+  } else {
+    message = await Message.findOneAndUpdate(
+      { conversationId: conversation._id, _id: id, isSeen: false },
       { text: text },
       { new: true },
     );
@@ -119,9 +118,7 @@ export const updateMessage = asynchandller(async (req, res) => {
     (user) => user.userId.toString() !== _id.toString(),
   );
 
-
-  const msg = {...message._doc,userId:_id}
-  console.log(msg, "updated msg in controller");
+  const msg = { ...message._doc, userId: _id };
   const mysocketId = getReceiverSocketId(_id);
   if (mysocketId) {
     io.to(mysocketId).emit("reacted", msg);
@@ -133,7 +130,71 @@ export const updateMessage = asynchandller(async (req, res) => {
   }
 
   return res.status(200).json({
-    success:true,
-    message:'Upadte message successfully'
-  })
+    success: true,
+    message: "Upadte message successfully",
+  });
+});
+
+export const deleteMessage = asynchandller(async (req, res) => {
+  const { id } = req.params;
+  const { conversationId, deleteType } = req.body;
+  const { _id } = req.user;
+
+  if (!conversationId || !deleteType) throw new ApiError(401, "Missing field");
+  const conversation = await Conversation.findById(conversationId)
+    .select("_id participants lastMessage")
+    .lean();
+  if (!conversation) throw new ApiError(400, "Conversation not found");
+
+  const msg = await Message.findOne({
+    conversationId: conversation._id,
+    _id: id,
+  }).lean();
+  if (!msg) throw new ApiError(400, "Message not found");
+
+  let message;
+  if (deleteType === "deleteForMe") {
+    message = await Message.findOneAndUpdate(
+      { conversationId: conversation._id, _id: id },
+      { $addToSet: { deletedFor: _id } },
+      { new: true },
+    );
+  } else {
+    message = await Message.findOneAndUpdate(
+      { conversationId: conversation._id, _id: id },
+      {
+        deletedForEveryone: true,
+        text: "🚫 This message was deleted",
+        reacted: "",
+        image: null,
+      },
+      { new: true },
+    );
+    if (conversation.lastMessage.toString() === id) {
+      await Conversation.updateOne(
+        { _id: conversation._id },
+        { lastMessage: message._id },
+      );
+    }
+    msg.image && await deleteImage(msg.image?.key);
+  }
+
+  const oruser = conversation.participants.find(
+    (user) => user.userId.toString() !== _id.toString(),
+  );
+
+  const mysocketId = getReceiverSocketId(_id);
+  if (mysocketId) {
+    io.to(mysocketId).emit("delete", msg);
+  }
+
+  const receiversocketId = getReceiverSocketId(oruser.userId);
+  if (receiversocketId) {
+    io.to(receiversocketId).emit("delete", msg);
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Message deleted successfully",
+  });
 });
