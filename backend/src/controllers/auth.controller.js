@@ -1,5 +1,5 @@
-import {asynchandller} from "../util/asynchandller.js";
-import {ApiError} from "../util/apierror.js";
+import { asynchandller } from "../util/asynchandller.js";
+import { ApiError } from "../util/apierror.js";
 import { User } from "../models/user.model.js";
 import bcrypt from "bcrypt";
 import { generateToken } from "../lib/tonken.js";
@@ -26,15 +26,15 @@ export const signup = asynchandller(async (req, res) => {
   });
 
   const genderImages = await getAvatars(path);
-  const index = Math.floor(Math.random() * genderImages.length)
+  const index = Math.floor(Math.random() * genderImages.length);
 
   const newuser = await User.create({
     fullname,
     email,
     password: hashedpassword,
-    profilePic:genderImages[index],
-    gender:gender,
-    bio:'Hello ladies & gentleman! I am using Kapota'
+    profilePic: genderImages[index],
+    gender: gender,
+    bio: "Hello ladies & gentleman! I am using Kapota",
   });
 
   generateToken(newuser._id, res);
@@ -46,7 +46,7 @@ export const signup = asynchandller(async (req, res) => {
       fullname: newuser.fullname,
       email: newuser.email,
       profilePic: newuser.profilePic,
-      bio:newuser.bio
+      bio: newuser.bio,
     },
   });
 });
@@ -63,7 +63,7 @@ export const login = asynchandller(async (req, res) => {
   const ispasswordvalid = await bcrypt.compare(password, user.password);
   if (!ispasswordvalid) throw new ApiError(400, "Invalid credentials");
 
-  generateToken(user._id,res);
+  generateToken(user._id, res);
   return res.status(200).json({
     success: true,
     message: "Login successfully",
@@ -72,7 +72,7 @@ export const login = asynchandller(async (req, res) => {
       fullname: user.fullname,
       email: user.email,
       profilePic: user.profilePic,
-      bio:user.bio
+      bio: user.bio,
     },
   });
 });
@@ -90,5 +90,21 @@ export const checkAuth = asynchandller(async (req, res) => {
     success: true,
     message: "Fetch verify user",
     user: req.user,
+  });
+});
+
+export const forgetPassword = asynchandller(async (req, res) => {
+  const { email, password} = req.body;
+  if (!email || !password) throw new ApiError(401, "Missing field");
+
+  const user = await User.findOne({ email: email });
+  if (!user) throw new ApiError(400, "User not found");
+
+  const hashedpassword = await bcrypt.hash(password, 12);
+  await User.updateOne({ email: email }, { password: hashedpassword });
+
+  return res.status(200).json({
+    success: true,
+    message: "Fetch user successfully"
   });
 });

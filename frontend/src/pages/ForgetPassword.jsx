@@ -1,22 +1,35 @@
 import React from "react";
-import { useState } from "react";
-import { useAuthStore } from "../store/useAuthStore";
 import AuthImagePattern from "../components/AuthImagePattern";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2, Lock, Mail, MessageSquare } from "lucide-react";
+import { useAuthStore } from "../store/useAuthStore";
+import { useState } from "react";
 
-function Login() {
+function ForgetPassword() {
   const [showPassword, setShowPassword] = useState(false);
+  const [showConPassword, setShowConPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
+    confirmPassword: "",
   });
+  const navigate = useNavigate();
 
-  const { login, isLoggingIng } = useAuthStore();
+  const { isLoggingIng, forgetPassword } = useAuthStore();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    login(formData);
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("Password and confirm password must be same");
+      return;
+    }
+    if (!/\S+@\S+\.\S+/.test(formData.email))
+      return toast.error("Invalid email format");
+    if (formData.password.length < 6)
+      return toast.error("Password at least 6 characters");
+    
+    forgetPassword(formData);
+    navigate("/login");
   };
   return (
     <div className="h-auto grid lg:grid-cols-2 pt-10">
@@ -33,7 +46,7 @@ function Login() {
                 <MessageSquare className="w-6 h-6 text-primary" />
               </div>
               <h1 className="text-2xl font-bold mt-2">Welcome Back</h1>
-              <p className="text-base-content/60">Sign in to your account</p>
+              <p className="text-base-content/60">Password Update here</p>
             </div>
           </div>
 
@@ -90,6 +103,40 @@ function Login() {
               </div>
             </div>
 
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text font-medium">Confirm Password</span>
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-base-content/40" />
+                </div>
+                <input
+                  type={showConPassword ? "text" : "password"}
+                  className={`input input-bordered w-full pl-10`}
+                  placeholder="••••••••"
+                  value={formData.confirmPassword}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      confirmPassword: e.target.value,
+                    })
+                  }
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => setShowConPassword(!showConPassword)}
+                >
+                  {showConPassword ? (
+                    <EyeOff className="h-5 w-5 text-base-content/40" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-base-content/40" />
+                  )}
+                </button>
+              </div>
+            </div>
+
             <button
               type="submit"
               className="btn btn-primary w-full"
@@ -101,19 +148,15 @@ function Login() {
                   Loading...
                 </>
               ) : (
-                "Sign in"
+                "Update Password"
               )}
             </button>
           </form>
-
-          <Link to="/forget-password" className="link link-primary text-end">
-            <p>Forgot password?</p>
-          </Link>
           <div className="text-center">
             <p className="text-base-content/60">
-              Don&apos;t have an account?{" "}
-              <Link to="/signup" className="link link-primary">
-                Create account
+              Go back to{" "}
+              <Link to="/login" className="link link-primary">
+                Login
               </Link>
             </p>
           </div>
@@ -122,13 +165,11 @@ function Login() {
 
       {/* Right Side - Image/Pattern */}
       <AuthImagePattern
-        title={"Welcome back!"}
-        subtitle={
-          "Sign in to continue your conversations and catch up with your messages."
-        }
+        title={"Welcome back! are you forget your password?"}
+        subtitle={"Password update here to continue your login process."}
       />
     </div>
   );
 }
 
-export default Login;
+export default ForgetPassword;

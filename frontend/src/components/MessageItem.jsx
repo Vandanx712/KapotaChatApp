@@ -1,6 +1,7 @@
 import React, { memo, useEffect, useRef, useState } from "react";
 import { formatMessageTime } from "../lib/utils";
 import {
+  BanIcon,
   Check,
   CheckCheck,
   Edit2,
@@ -23,7 +24,7 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
   const [deleting, setDeleting] = useState(false);
   const [editedText, setEditedText] = useState(m?.text);
   const { socket } = useAuthStore();
-  const { setReactedMsg,messageDelete } = useChatStore();
+  const { setReactedMsg, messageDelete } = useChatStore();
   const [openUp, setOpenUp] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -84,9 +85,11 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
       deleteType: "deleteForEveryone",
     });
     setDeleting(false);
-  }
+  };
   return (
-    <div className={`ml-1 chat ${isSentByMe ? "chat-end" : "chat-start"} ${m?.deletedFor?.includes(authUser._id) ? "hidden" : ""}`}>
+    <div
+      className={`ml-1 chat ${isSentByMe ? "chat-end" : "chat-start"} ${m?.deletedFor?.includes(authUser._id) ? "hidden" : ""}`}
+    >
       <div className="chat-image hidden md:avatar">
         <div className="size-10 rounded-full border">
           <img
@@ -114,7 +117,15 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
             </PhotoView>
           </PhotoProvider>
         )}
-        {m.text && <p>{m.text}</p>}
+        {m.text && (
+          <p>
+            {m.deletedForEveryone
+              ? authUser._id == m.sender
+                ? "You deleted this message"
+                : "This message was deleted"
+              : m.text}
+          </p>
+        )}
 
         <time className="flex gap-2 items-center text-sm opacity-50">
           {formatMessageTime(m.createdAt)}
@@ -126,7 +137,7 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
             ))}
         </time>
         <div
-          className={`hidden flex-col ${m?.deletedForEveryone ? "hidden":'group-hover:flex'} absolute ${isSentByMe ? "-left-6 pr-10" : "-right-6 pl-10"} top-1 gap-2 items-center`}
+          className={`hidden flex-col ${m?.deletedForEveryone ? "hidden" : "group-hover:flex"} absolute ${isSentByMe ? "-left-6 pr-10" : "-right-6 pl-10"} top-1 gap-2 items-center`}
         >
           <div
             ref={dropdownRef}
@@ -257,7 +268,7 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
                 <div className="md:p-5 p-1 flex flex-col gap-3 items-end">
                   <button
                     onClick={handleDeleteEeveryone}
-                    className={`${deletefor && m.sender==authUser._id ? "" : "hidden"} btn cursor-pointer rounded-2xl text-error`}
+                    className={`${deletefor && m.sender == authUser._id ? "" : "hidden"} btn cursor-pointer rounded-2xl text-error`}
                   >
                     Delete for everyone
                   </button>

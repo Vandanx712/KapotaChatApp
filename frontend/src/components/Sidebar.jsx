@@ -15,10 +15,10 @@ function Sidebar() {
     isConversationLoading,
     setNmsgInCon,
     setUpdatedMessage,
-    setDeletedMessageForSlider
+    setDeletedMessageForSlider,
   } = useChatStore();
   const { onlineUsers, socket, authUser } = useAuthStore();
-  const [Typing, setTyping] = useState('');
+  const [Typing, setTyping] = useState("");
 
   useEffect(() => {
     getConversation();
@@ -27,15 +27,17 @@ function Sidebar() {
   useEffect(() => {
     socket.on("newmessage", (newMessage) => setNmsgInCon(newMessage));
     socket.on("istyping", (userId) => setTyping(userId));
-    socket.on("StopTyping", (userId) => setTyping(userId == Typing ? '' : Typing));
-    socket.on('reacted',(msg)=>setUpdatedMessage(msg));
-    socket.on('delete',(msg)=>setDeletedMessageForSlider(msg));
+    socket.on("StopTyping", (userId) =>
+      setTyping(userId == Typing ? "" : Typing),
+    );
+    socket.on("reacted", (msg) => setUpdatedMessage(msg));
+    socket.on("delete", (msg) => setDeletedMessageForSlider(msg));
     return () => {
       socket.off("istyping");
       socket.off("StopTyping");
       socket.off("newmessage");
-      socket.off('reacted');
-      socket.off('delete');
+      socket.off("reacted");
+      socket.off("delete");
     };
   }, [socket]);
 
@@ -95,11 +97,19 @@ function Sidebar() {
                 <div
                   className={`rounded-full ${conversation.unseenMsg == 0 || conversation.lastmessage.sender == authUser._id ? "hidden" : "flex"} justify-center items-center bg-base-300 text-xs size-3`}
                 >
-                  {conversation.unseenMsg}
+                  {conversation.lastmessage?.deletedForEveryone
+                    ? conversation.unseenMsg - 1
+                    : conversation.unseenMsg}
                 </div>
               </div>
               <div className="text-xs text-zinc-400 truncate">
-                {Typing==conversation.oruserId ? "typing..." : conversation?.lastmessage.text || ""}
+                {Typing == conversation.oruserId
+                  ? "typing..."
+                  : conversation?.lastmessage?.deletedForEveryone
+                    ? authUser._id == conversation?.lastmessage?.sender
+                      ? "You deleted this message"
+                      : "This message was deleted"
+                    : conversation?.lastmessage.text || ""}
               </div>
             </div>
           </button>

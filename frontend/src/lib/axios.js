@@ -27,6 +27,11 @@ export const checkUser = async()=>{
   return response.data
 }
 
+export const forgetPassword = async(data)=>{
+  const response = await api.post('/auth/forget-password',data)
+  return response.data
+}
+
 //profile part
 
 export const getAvatars = async(data)=>{

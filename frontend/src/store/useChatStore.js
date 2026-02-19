@@ -118,8 +118,7 @@ export const useChatStore = create((set, get) => ({
 
         const isOwnMessage = newMessage.sender === authUser._id;
         const isOpenConversation =
-          state.selectedConversation.conversationId === newMessage.conversationId;
-
+          state.selectedConversation?.conversationId === newMessage?.conversationId;
         return {
           ...con,
           lastmessage: newMessage,
@@ -240,8 +239,8 @@ export const useChatStore = create((set, get) => ({
   },
 
   setDeletedMessage: (message) => {
+    console.log(message, "deleted msg");
     const authUser = useAuthStore.getState().authUser;
-    console.log(message)
     set((state) => {
       if (message.deletedForEveryone) {
         return {
@@ -250,7 +249,10 @@ export const useChatStore = create((set, get) => ({
             !message.deletedFor.includes(authUser._id)
               ? {
                   ...msg,
-                  text: message.text,
+                  text:
+                    authUser._id == message.sender
+                      ? "You deleted this message"
+                      :  "This message was deleted",
                   reacted: message.reacted,
                   image: message.image,
                 }
@@ -268,16 +270,24 @@ export const useChatStore = create((set, get) => ({
   },
 
   setDeletedMessageForSlider: (message) => {
+    const authUser = useAuthStore.getState().authUser;
     set((state) => ({
       conversations: state.conversations.map((con) => {
         if (
-          con?.lastmessage._id === message._id &&
           message.deletedForEveryone
         ) {
           return {
             ...con,
-            lastmessage: message,
-            unseen:0
+            lastmessage: {
+              ...con.lastmessage,
+              text:
+                authUser._id == message.sender
+                  ? "You deleted this message"
+                  : "This message was deleted",
+              reacted: message.reacted,
+              image: message.image,
+            },
+            unseenMsg: con.unseenMsg - 1 >= 0 ? con.unseenMsg - 1 : 0,
           };
         } else return con;
       }),

@@ -1,9 +1,17 @@
 import { create } from "zustand";
-import { checkUser, loginuser, logout, register, updatePic, updateProfile } from "../lib/axios";
+import {
+  checkUser,
+  forgetPassword,
+  loginuser,
+  logout,
+  register,
+  updatePic,
+  updateProfile,
+} from "../lib/axios";
 import toast from "react-hot-toast";
-import {io} from 'socket.io-client'
+import { io } from "socket.io-client";
 
-const BASE_URL=import.meta.env.VITE_BACKEND_URL
+const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 export const useAuthStore = create((set, get) => ({
   authUser: null,
@@ -11,105 +19,114 @@ export const useAuthStore = create((set, get) => ({
   isLoggingIng: false,
   isUpdateProfile: false,
   isCheckingAuth: true,
-  onlineUsers:[],
-  socket:null,
+  onlineUsers: [],
+  socket: null,
 
   checkAuth: async () => {
     try {
       const data = await checkUser();
       set({ authUser: data.user });
-      get().connectSocket()
+      get().connectSocket();
     } catch (error) {
-      console.log('Error in checkAuth:',error)
+      console.log("Error in checkAuth:", error);
       set({ authUser: null });
     } finally {
       set({ isCheckingAuth: false });
     }
   },
 
-  signup:async(data)=>{
-    set({isSigningUp:true})
+  signup: async (data) => {
+    set({ isSigningUp: true });
     try {
-      const resdata = await register(data)
-      toast.success(resdata.message)
-      set({authUser:data})
-      get().connectSocket()
+      const resdata = await register(data);
+      toast.success(resdata.message);
+      set({ authUser: data });
+      get().connectSocket();
     } catch (error) {
-      toast.error(error?.response?.data?.message)
-    }finally{
-      set({isSigningUp:false})
+      toast.error(error?.response?.data?.message);
+    } finally {
+      set({ isSigningUp: false });
     }
   },
 
-  login:async(data)=>{
-    set({isLoggingIng:true})
+  forgetPassword: async (data) => {
     try {
-      const resdata = await loginuser(data)
-      set({authUser:resdata.user})
-      toast.success(resdata.message)
-      get().connectSocket()
+      const resdata = await forgetPassword(data);
+      toast.success(resdata.message);
     } catch (error) {
-      toast.error(error.response?.data.message)
-    }finally{
-      set({isLoggingIng:false})
+      toast.error(error?.response?.data?.message);
     }
   },
 
-  logout:async()=>{
+  login: async (data) => {
+    set({ isLoggingIng: true });
     try {
-      const data = await logout({})
-      set({authUser:null})
-      get().disconnectSocket()
-      toast.success(data.message)
+      const resdata = await loginuser(data);
+      set({ authUser: resdata.user });
+      toast.success(resdata.message);
+      get().connectSocket();
     } catch (error) {
-      toast.error(error?.response?.data?.message)
+      toast.error(error.response?.data.message);
+    } finally {
+      set({ isLoggingIng: false });
     }
   },
 
-  updateProfile: async(data)=>{
-    set({isUpdateProfile:true})
+  logout: async () => {
     try {
-      const resdata = await updatePic(data)
-      toast.success(resdata.message)
+      const data = await logout({});
+      set({ authUser: null });
+      get().disconnectSocket();
+      toast.success(data.message);
     } catch (error) {
-      toast.error(error.response?.dats?.message)
-      console.log(error)
-    }finally{
-      set({isUpdateProfile:false})
+      toast.error(error?.response?.data?.message);
     }
   },
 
-  updateDetails:async(data)=>{
-    set({isUpdateProfile:true}) 
+  updateProfile: async (data) => {
+    set({ isUpdateProfile: true });
     try {
-      const resdata = await updateProfile(data)
-      set({authUser:resdata.user})
-      toast.success(resdata.message)
+      const resdata = await updatePic(data);
+      toast.success(resdata.message);
     } catch (error) {
-      toast.error(error.response?.dats?.message)
-      console.log(error)
-    }finally{
-      set({isUpdateProfile:false})
-    } 
+      toast.error(error.response?.dats?.message);
+      console.log(error);
+    } finally {
+      set({ isUpdateProfile: false });
+    }
   },
 
-  connectSocket:()=>{
-    const {authUser} = get()
-    if(!authUser || get().socket?.connected) return;
-    const socket = io(BASE_URL,{
-      query:{
-        userId:authUser._id
-      }
-    })
-    socket.connect()
-    set({socket:socket})
-
-    socket.on('getonlineusers',(users)=>{
-      set({onlineUsers:users})
-    })
+  updateDetails: async (data) => {
+    set({ isUpdateProfile: true });
+    try {
+      const resdata = await updateProfile(data);
+      set({ authUser: resdata.user });
+      toast.success(resdata.message);
+    } catch (error) {
+      toast.error(error.response?.dats?.message);
+      console.log(error);
+    } finally {
+      set({ isUpdateProfile: false });
+    }
   },
 
-  disconnectSocket:()=>{
-    if(get().socket.connected) get().socket.disconnect()
-  }
+  connectSocket: () => {
+    const { authUser } = get();
+    if (!authUser || get().socket?.connected) return;
+    const socket = io(BASE_URL, {
+      query: {
+        userId: authUser._id,
+      },
+    });
+    socket.connect();
+    set({ socket: socket });
+
+    socket.on("getonlineusers", (users) => {
+      set({ onlineUsers: users });
+    });
+  },
+
+  disconnectSocket: () => {
+    if (get().socket.connected) get().socket.disconnect();
+  },
 }));
