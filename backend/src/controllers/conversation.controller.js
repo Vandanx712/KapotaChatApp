@@ -13,7 +13,8 @@ export const getConversation = asynchandller(async (req, res) => {
     "participants.userId": { $eq: _id },
   })
     .select("participants groupname bgImage groupIcon lastMessage")
-    .populate("lastMessage", "text sender deletedForEveryone")
+    .populate("lastMessage", "text image sender deletedForEveryone")
+    .sort({updatedAt:-1})
     .lean();
 
   const filtered = await Promise.all(

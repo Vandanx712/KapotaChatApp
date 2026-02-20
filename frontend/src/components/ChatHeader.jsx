@@ -1,9 +1,19 @@
-import { ArrowLeft, EllipsisVerticalIcon, ImageIcon, VideoIcon, X } from "lucide-react";
+import {
+  ArrowLeft,
+  EllipsisVerticalIcon,
+  ImageIcon,
+  InfoIcon,
+  MinusCircle,
+  Trash2Icon,
+  VideoIcon,
+  X,
+} from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 
 const ChatHeader = () => {
-  const { selectedConversation, setUnselectedConversation,setConBgimage } = useChatStore();
+  const { selectedConversation, setUnselectedConversation, setConBgimage } =
+    useChatStore();
   const { onlineUsers } = useAuthStore();
 
   const handleimagechange = (e) => {
@@ -15,7 +25,7 @@ const ChatHeader = () => {
       const base64Image = reader.result;
       setConBgimage({
         id: selectedConversation.conversationId,
-        oldkey: selectedConversation.bgImage?.key || '',
+        oldkey: selectedConversation.bgImage?.key || "",
         image: base64Image,
       });
     };
@@ -58,20 +68,38 @@ const ChatHeader = () => {
               className="dropdown-content menu mt-5 bg-base-100 rounded-box z-[1] w-52 p-2 shadow"
             >
               <li>
-                <a>Item 1</a>
+                <button className="flex items-center">
+                  <InfoIcon className="size-4" /> Contact Info
+                </button>
               </li>
               <li>
-                <button onClick={()=>alert('Must be dimension 800x600 or above')}>
-                  <label className="flex gap-2 items-center" htmlFor="avatar-upload">
-                    <ImageIcon className="size-4"/> Chat Theme
+                <button
+                  onClick={() => alert("Must be dimension 800x600 or above")}
+                >
+                  <label
+                    className="flex gap-2 items-center"
+                    htmlFor="avatar-upload"
+                  >
+                    <ImageIcon className="size-4" /> Chat Theme
                     <input
                       type="file"
                       id="avatar-upload"
                       className="hidden"
                       accept="image/*"
                       onChange={handleimagechange}
-                    /> 
+                    />
                   </label>
+                </button>
+              </li>
+              <div className="divider m-0 divider-primary" />
+              <li>
+                <button className="flex items-center">
+                  <MinusCircle className="size-4" /> Clear Chat
+                </button>
+              </li>
+              <li>
+                <button className="flex items-center">
+                  <Trash2Icon className="size-4" /> Delete Chat
                 </button>
               </li>
             </ul>

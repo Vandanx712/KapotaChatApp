@@ -1,9 +1,9 @@
 import React, { memo, useEffect, useRef, useState } from "react";
 import { formatMessageTime } from "../lib/utils";
 import {
-  BanIcon,
   Check,
   CheckCheck,
+  CopyIcon,
   Edit2,
   EllipsisVerticalIcon,
   SmileIcon,
@@ -15,6 +15,7 @@ import "react-photo-view/dist/react-photo-view.css";
 import EmojiPicker from "emoji-picker-react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
+import toast from "react-hot-toast";
 
 const MessageItem = memo(({ m, authUser, selectedConversation }) => {
   const isSentByMe = m?.sender === authUser._id;
@@ -152,6 +153,17 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
               tabIndex={0}
               className="dropdown-content menu bg-base-100 rounded-box z-[1] min-w-44 p-2 shadow"
             >
+              <li>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(m?.text);
+                    toast.success("Copied");
+                  }}
+                  className="flex text-sm items-center gap-3"
+                >
+                  <CopyIcon className="size-4" /> Copy Message
+                </button>
+              </li>
               <li
                 className={`${m.sender == authUser._id && m.isSeen == false && updatefor ? "" : "hidden"}`}
               >
@@ -162,6 +174,7 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
                   <Edit2 className="size-4" /> Edit Message
                 </button>
               </li>
+              <div className="divider m-0 divider-primary" />
               <li>
                 <button
                   onClick={() => setDeleting((pre) => !pre)}

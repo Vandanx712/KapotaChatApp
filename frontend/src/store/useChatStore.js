@@ -110,23 +110,28 @@ export const useChatStore = create((set, get) => ({
 
   setNmsgInCon: (newMessage) => {
     const authUser = useAuthStore.getState().authUser;
-    set((state) => ({
-      conversations: state.conversations.map((con) => {
-        if (con.conversationId !== newMessage.conversationId) {
-          return con;
-        }
-
-        const isOwnMessage = newMessage.sender === authUser._id;
-        const isOpenConversation =
-          state.selectedConversation?.conversationId === newMessage?.conversationId;
-        return {
-          ...con,
-          lastmessage: newMessage,
-          unseenMsg:
-            isOwnMessage || isOpenConversation ? 0 : (con.unseenMsg || 0) + 1,
-        };
-      }),
-    }));
+    set((state) => {
+      const index = state.conversations.findIndex(
+        (con) => con.conversationId === newMessage.conversationId,
+      );
+      if (index === -1) return state;
+      const updatedConversations = [...state.conversations];
+      const [targetCon] = updatedConversations.splice(index, 1);
+      const isOwnMessage = newMessage.sender === authUser._id;
+      const isOpenConversation =
+        state.selectedConversation?.conversationId ===
+        newMessage?.conversationId;
+      const updatedTargetCon = {
+        ...targetCon,
+        lastmessage: newMessage,
+        unseenMsg:
+          isOwnMessage || isOpenConversation
+            ? 0
+            : (targetCon?.unseenMsg || 0) + 1,
+      };
+      updatedConversations.unshift(updatedTargetCon);
+      return { conversations: updatedConversations };
+    });
   },
 
   setSelectedConversation: (selectedConversation) => {
@@ -239,7 +244,6 @@ export const useChatStore = create((set, get) => ({
   },
 
   setDeletedMessage: (message) => {
-    console.log(message, "deleted msg");
     const authUser = useAuthStore.getState().authUser;
     set((state) => {
       if (message.deletedForEveryone) {
@@ -252,7 +256,7 @@ export const useChatStore = create((set, get) => ({
                   text:
                     authUser._id == message.sender
                       ? "You deleted this message"
-                      :  "This message was deleted",
+                      : "This message was deleted",
                   reacted: message.reacted,
                   image: message.image,
                 }
@@ -274,6 +278,7 @@ export const useChatStore = create((set, get) => ({
     set((state) => ({
       conversations: state.conversations.map((con) => {
         if (
+          con.conversationId == message.conversationId &&
           message.deletedForEveryone
         ) {
           return {

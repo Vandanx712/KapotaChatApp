@@ -1,7 +1,7 @@
 import { ApiError } from "../util/apierror.js";
 import { asynchandller } from "../util/asynchandller.js";
 import { StoragePath } from "../util/filepath.js";
-import { getAvatars, uploadChatPic } from "../lib/cloudinary.js";
+import { deleteImage, getAvatars, uploadChatPic } from "../lib/cloudinary.js";
 import { User } from "../models/user.model.js";
 
 //getall predefind avatars
@@ -26,7 +26,7 @@ export const getPreAvatars = asynchandller(async (req, res) => {
 });
 
 export const updateProfilePic = asynchandller(async (req, res) => {
-  const { profilePic, picUrl } = req.body;
+  const { profilePic, picUrl, oldkey } = req.body;
   const { _id } = req.user;
 
   let pic;
@@ -38,6 +38,9 @@ export const updateProfilePic = asynchandller(async (req, res) => {
       includeMessageFolder: false,
     });
     pic = await uploadChatPic(path, profilePic);
+    if(oldkey.length>0){
+      await deleteImage(oldkey)
+    }
   } else if (picUrl) {
     pic = picUrl;
   }

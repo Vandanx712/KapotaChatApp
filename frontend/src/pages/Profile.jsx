@@ -15,7 +15,8 @@ import { PhotoProvider, PhotoView } from "react-photo-view";
 import "react-photo-view/dist/react-photo-view.css";
 
 function Profile() {
-  const { authUser, isUpdateProfile, updateProfile,updateDetails } = useAuthStore();
+  const { authUser, isUpdateProfile, updateProfile, updateDetails } =
+    useAuthStore();
   const [selectedImg, setSelectedImg] = useState(null);
   const [avatars, setAvatars] = useState([]);
   const [profile, setProfile] = useState({
@@ -41,7 +42,10 @@ function Profile() {
     reader.onload = async () => {
       const base64Image = reader.result;
       setSelectedImg(base64Image);
-      await updateProfile({ profilePic: base64Image });
+      await updateProfile({
+        profilePic: base64Image,
+        oldkey: authUser.profilePic?.key ? authUser.profilePic?.key : "",
+      });
     };
   };
 
@@ -56,12 +60,16 @@ function Profile() {
   };
 
   const handleProfileUpdate = () => {
-    if(profile.fullname === authUser.fullname && profile.bio === authUser.bio) return;
-    if(!profile.fullname || !profile.bio) return toast.error("Fullname and Bio are required")
-    if(profile.fullname.length > 20) return toast.error("Fullname must be less than 20 characters")
-    if(profile.bio.length > 40) return toast.error("Bio must be less than 40 characters")
-    updateDetails(profile)
-  }
+    if (profile.fullname === authUser.fullname && profile.bio === authUser.bio)
+      return;
+    if (!profile.fullname || !profile.bio)
+      return toast.error("Fullname and Bio are required");
+    if (profile.fullname.length > 20)
+      return toast.error("Fullname must be less than 20 characters");
+    if (profile.bio.length > 40)
+      return toast.error("Bio must be less than 40 characters");
+    updateDetails(profile);
+  };
   return (
     <div className="h-screen pt-20">
       <div className="max-w-2xl mx-auto p-4 py-8">
@@ -96,7 +104,7 @@ function Profile() {
                 </div>
                 <div className="flex md:space-x-1 md:space-y-0 space-x-1 space-y-1 md:flex-nowrap flex-wrap absolute left-12 bottom-0">
                   <PhotoProvider>
-                    <PhotoView src={authUser.profilePic?.url}>
+                    <PhotoView src={selectedImg || authUser.profilePic?.url}>
                       <button className="btn btn-md btn-circle">
                         <ViewIcon className="size-6" />
                       </button>
@@ -182,7 +190,10 @@ function Profile() {
                   className="w-full bg-inherit focus:outline-none"
                   value={profile.fullname}
                 />
-                <Pen onClick={handleProfileUpdate} className="size-5 cursor-pointer" />
+                <Pen
+                  onClick={handleProfileUpdate}
+                  className="size-5 cursor-pointer"
+                />
               </p>
             </div>
 
@@ -194,16 +205,19 @@ function Profile() {
               <p className="px-4 flex justify-between py-2.5 bg-base-200 rounded-lg border">
                 <input
                   type="text"
-                  onChange={(e) =>{
+                  onChange={(e) => {
                     const ischanging = e.target.value !== authUser.bio;
-                    if(ischanging){
-                      setProfile({...profile, bio: e.target.value})
+                    if (ischanging) {
+                      setProfile({ ...profile, bio: e.target.value });
                     }
                   }}
                   className="w-full bg-inherit focus:outline-none"
                   value={profile.bio}
                 />
-                <Pen onClick={handleProfileUpdate} className="size-5 cursor-pointer" />
+                <Pen
+                  onClick={handleProfileUpdate}
+                  className="size-5 cursor-pointer"
+                />
               </p>
             </div>
 

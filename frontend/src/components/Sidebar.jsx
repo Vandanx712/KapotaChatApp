@@ -49,7 +49,6 @@ function Sidebar() {
       <div className=" border-b border-base-300 w-full p-5">
         <div className="flex items-center gap-2">
           <Users className="size-6" />
-          <span className="font-medium block">Contacts</span>
         </div>
         <div className="mt-3 flex items-center gap-2">
           <input
@@ -73,9 +72,9 @@ function Sidebar() {
           >
             <div className="relative max-w-12 lg:mx-0">
               <PhotoProvider>
-                <PhotoView src={conversation.profilePic.url}>
+                <PhotoView src={conversation?.profilePic?.url}>
                   <img
-                    src={conversation.profilePic.url || "/avatar.png"}
+                    src={conversation?.profilePic?.url || "/avatar.png"}
                     className="size-12 object-cover rounded-full"
                   />
                 </PhotoView>
@@ -109,7 +108,7 @@ function Sidebar() {
                     ? authUser._id == conversation?.lastmessage?.sender
                       ? "You deleted this message"
                       : "This message was deleted"
-                    : conversation?.lastmessage.text || ""}
+                    : conversation.lastmessage?.image ? 'Image' :conversation?.lastmessage.text || ""}
               </div>
             </div>
           </button>
