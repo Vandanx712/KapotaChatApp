@@ -114,8 +114,8 @@ function Sidebar() {
           </button>
         ))}
 
-        {onlineUsers.length === 0 && (
-          <div className="text-center text-zinc-500 py-4">No online users</div>
+        {conversations.length === 0 && (
+          <div className="text-center text-zinc-500 py-4">No any conversations</div>
         )}
       </div>
     </aside>

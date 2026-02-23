@@ -4,6 +4,7 @@ import {
   Image,
   Mail,
   Pen,
+  SmileIcon,
   User,
   User2Icon,
   UserPen,
@@ -13,16 +14,24 @@ import { getAvatars } from "../lib/axios";
 import toast from "react-hot-toast";
 import { PhotoProvider, PhotoView } from "react-photo-view";
 import "react-photo-view/dist/react-photo-view.css";
+import EmojiPicker from "emoji-picker-react";
 
 function Profile() {
   const { authUser, isUpdateProfile, updateProfile, updateDetails } =
     useAuthStore();
   const [selectedImg, setSelectedImg] = useState(null);
   const [avatars, setAvatars] = useState([]);
+  const [showPicker, setShowPicker] = useState("");
   const [profile, setProfile] = useState({
     fullname: authUser.fullname,
     bio: authUser.bio,
   });
+
+  const onEmojiClick = (emojiData) => {
+    showPicker == "fullname"
+      ? setProfile({ ...profile, fullname: profile.fullname + emojiData.emoji })
+      : setProfile({ ...profile, bio: profile.bio + emojiData.emoji });
+  };
 
   const loadavatars = async () => {
     if (avatars.length > 0) return;
@@ -181,19 +190,26 @@ function Profile() {
               <p className="px-4 flex justify-between py-2.5 bg-base-200 rounded-lg border">
                 <input
                   type="text"
+                  value={profile.fullname}
                   onChange={(e) => {
                     const ischanging = e.target.value !== authUser.fullname;
                     if (ischanging) {
-                      setProfile({ fullname: e.target.value });
+                      setProfile({ ...profile, fullname: e.target.value });
                     }
                   }}
                   className="w-full bg-inherit focus:outline-none"
-                  value={profile.fullname}
                 />
-                <Pen
-                  onClick={handleProfileUpdate}
-                  className="size-5 cursor-pointer"
-                />
+                <div className=" flex items-center gap-2">
+                  <SmileIcon
+                    onClick={() => setShowPicker("fullname")}
+                    className="size-5 cursor-pointer"
+                    size={20}
+                  />
+                  <Pen
+                    onClick={handleProfileUpdate}
+                    className="size-5 cursor-pointer"
+                  />
+                </div>
               </p>
             </div>
 
@@ -214,10 +230,17 @@ function Profile() {
                   className="w-full bg-inherit focus:outline-none"
                   value={profile.bio}
                 />
-                <Pen
-                  onClick={handleProfileUpdate}
-                  className="size-5 cursor-pointer"
-                />
+                <div className=" flex items-center gap-2">
+                  <SmileIcon
+                    onClick={() => setShowPicker("bio")}
+                    className="size-5 cursor-pointer"
+                    size={20}
+                  />
+                  <Pen
+                    onClick={handleProfileUpdate}
+                    className="size-5 cursor-pointer"
+                  />
+                </div>
               </p>
             </div>
 
@@ -247,6 +270,31 @@ function Profile() {
           </div>
         </div>
       </div>
+      {showPicker && (
+        <>
+          {/* Dark Backdrop: Closes picker when clicking anywhere else */}
+          <div
+            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
+            onClick={() => setShowPicker("")}
+          />
+
+          {/* Centered Picker Container */}
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
+            <div className="shadow-2xl border border-base-300 rounded-xl overflow-hidden scale-95 md:scale-100 animate-in zoom-in duration-200">
+              <EmojiPicker
+                onEmojiClick={(emojiData, event) => {
+                  onEmojiClick(emojiData, event);
+                }}
+                theme="dark"
+                autoFocusSearch={true}
+                width={window.innerWidth < 450 ? 280 : 350}
+                height={400}
+                lazyLoadEmojis={true}
+              />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
