@@ -197,3 +197,31 @@ export const deleteMessage = asynchandller(async (req, res) => {
     message: "Message deleted successfully",
   });
 });
+
+export const clearChat = asynchandller(async (req, res) => {
+  const { id } = req.params;
+  const { _id } = req.user;
+
+  if (!id) throw new ApiError(401, "Missing field");
+  const conversation = await Conversation.findById(id).select("_id").lean();
+  if (!conversation) throw new ApiError(400, "Conversation not found");
+
+  const messages = await Message.find({ conversationId: id })
+    .select("_id")
+    .lean();
+  const mids = messages.map((m) => m._id);
+  await Message.updateMany(
+    { _id: { $in: mids } },
+    { $addToSet: { deletedFor: _id } },
+  );
+
+  const mysocketId = getReceiverSocketId(_id);
+  if (mysocketId) {
+    io.to(mysocketId).emit("clearchat",conversation);
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Chat clear successfully",
+  });
+});

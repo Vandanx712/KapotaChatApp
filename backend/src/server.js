@@ -15,7 +15,7 @@ app.use(cors({ origin: process.env.FRONTEND_URL, credentials: true }));
 app.use(cookieparser());
 app.use(
   ratelimiter({
-    windowMs: 15 * 60 * 1000, // 15 minutes
+    windowMs: 1 * 60 * 1000,
     max: 100,
     statusCode: 429,
     message: "Too many requests, please try again later.",

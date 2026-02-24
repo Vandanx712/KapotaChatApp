@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import toast from "react-hot-toast";
 import {
+  clearChat,
   createConversation,
   deleteMessage,
   getConversations,
@@ -298,4 +299,30 @@ export const useChatStore = create((set, get) => ({
       }),
     }));
   },
+
+  clearAllMsg:async(id)=>{
+    try {
+      const resdata = await clearChat(id)
+      toast.success(resdata.message)
+    } catch (error) {
+      console.log(error)
+      toast.error(error.response.data.message)
+    }
+  },
+  
+  setClearChat:(conversation)=>{
+    set((state)=>({
+      conversations:state.conversations.map((con)=>{
+        if(con._id==conversation._id) return {
+          ...con,
+          lastmessage:{
+            ...con.lastmessage,
+            text:'',
+            unseenMsg:0
+          }
+        }
+      }),
+      message:[]
+    }))
+  }
 }));

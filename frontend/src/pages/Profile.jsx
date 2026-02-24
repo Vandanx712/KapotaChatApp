@@ -192,10 +192,7 @@ function Profile() {
                   type="text"
                   value={profile.fullname}
                   onChange={(e) => {
-                    const ischanging = e.target.value !== authUser.fullname;
-                    if (ischanging) {
-                      setProfile({ ...profile, fullname: e.target.value });
-                    }
+                    setProfile({ ...profile, fullname: e.target.value })
                   }}
                   className="w-full bg-inherit focus:outline-none"
                 />
@@ -205,10 +202,12 @@ function Profile() {
                     className="size-5 cursor-pointer"
                     size={20}
                   />
-                  <Pen
-                    onClick={handleProfileUpdate}
-                    className="size-5 cursor-pointer"
-                  />
+                 <button disabled={authUser.fullname==profile.fullname}>
+                    <Pen
+                      onClick={handleProfileUpdate}
+                      className="size-5 cursor-pointer"
+                    />
+                  </button>
                 </div>
               </p>
             </div>
@@ -222,10 +221,7 @@ function Profile() {
                 <input
                   type="text"
                   onChange={(e) => {
-                    const ischanging = e.target.value !== authUser.bio;
-                    if (ischanging) {
-                      setProfile({ ...profile, bio: e.target.value });
-                    }
+                    setProfile({ ...profile, bio: e.target.value })
                   }}
                   className="w-full bg-inherit focus:outline-none"
                   value={profile.bio}
@@ -236,10 +232,12 @@ function Profile() {
                     className="size-5 cursor-pointer"
                     size={20}
                   />
-                  <Pen
-                    onClick={handleProfileUpdate}
-                    className="size-5 cursor-pointer"
-                  />
+                  <button disabled={authUser.bio==profile.bio}>
+                    <Pen
+                      onClick={handleProfileUpdate}
+                      className="size-5 cursor-pointer"
+                    />
+                  </button>
                 </div>
               </p>
             </div>

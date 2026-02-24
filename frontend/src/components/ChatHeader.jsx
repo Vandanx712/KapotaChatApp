@@ -12,7 +12,7 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 
 const ChatHeader = () => {
-  const { selectedConversation, setUnselectedConversation, setConBgimage } =
+  const { selectedConversation, setUnselectedConversation, setConBgimage,clearAllMsg } =
     useChatStore();
   const { onlineUsers } = useAuthStore();
 
@@ -30,6 +30,10 @@ const ChatHeader = () => {
       });
     };
   };
+
+  const handleClearChat = ()=>{
+    clearAllMsg(selectedConversation.conversationId)
+  }
 
   return (
     <div className="p-2.5 border-b border-base-300">
@@ -93,7 +97,7 @@ const ChatHeader = () => {
               </li>
               <div className="divider m-0 divider-primary" />
               <li>
-                <button className="flex items-center">
+                <button className="flex items-center" onClick={()=>handleClearChat}>
                   <MinusCircle className="size-4" /> Clear Chat
                 </button>
               </li>
