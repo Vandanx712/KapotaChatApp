@@ -97,7 +97,7 @@ const ChatHeader = () => {
               </li>
               <div className="divider m-0 divider-primary" />
               <li>
-                <button className="flex items-center" onClick={()=>handleClearChat}>
+                <button className="flex items-center" onClick={()=>handleClearChat()}>
                   <MinusCircle className="size-4" /> Clear Chat
                 </button>
               </li>

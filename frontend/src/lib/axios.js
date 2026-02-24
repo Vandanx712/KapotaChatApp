@@ -94,5 +94,6 @@ export const deleteMessage = async(id,data)=>{
 }
 
 export const clearChat = async(id)=>{
-  await api.put(`/message/clear/:${id}`)
+  const res = await api.put(`/message/clear/${id}`)
+  return res.data
 }

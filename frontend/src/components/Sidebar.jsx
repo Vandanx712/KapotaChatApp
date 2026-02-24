@@ -108,14 +108,14 @@ function Sidebar() {
               className={`
               w-full p-3 flex items-center gap-3
               hover:bg-base-300 transition-colors
-              ${selectedConversation?.conversationId === conversation.conversationId ? "bg-base-300 ring-1 ring-base-300" : ""}
+              ${selectedConversation?.conversationId === conversation?.conversationId ? "bg-base-300 ring-1 ring-base-300" : ""}
             `}
             >
               <div className="relative min-w-12 lg:mx-0">
                 <PhotoProvider>
                   <PhotoView src={conversation?.profilePic?.url}>
                     <img
-                      src={conversation?.profilePic?.url || "/avatar.png"}
+                      src={conversation?.profilePic.url || "/avatar.png"}
                       className="size-12 object-cover rounded-full"
                     />
                   </PhotoView>
@@ -150,7 +150,7 @@ function Sidebar() {
                         : "This message was deleted"
                       : conversation.lastmessage?.image
                         ? "Image"
-                        : conversation?.deletedFor?.includes(authUser._id)
+                        : conversation?.lastmessage.deletedFor?.includes(authUser._id)
                           ? ""
                           : conversation?.lastmessage.text || ""}
                 </div>
@@ -169,7 +169,6 @@ function Sidebar() {
                 key={item.id}
                 className="flex items-center gap-4 px-4 py-2 cursor-pointer hover:bg-base-200 mx-3 hover:rounded-lg transition-colors animate-slideIn"
                 style={{ animationDelay: `${index * 0.05}s` }}
-                onClick={() => handleItemClick(item.label)}
               >
                 <div className="size-12 bg-primary rounded-full md:h-12 flex items-center justify-center text-primary-content text-base md:text-xl flex-shrink-0">
                   {item.icon}
