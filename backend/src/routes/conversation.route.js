@@ -6,6 +6,7 @@ const conversationRoute = Router();
 
 conversationRoute.route("/").get(verifyjwt, getConversation);
 conversationRoute.route('/:oruserId').post(verifyjwt,createConversation)
+conversationRoute.route()
 conversationRoute.route('/getusers').get(verifyjwt,getSurrUsers)
 conversationRoute.route('/settheme').put(verifyjwt,setBgimage)
 

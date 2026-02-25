@@ -178,7 +178,7 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
               <li>
                 <button
                   onClick={() => setDeleting((pre) => !pre)}
-                  className="flex text-sm items-center gap-3"
+                  className='flex text-sm items-center gap-3'
                 >
                   <Trash2Icon className="size-4" /> Delete Message
                 </button>
@@ -190,7 +190,7 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
               e.stopPropagation();
               setShowPicker((prev) => !prev);
             }}
-            className=" size-5 cursor-pointer"
+            className={`size-5 cursor-pointer ${m.sender == authUser._id ? 'mr-2':'ml-2'}`}
           />
           {showPicker && (
             <>

@@ -56,6 +56,11 @@ export const getSurroundUsers = async()=>{
   return response.data
 }
 
+export const getAllUsers = async()=>{
+  const response = await api.get('/user/getusers')
+  return response.data
+}
+
 //conversation part
 
 export const getConversations = async()=>{

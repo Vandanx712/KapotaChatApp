@@ -38,8 +38,8 @@ export const updateProfilePic = asynchandller(async (req, res) => {
       includeMessageFolder: false,
     });
     pic = await uploadChatPic(path, profilePic);
-    if(oldkey.length>0){
-      await deleteImage(oldkey)
+    if (oldkey.length > 0) {
+      await deleteImage(oldkey);
     }
   } else if (picUrl) {
     pic = picUrl;
@@ -73,5 +73,18 @@ export const updateProfile = asynchandller(async (req, res) => {
     success: true,
     message: "Profile update successfully",
     user,
+  });
+});
+
+export const getallUsers = asynchandller(async (req, res) => {
+  const { _id } = req.user;
+  const users = await User.find({ _id: { $ne: _id } })
+    .select("-password -email")
+    .lean();
+
+  return res.status(200).json({
+    success: true,
+    message: "Fetch all users successfully",
+    users,
   });
 });

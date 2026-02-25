@@ -5,6 +5,7 @@ import { Message } from "../models/message.model.js";
 import { ApiError } from "../util/apierror.js";
 import { deleteImage, uploadChatPic } from "../lib/cloudinary.js";
 import { StoragePath } from "../util/filepath.js";
+import { getReceiverSocketId, io } from "../lib/socket.js";
 
 export const getConversation = asynchandller(async (req, res) => {
   const { _id } = req.user;
@@ -14,7 +15,7 @@ export const getConversation = asynchandller(async (req, res) => {
   })
     .select("participants groupname bgImage groupIcon lastMessage")
     .populate("lastMessage", "text image sender deletedFor deletedForEveryone")
-    .sort({updatedAt:-1})
+    .sort({ updatedAt: -1 })
     .lean();
 
   const filtered = await Promise.all(
@@ -50,6 +51,7 @@ export const getConversation = asynchandller(async (req, res) => {
   });
 });
 
+//conversation create part
 export const createConversation = asynchandller(async (req, res) => {
   const { oruserId } = req.params;
   const { _id } = req.user;
@@ -78,6 +80,55 @@ export const createConversation = asynchandller(async (req, res) => {
   });
 });
 
+export const createGroup = asynchandller(async (req, res) => {
+  const { participants, groupname, groupIcon } = req.body;
+
+  if (
+    [groupname, groupIcon].some((field) => field == "") &&
+    participants.length == 0
+  )
+    throw new ApiError(401, "Missing fields");
+
+  const incorrectformat = participants.filter(
+    (par) => !par.userId || !par.role,
+  );
+  if (incorrectformat.length > 0)
+    throw new ApiError(401, "Something missing in the members field");
+
+  const existedgroup = await Conversation.findOne({ groupname: groupname })
+    .select("_id")
+    .lean();
+  if (existedgroup) throw new ApiError(400, "A groupname already exist");
+
+  const path = StoragePath("", {
+    includeMainFolder: true,
+    includeAvatarFolder: false,
+    includeUserProfilePic: false,
+    includeConversation: true,
+    includeMessageFolder: false,
+  });
+
+  const groupimg = await uploadChatPic(path, groupIcon);
+
+  const newgroup = await Conversation.create({
+    participants,
+    groupname,
+    groupIcon: groupimg,
+  });
+
+  // participants.forEach(par => {
+  //   const socketId = getReceiverSocketId(par.userId);
+  //   if(socketId) {
+  //     io.to(socketId).emit('creategroup')
+  //   }
+  // });
+
+  return res.status(200).json({
+    success: true,
+    message: "Group create successfully",
+  });
+});
+
 export const setBgimage = asynchandller(async (req, res) => {
   const { id, oldkey, image } = req.body;
 
@@ -96,14 +147,14 @@ export const setBgimage = asynchandller(async (req, res) => {
     includeMessageFolder: false,
   });
 
-  const bgimage = await uploadChatPic(path,image)
+  const bgimage = await uploadChatPic(path, image);
 
-  await Conversation.updateOne({_id:conversation._id},{bgImage:bgimage})
+  await Conversation.updateOne({ _id: conversation._id }, { bgImage: bgimage });
   return res.status(200).json({
-    success:true,
-    message:'Update Chat theme successfully',
-    bgimage
-  })
+    success: true,
+    message: "Update Chat theme successfully",
+    bgimage,
+  });
 });
 
 //get surrounding users
