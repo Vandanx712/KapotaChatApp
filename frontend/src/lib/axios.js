@@ -73,6 +73,11 @@ export const createConversation = async(data)=>{
   return response.data
 }
 
+export const createGroup = async(data)=>{
+  const response = await api.post('/conversation/group/create',data)
+  return response.data
+}
+
 export const updateConBgimage = async(data)=>{
   const response = await api.put('/conversation/settheme',data)
   return response.data

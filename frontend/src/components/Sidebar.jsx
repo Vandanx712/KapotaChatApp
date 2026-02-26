@@ -80,30 +80,30 @@ function Sidebar() {
     >
       {!open && (
         <>
-          <div className=" border-b border-base-300 w-full p-5">
+          <div className="shrink-0 border-b border-base-300 p-5">
             <div className="flex items-center justify-between gap-2">
               <Users
                 onClick={() => setNewChat(false)}
-                className={`size-6 ${!newChat && " opacity-60"}`}
+                className={`size-6 cursor-pointer ${!newChat && " opacity-60"}`}
               />
               <MessageSquarePlusIcon
                 onClick={() => setNewChat(true)}
-                className={`size-6 ${newChat && " opacity-60"}`}
+                className={`size-6 cursor-pointer ${newChat && " opacity-60"}`}
               />
             </div>
             <div className="mt-6">
-              <label className="flex items-center justify-center gap-2 input input-bordered input-md w-full">
+              <label className="flex items-center gap-2 input input-bordered input-md w-full">
                 <Search className="size-5" />
                 <input
                   type="text"
                   placeholder={`${newChat ? "Search Name" : "Search Conversation"}`}
-                  className=" w-full"
+                  className=" w-full bg-transparent outline-none"
                 />
               </label>
             </div>
           </div>
 
-          <div className="overflow-y-auto w-full py-3">
+          <div className="flex-1 min-h-0 overflow-y-auto py-3">
             {!newChat &&
               conversations.map((conversation) => (
                 <button
@@ -115,11 +115,19 @@ function Sidebar() {
                 ${selectedConversation?.conversationId === conversation?.conversationId ? "bg-base-300 ring-1 ring-base-300" : ""}
               `}
                 >
-                  <div className="relative min-w-12 lg:mx-0">
+                  <div className="relative min-w-12">
                     <PhotoProvider>
-                      <PhotoView src={conversation?.profilePic?.url}>
+                      <PhotoView
+                        src={
+                          conversation?.groupIcon?.url ||
+                          conversation?.profilePic?.url
+                        }
+                      >
                         <img
-                          src={conversation?.profilePic.url || "/avatar.png"}
+                          src={
+                            conversation?.groupIcon?.url ||
+                            conversation?.profilePic?.url
+                          }
                           className="size-12 object-cover rounded-full"
                         />
                       </PhotoView>
@@ -135,7 +143,9 @@ function Sidebar() {
                   <div className="text-left flex-1 min-w-0">
                     <div className=" flex justify-between items-center">
                       <div className="font-medium text-sm truncate flex-1 min-w-0">
-                        {conversation.name}
+                        {conversation.groupname
+                          ? conversation.groupname
+                          : conversation.name}
                       </div>
                       <div
                         className={`rounded-full ${conversation.unseenMsg == 0 || conversation.lastmessage.sender == authUser._id ? "hidden" : "flex"} justify-center items-center bg-base-300 p-2 text-xs size-3`}
@@ -250,8 +260,8 @@ function Sidebar() {
               onClick={() => setOpen("")}
             ></label>
 
-            <div className="w-full lg:w-[350px] bg-base-100 h-full p-4 border-r border-base-300 flex flex-col">
-              <CreateGroup type={open} onClose={() => setOpen("")} />
+            <div className="w-full lg:w-[350px] bg-base-100 border-r border-base-300 flex flex-col">
+              <CreateGroup onClose={() => setOpen("")} />
             </div>
           </div>
         </div>

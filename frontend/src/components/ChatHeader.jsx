@@ -45,13 +45,13 @@ const ChatHeader = () => {
           </button>
           <div className="avatar">
             <div className="size-10 rounded-full ">
-              <img src={selectedConversation.profilePic.url || "/avatar.png"} />
+              <img src={selectedConversation?.groupIcon.url || selectedConversation?.profilePic.url || "/avatar.png"} />
             </div>
           </div>
 
           {/* User info */}
           <div>
-            <h3 className="font-medium">{selectedConversation.name}</h3>
+            <h3 className="font-medium">{selectedConversation.groupname|| selectedConversation.name}</h3>
             <p className="text-sm text-base-content/70">
               {onlineUsers.includes(selectedConversation.oruserId)
                 ? "Online"

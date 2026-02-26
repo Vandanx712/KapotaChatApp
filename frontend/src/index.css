@@ -16,3 +16,85 @@
 .fab:focus-within> :not([role="button"]) {
     @apply scale-100 opacity-100;
 }
+
+/* =========================
+   PIGEON FLOATING (MAIN)
+========================= */
+.pigeon-float {
+  animation: pigeonFloat 1.8s ease-in-out infinite;
+}
+
+@keyframes pigeonFloat {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-30px) scale(1.03);
+  }
+}
+
+/* =========================
+   WINGS
+========================= */
+.wing-left {
+  transform-origin: 45px 50px;
+  animation: wingLeft 1.8s ease-in-out infinite;
+}
+
+.wing-right {
+  transform-origin: 55px 50px;
+  animation: wingRight 1.8s ease-in-out infinite;
+}
+
+@keyframes wingLeft {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-75deg);
+  }
+}
+
+@keyframes wingRight {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(75deg);
+  }
+}
+
+/* =========================
+   TEXT BREATHING
+========================= */
+.loading-text {
+  animation: textFade 2.8s ease-in-out infinite;
+}
+
+@keyframes textFade {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* =========================
+   DOTS (LOADING SIGNAL)
+========================= */
+.loading-dots {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  animation: dots 1.6s steps(4, end) infinite;
+}
+
+@keyframes dots {
+  0% {
+    width: 0ch;
+  }
+  100% {
+    width: 3ch;
+  }
+}
