@@ -46,7 +46,7 @@ const AuthImagePattern = ({ title, subtitle }) => {
           </svg>
         </div>
 
-        <h2 className="text-2xl animate-text-fade font-bold mb-4">{title}</h2>
+        <h2 className="text-2xl loading-text font-bold mb-4">{title}</h2>
         <p className="text-primary/50">{subtitle}</p>
       </div>
     </div>

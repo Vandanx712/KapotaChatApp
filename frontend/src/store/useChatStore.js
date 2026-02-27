@@ -75,11 +75,16 @@ export const useChatStore = create((set, get) => ({
 
   onlineToMessage: () => {
     const { selectedConversation } = get();
+    const authUser = useAuthStore.getState().authUser;
     if (!selectedConversation) return;
 
     const socket = useAuthStore.getState().socket;
     socket.on("newmessage", (newmsg) => {
-      if (newmsg.sender !== selectedConversation.oruserId) return;
+      if (
+        newmsg.conversationId == selectedConversation.conversationId &&
+        newmsg.sender == authUser._id
+      )
+        return;
       set((state) => ({
         message: [...state.message, newmsg],
       }));
@@ -93,12 +98,16 @@ export const useChatStore = create((set, get) => ({
 
   setIsTyping: (selectedConversation) => {
     const socket = useAuthStore.getState().socket;
-    socket.emit("istyping", { receiverId: selectedConversation.oruserId });
+    socket.emit("istyping", {
+      receiverId: selectedConversation.conversationId,
+    });
   },
 
   setStopTyping: (selectedConversation) => {
     const socket = useAuthStore.getState().socket;
-    socket.emit("StopTyping", { receiverId: selectedConversation.oruserId });
+    socket.emit("StopTyping", {
+      receiverId: selectedConversation.conversationId,
+    });
   },
 
   setMsgSeen: (msgId) => {
@@ -324,7 +333,7 @@ export const useChatStore = create((set, get) => ({
           };
         } else return con;
       }),
-      message:[]
+      message: [],
     }));
   },
 }));

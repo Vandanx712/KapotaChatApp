@@ -55,7 +55,7 @@ function Sidebar() {
     socket.on("newmessage", (newMessage) => setNmsgInCon(newMessage));
     socket.on("istyping", (userId) => setTyping(userId));
     socket.on("StopTyping", (userId) =>
-      setTyping(userId == Typing ? "" : Typing),
+      setTyping(userId.receiverId == Typing.receiverId ? "" : Typing),
     );
     socket.on("reacted", (msg) => setUpdatedMessage(msg));
     socket.on("delete", (msg) => setDeletedMessageForSlider(msg));
@@ -112,21 +112,23 @@ function Sidebar() {
                   className={`
                 w-full p-3 flex items-center gap-3
                 hover:bg-base-300 transition-colors
-                ${selectedConversation?.conversationId === conversation?.conversationId ? "bg-base-300 ring-1 ring-base-300" : ""}
+                ${selectedConversation?.conversationId === conversation?.conversationId ? "bg-base-300 rounded-lg ring-1 ring-base-300" : ""}
               `}
                 >
                   <div className="relative min-w-12">
                     <PhotoProvider>
                       <PhotoView
                         src={
-                          conversation?.groupIcon?.url ||
-                          conversation?.profilePic?.url
+                          conversation.isgroup
+                            ? conversation.groupdetail?.groupIcon.url
+                            : conversation?.profilePic?.url
                         }
                       >
                         <img
                           src={
-                            conversation?.groupIcon?.url ||
-                            conversation?.profilePic?.url
+                            conversation.isgroup
+                              ? conversation.groupdetail?.groupIcon.url
+                              : conversation?.profilePic?.url
                           }
                           className="size-12 object-cover rounded-full"
                         />
@@ -137,14 +139,15 @@ function Sidebar() {
                         className="absolute bottom-0 right-0 size-3 bg-green-500 
                     rounded-full"
                       />
-                    )}
+                    )} 
+                    {/* ahi onlineuser for group mate  */}
                   </div>
 
                   <div className="text-left flex-1 min-w-0">
                     <div className=" flex justify-between items-center">
                       <div className="font-medium text-sm truncate flex-1 min-w-0">
-                        {conversation.groupname
-                          ? conversation.groupname
+                        {conversation.isgroup
+                          ? conversation.groupdetail.groupname
                           : conversation.name}
                       </div>
                       <div
@@ -156,8 +159,11 @@ function Sidebar() {
                       </div>
                     </div>
                     <div className="text-xs text-zinc-400 truncate">
-                      {Typing == conversation.oruserId
-                        ? "typing..."
+                      {Typing.receiverId == conversation.conversationId &&
+                      Typing.userId !== authUser._id
+                        ? conversation.isgroup
+                          ? `${conversation.groupdetail.membersDetail[Typing.userId].fullname} is typing...`
+                          : "typing..."
                         : conversation?.lastmessage?.deletedForEveryone
                           ? authUser._id == conversation?.lastmessage?.sender
                             ? "You deleted this message"

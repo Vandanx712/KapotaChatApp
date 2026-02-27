@@ -83,7 +83,7 @@
 /* =========================
    DOTS (LOADING SIGNAL)
 ========================= */
-.loading-dots {
+/* .loading-dots {
   display: inline-block;
   overflow: hidden;
   vertical-align: bottom;
@@ -97,4 +97,4 @@
   100% {
     width: 3ch;
   }
-}
+} */

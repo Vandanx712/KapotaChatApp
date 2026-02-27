@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import express from "express";
 import http from "http";
 import { updateMsgStatus } from "../controllers/message.controller.js";
+import { getUserConversations } from "../controllers/conversation.controller.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -23,40 +24,34 @@ io.on("connection", (socket) => {
   // io.emit() is used to send events to all connected clients
 
   io.emit("getonlineusers", Object.keys(userSocketMap));
+  const conversations = getUserConversations();
+  conversations.forEach((conv) => {
+    socket.join(conv._id.toString());
+  });
 
   //message part
   socket.on("istyping", ({ receiverId }) => {
-    const receiverSocketId = userSocketMap[receiverId];
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("istyping",userId);
-    }
+    io.to(receiverId).emit("istyping", {userId,receiverId});
   });
 
   socket.on("StopTyping", ({ receiverId }) => {
-    const receiverSocketId = userSocketMap[receiverId];
+    io.to(receiverId).emit("StopTyping", {userId,receiverId});
+  });
+
+  socket.on("msgseen", async ({ msgId, senderId }) => {
+    const receiverSocketId = userSocketMap[senderId];
     if (receiverSocketId) {
-      io.to(receiverSocketId).emit("StopTyping",userId);
+      await updateMsgStatus(msgId, userId);
+      io.to(receiverSocketId).emit("msgseen", { msgId });
     }
   });
 
-  socket.on('msgseen',async({msgId,senderId})=>{
-    const receiverSocketId = userSocketMap[senderId]
-    if(receiverSocketId){
-      await updateMsgStatus(msgId,userId)
-      io.to(receiverSocketId).emit('msgseen',{msgId})
-    }
-  })
-
-  socket.on('changeBgimage',({conversation,bgImage})=>{
-    const receiverSocketId = userSocketMap[conversation.oruserId]
-    const mysocketId = userSocketMap[userId]
-    if(receiverSocketId){
-      io.to(receiverSocketId).emit('changeBgimage',{conversationId:conversation.conversationId,bgImage})
-    }
-    if(mysocketId){
-      io.to(mysocketId).emit('changeBgimage',{conversationId:conversation.conversationId,bgImage})
-    }
-  })
+  socket.on("changeBgimage", ({ conversation, bgImage }) => {
+    io.to(conversation.conversationId).emit("changeBgimage", {
+      conversationId: conversation.conversationId,
+      bgImage,
+    });
+  });
 
   socket.on("disconnect", () => {
     console.log("A user disconnected", socket.id);

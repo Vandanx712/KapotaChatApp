@@ -49,7 +49,7 @@ function ChatContainer() {
       conBgimage(conversationId, bgImage);
     });
     socket.on("istyping", (userId) => setTyping(userId));
-    socket.on("StopTyping", (userId) => setTyping(userId == Typing ? '' : Typing));
+    socket.on("StopTyping", (userId) => setTyping(userId.userId == Typing.userId ? '' : Typing));
     socket.on('delete',(msg)=>setDeletedMessage(msg))
     socket.on('clearchat',(conversation)=>setClearChat(conversation))
     onlineToMessage();
@@ -89,7 +89,7 @@ function ChatContainer() {
       >
         <Virtuoso
           style={{ height: "100%" }}
-          data={[...message, ...(Typing === selectedConversation.oruserId ? [{ _id: "typing" }] : [])]}
+          data={[...message, ...(Typing.receiverId == selectedConversation.conversationId && Typing.userId !== authUser._id ? [{ _id: 'typing'}] : [])]}
           initialTopMostItemIndex={message?.length - 1}
           followOutput="auto"
           itemContent={(index, m) => (

@@ -12,9 +12,13 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 
 const ChatHeader = () => {
-  const { selectedConversation, setUnselectedConversation, setConBgimage,clearAllMsg } =
-    useChatStore();
-  const { onlineUsers } = useAuthStore();
+  const {
+    selectedConversation,
+    setUnselectedConversation,
+    setConBgimage,
+    clearAllMsg,
+  } = useChatStore();
+  const { onlineUsers, authUser } = useAuthStore();
 
   const handleimagechange = (e) => {
     e.preventDefault();
@@ -31,9 +35,40 @@ const ChatHeader = () => {
     };
   };
 
-  const handleClearChat = ()=>{
-    clearAllMsg(selectedConversation.conversationId)
+  let onlinemember = [];
+
+  if (selectedConversation.isgroup) {
+    const membersId = Object.keys(
+      selectedConversation.groupdetail.membersDetail,
+    );
+    onlinemember = membersId.map((id) => {
+      if(id==authUser._id) return;
+      if (onlineUsers.includes(id)) {
+        return selectedConversation.groupdetail.membersDetail[id].fullname;
+      }
+    }).filter((mem)=>mem);
   }
+  let statusText = "";
+
+  if (!selectedConversation.isgroup) {
+    statusText = onlineUsers.includes(selectedConversation.oruserId)
+      ? "Online"
+      : "Offline";
+  } else {
+    if (onlinemember.length > 1) {
+      statusText = `${onlinemember[0]} & ${onlinemember.length - 1} other${
+        onlinemember.length - 1 > 1 ? "s" : ""
+      } are online`;
+    } else if (onlinemember.length === 1) {
+      statusText = `${onlinemember[0]} is online`;
+    } else {
+      statusText = "No one is online";
+    }
+  }
+
+  const handleClearChat = () => {
+    clearAllMsg(selectedConversation.conversationId);
+  };
 
   return (
     <div className="p-2.5 border-b border-base-300">
@@ -45,17 +80,32 @@ const ChatHeader = () => {
           </button>
           <div className="avatar">
             <div className="size-10 rounded-full ">
-              <img src={selectedConversation?.groupIcon.url || selectedConversation?.profilePic.url || "/avatar.png"} />
+              <img
+                src={
+                  selectedConversation.isgroup
+                    ? selectedConversation.groupdetail?.groupIcon.url
+                    : selectedConversation?.profilePic?.url
+                }
+              />
             </div>
           </div>
 
           {/* User info */}
-          <div>
-            <h3 className="font-medium">{selectedConversation.groupname|| selectedConversation.name}</h3>
-            <p className="text-sm text-base-content/70">
-              {onlineUsers.includes(selectedConversation.oruserId)
-                ? "Online"
-                : "Offline"}
+          <div className="flex flex-col min-w-0">
+            <h3
+              className="font-medium text-lg truncate"
+            >
+              {selectedConversation.isgroup
+                ? selectedConversation.groupdetail.groupname
+                : selectedConversation.name}
+            </h3>
+
+            <p
+              className="text-xs sm:text-sm 
+                text-base-content/70 
+                truncate"
+            >
+              {statusText}
             </p>
           </div>
         </div>
@@ -97,7 +147,10 @@ const ChatHeader = () => {
               </li>
               <div className="divider m-0 divider-primary" />
               <li>
-                <button className="flex items-center" onClick={()=>handleClearChat()}>
+                <button
+                  className="flex items-center"
+                  onClick={() => handleClearChat()}
+                >
                   <MinusCircle className="size-4" /> Clear Chat
                 </button>
               </li>

@@ -7,6 +7,11 @@ import { deleteImage, uploadChatPic } from "../lib/cloudinary.js";
 import { StoragePath } from "../util/filepath.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 
+let userconversations = [];
+export const getUserConversations = () => {
+  return userconversations.map((con) => con._id);
+};
+
 export const getConversation = asynchandller(async (req, res) => {
   const { _id } = req.user;
 
@@ -18,15 +23,35 @@ export const getConversation = asynchandller(async (req, res) => {
     .sort({ updatedAt: -1 })
     .lean();
 
+  userconversations = conversations;
+
   const filtered = await Promise.all(
     conversations.map(async (con) => {
-      const otheruser = con.participants.filter(
+      const groupdetail = {};
+
+      if (con.groupname) {
+        groupdetail.groupname = con.groupname;
+        groupdetail.groupIcon = con.groupIcon;
+        const membersDetail = {};
+        for (const member of con.participants) {
+          const memberdetail = await User.findById(member.userId)
+            .select("fullname")
+            .lean();
+          if (!membersDetail[member.userId]) {
+            membersDetail[member.userId.toString()] = {
+              fullname: memberdetail.fullname,
+              role: member.role,
+            };
+          }
+        }
+        groupdetail.membersDetail = membersDetail;
+      }
+
+      const otheruser = con.participants.find(
         (par) => par.userId.toString() != _id.toString(),
       );
       const [user, unseen] = await Promise.all([
-        User.findById(otheruser[0].userId)
-          .select(" fullname profilePic ")
-          .lean(),
+        User.findById(otheruser.userId).select(" fullname profilePic ").lean(),
         Message.countDocuments({ conversationId: con._id, isSeen: false }),
       ]);
 
@@ -35,8 +60,8 @@ export const getConversation = asynchandller(async (req, res) => {
         oruserId: user._id,
         name: user.fullname,
         profilePic: user.profilePic,
-        groupname: con.groupname,
-        groupIcon: con.groupIcon,
+        isgroup: con.groupname ? true : false,
+        groupdetail,
         unseenMsg: unseen,
         bgImage: con.bgImage,
         lastmessage: con.lastMessage ? con.lastMessage : "",

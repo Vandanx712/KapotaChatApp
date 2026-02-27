@@ -91,7 +91,7 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
     <div
       className={`ml-1 chat ${isSentByMe ? "chat-end" : "chat-start"} ${m?.deletedFor?.includes(authUser._id) ? "hidden" : ""}`}
     >
-      <div className="chat-image hidden md:avatar">
+      {selectedConversation.groupname && (<div className="chat-image hidden md:avatar">
         <div className="size-10 rounded-full border">
           <img
             src={
@@ -102,7 +102,7 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
             alt="profile"
           />
         </div>
-      </div>
+      </div>)}
 
       <div
         className={`group relative chat-bubble ${isSentByMe ? "chat-bubble-primary" : "chat-bubble-accent"} ${m._id === "typing" ? "hidden" : ""} flex flex-col`}
