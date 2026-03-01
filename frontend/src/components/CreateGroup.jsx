@@ -56,9 +56,9 @@ function CreateGroup({ onClose }) {
     };
   };
 
-  const onEmojiClick=(emojiData)=>{
-    setGroupname((prev)=>prev + emojiData.emoji)
-  }
+  const onEmojiClick = (emojiData) => {
+    setGroupname((prev) => prev + emojiData.emoji);
+  };
 
   const handleSave = async () => {
     if (!groupicon) return toast.error("Group icon must be required");
@@ -69,7 +69,7 @@ function CreateGroup({ onClose }) {
       const resdata = await createGroup({
         groupname: groupname.trim(),
         groupIcon: groupicon,
-        participants:participants,
+        participants: participants,
       });
       toast.success(resdata.message);
       onClose();
@@ -80,7 +80,7 @@ function CreateGroup({ onClose }) {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       <div className={`${groupForm ? "hidden" : "flex flex-col h-full"}`}>
         <div className="shrink-0 flex items-center gap-5 p-4 border-b border-base-300">
           <ArrowLeft onClick={onClose} className="size-5 cursor-pointer" />
@@ -172,30 +172,31 @@ function CreateGroup({ onClose }) {
           <h2 className="text-lg font-semibold">Add group</h2>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-5">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
           <div className="flex justify-center">
-            <div className="w-24 h-24 relative gap-1 text-xs rounded-full bg-base-200 flex flex-col items-center justify-center ">
-              {!groupicon && (
-                <>
+            <div className="w-24 h-24 relative gap-1 text-xs rounded-full bg-base-100 flex flex-col items-center justify-center ">
+              <>
+                <span className={`${groupicon ? "hidden" : ""}`}>
                   Add group icon
-                  <button
-                    onClick={() => alert("Photo size almost 9mb")}
-                    className=" absolute right-1 bottom-1"
-                  >
-                    <label htmlFor="avatar-upload">
-                      <Image className=" size-6" />
-                      <input
-                        type="file"
-                        id="avatar-upload"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleProfilePic}
-                        // disabled={isUpdateProfile}
-                      />
-                    </label>
-                  </button>
-                </>
-              )}
+                </span>
+                <button
+                  onClick={() => alert("Photo size almost 9mb")}
+                  className={`${groupicon ? ' -right-1':' right-1'} absolute bottom-1`}
+                >
+                  <label htmlFor="avatar-upload">
+                    <Image className=" size-6" />
+                    <input
+                      type="file"
+                      id="avatar-upload"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleProfilePic}
+                      // disabled={isUpdateProfile}
+                    />
+                  </label>
+                </button>
+              </>
+              
               {groupicon && (
                 <img
                   src={groupicon}
@@ -224,7 +225,7 @@ function CreateGroup({ onClose }) {
               {members.map((par, index) => (
                 <div
                   key={par._id}
-                  className="p-2 flex items-center justify-between gap-2 rounded-lg bg-base-200"
+                  className="p-2 flex items-center justify-between gap-2 rounded-lg bg-base-300"
                 >
                   {par.fullname}
                   <label className="cursor-pointer flex items-center justify-center gap-2">
@@ -271,7 +272,7 @@ function CreateGroup({ onClose }) {
           {/* Dark Backdrop: Closes picker when clicking anywhere else */}
           <div
             className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
-            onClick={() => setShowPicker("")}
+            onClick={() => setShowPicker((prev)=>!prev)}
           />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
             <div className="shadow-2xl border border-base-300 rounded-xl overflow-hidden scale-95 md:scale-100 animate-in zoom-in duration-200">

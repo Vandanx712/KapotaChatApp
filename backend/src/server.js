@@ -7,6 +7,7 @@ import cors from "cors";
 import { app, server } from "./lib/socket.js";
 import compression from "compression";
 import ratelimiter from "express-rate-limit";
+import { handleError } from "./util/apierror.js";
 
 dotenv.config();
 const port = process.env.PORT;
@@ -24,6 +25,7 @@ app.use(
 app.use(compression({ level: 6, threshold: 512 }));
 app.use(express.json({ limit: "10mb" }));
 app.use("/api", indexRoute);
+app.use(handleError)
 server.listen(port, () => {
   connectDb();
   console.log(`Kapota chat run on ${port}`);

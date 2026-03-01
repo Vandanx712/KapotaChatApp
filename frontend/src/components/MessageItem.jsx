@@ -27,7 +27,12 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
   const { socket } = useAuthStore();
   const { setReactedMsg, messageDelete } = useChatStore();
   const [openUp, setOpenUp] = useState(false);
+  const [showActions, setShowActions] = useState(false);
   const dropdownRef = useRef(null);
+
+  const supportsHover =
+    typeof window !== "undefined" &&
+    window.matchMedia("(hover: hover)").matches;
 
   const handleOpen = () => {
     const rect = dropdownRef.current.getBoundingClientRect();
@@ -47,6 +52,25 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
   const ONE_DAY = 24 * 60 * 60 * 1000;
   const updatefor = now <= createdAt + TEN_MIN;
   const deletefor = now <= createdAt + ONE_DAY;
+
+  let myrole;
+  if (selectedConversation.isgroup) {
+    const membersId = Object.keys(
+      selectedConversation.groupdetail.membersDetail,
+    );
+    const mydetail =
+      selectedConversation.groupdetail.membersDetail[
+        membersId.filter((mem) => mem == authUser._id)[0]
+      ];
+    myrole = mydetail?.role;
+  }
+
+  const canEdit =
+    (!selectedConversation.isgroup &&
+      m.sender === authUser._id &&
+      !m.isSeen &&
+      updatefor) ||
+    (selectedConversation.isgroup && myrole !== "member" && updatefor);
 
   useEffect(() => {
     socket.on("reacted", (msg) => {
@@ -89,23 +113,30 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
   };
   return (
     <div
-      className={`ml-1 chat ${isSentByMe ? "chat-end" : "chat-start"} ${m?.deletedFor?.includes(authUser._id) ? "hidden" : ""}`}
+      className={`px-4 chat ${isSentByMe ? "chat-end" : "chat-start"} ${m?.deletedFor?.includes(authUser._id) ? "hidden" : ""}`}
     >
-      {selectedConversation.groupname && (<div className="chat-image hidden md:avatar">
-        <div className="size-10 rounded-full border">
-          <img
-            src={
-              isSentByMe
-                ? authUser.profilePic.url || ""
-                : selectedConversation.profilePic.url || ""
-            }
-            alt="profile"
-          />
+      {selectedConversation.groupname && (
+        <div className="chat-image hidden md:avatar">
+          <div className="size-10 rounded-full border">
+            <img
+              src={
+                isSentByMe
+                  ? authUser.profilePic.url || ""
+                  : selectedConversation.profilePic.url || ""
+              }
+              alt="profile"
+            />
+          </div>
         </div>
-      </div>)}
+      )}
 
       <div
-        className={`group relative chat-bubble ${isSentByMe ? "chat-bubble-primary" : "chat-bubble-accent"} ${m._id === "typing" ? "hidden" : ""} flex flex-col`}
+        onClick={() => {
+          if (!supportsHover) {
+            setShowActions((prev) => !prev);
+          }
+        }}
+        className={`group relative overflow-visible chat-bubble ${isSentByMe ? "chat-bubble-primary" : "chat-bubble-accent"} ${m._id === "typing" ? "hidden" : ""} flex flex-col`}
       >
         {m.image && (
           <PhotoProvider>
@@ -138,7 +169,15 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
             ))}
         </time>
         <div
-          className={`hidden flex-col ${m?.deletedForEveryone ? "hidden" : "group-hover:flex"} absolute ${isSentByMe ? "-left-6 pr-10" : "-right-6 pl-10"} top-1 gap-2 items-center`}
+          className={` ${
+            m?.deletedForEveryone
+              ? "hidden"
+              : supportsHover
+                ? "opacity-0 group-hover:opacity-100"
+                : showActions
+                  ? "opacity-100"
+                  : "opacity-0"
+          } ${isSentByMe ? "right-full mr-2" : "left-full ml-2"} absolute top-1 gap-2 items-center transition-opacity duration-200`}
         >
           <div
             ref={dropdownRef}
@@ -151,7 +190,7 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
             </button>
             <ul
               tabIndex={0}
-              className="dropdown-content menu bg-base-100 rounded-box z-[1] min-w-44 p-2 shadow"
+              className="dropdown-content menu bg-base-100 rounded-box z-50 min-w-44 p-2 shadow"
             >
               <li>
                 <button
@@ -164,21 +203,22 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
                   <CopyIcon className="size-4" /> Copy Message
                 </button>
               </li>
-              <li
-                className={`${m.sender == authUser._id && m.isSeen == false && updatefor ? "" : "hidden"}`}
-              >
-                <button
-                  onClick={() => setEditing((pre) => !pre)}
-                  className="flex text-sm items-center gap-3"
-                >
-                  <Edit2 className="size-4" /> Edit Message
-                </button>
-              </li>
+              {canEdit && (
+                <li>
+                  <button
+                    onClick={() => setEditing((pre) => !pre)}
+                    className="flex text-sm items-center gap-3"
+                  >
+                    <Edit2 className="size-4" />
+                    Edit Message
+                  </button>
+                </li>
+              )}
               <div className="divider m-0 divider-primary" />
               <li>
                 <button
                   onClick={() => setDeleting((pre) => !pre)}
-                  className='flex text-sm items-center gap-3'
+                  className="flex text-sm items-center gap-3"
                 >
                   <Trash2Icon className="size-4" /> Delete Message
                 </button>
@@ -190,7 +230,7 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
               e.stopPropagation();
               setShowPicker((prev) => !prev);
             }}
-            className={`size-5 cursor-pointer ${m.sender == authUser._id ? 'mr-2':'ml-2'}`}
+            className={`size-5 cursor-pointer ${m.sender == authUser._id ? "mr-2" : "ml-2"}`}
           />
           {showPicker && (
             <>
@@ -281,7 +321,7 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
                 <div className="md:p-5 p-1 flex flex-col gap-3 items-end">
                   <button
                     onClick={handleDeleteEeveryone}
-                    className={`${deletefor && m.sender == authUser._id ? "" : "hidden"} btn cursor-pointer rounded-2xl text-error`}
+                    className={`${deletefor && myrole == "admin" && m.sender == authUser._id ? "" : "hidden"} btn cursor-pointer rounded-2xl text-error`}
                   >
                     Delete for everyone
                   </button>

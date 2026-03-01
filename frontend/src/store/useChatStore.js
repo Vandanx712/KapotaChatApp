@@ -22,6 +22,7 @@ export const useChatStore = create((set, get) => ({
   isUsersLoading: false,
   isConversationLoading: false,
   isMessageLoading: false,
+  showInfo:false,
 
   getConversation: async () => {
     set({ isConversationLoading: true });
@@ -336,4 +337,9 @@ export const useChatStore = create((set, get) => ({
       message: [],
     }));
   },
+
+  setShowInfo:()=>{
+    set((state)=>({showInfo:!state.showInfo}))
+  }
+  
 }));

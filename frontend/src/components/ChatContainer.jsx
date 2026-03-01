@@ -79,7 +79,7 @@ function ChatContainer() {
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-auto">
+    <div className="flex-1 bg-base-100 flex flex-col overflow-auto">
       <ChatHeader />
       <div
         style={{

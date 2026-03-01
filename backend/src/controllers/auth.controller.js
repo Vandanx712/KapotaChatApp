@@ -47,6 +47,7 @@ export const signup = asynchandller(async (req, res) => {
       email: newuser.email,
       profilePic: newuser.profilePic,
       bio: newuser.bio,
+      gender:newuser.gender
     },
   });
 });
@@ -58,7 +59,7 @@ export const login = asynchandller(async (req, res) => {
     throw new ApiError(401, "Missing Fields");
 
   const user = await User.findOne({ email: email });
-  if (!user) throw new ApiError(400, "Invalid credentials");
+  if (!user) throw new ApiError(400, "User not found");
 
   const ispasswordvalid = await bcrypt.compare(password, user.password);
   if (!ispasswordvalid) throw new ApiError(400, "Invalid credentials");
@@ -73,6 +74,7 @@ export const login = asynchandller(async (req, res) => {
       email: user.email,
       profilePic: user.profilePic,
       bio: user.bio,
+      gender:user.gender
     },
   });
 });

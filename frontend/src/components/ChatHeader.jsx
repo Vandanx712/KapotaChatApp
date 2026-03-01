@@ -17,6 +17,7 @@ const ChatHeader = () => {
     setUnselectedConversation,
     setConBgimage,
     clearAllMsg,
+    setShowInfo
   } = useChatStore();
   const { onlineUsers, authUser } = useAuthStore();
 
@@ -71,7 +72,7 @@ const ChatHeader = () => {
   };
 
   return (
-    <div className="p-2.5 border-b border-base-300">
+    <div className="p-2.5 pt-5 border-b border-base-300">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {/* Avatar */}
@@ -122,8 +123,8 @@ const ChatHeader = () => {
               className="dropdown-content menu mt-5 bg-base-100 rounded-box z-[1] w-52 p-2 shadow"
             >
               <li>
-                <button className="flex items-center">
-                  <InfoIcon className="size-4" /> Contact Info
+                <button onClick={()=>setShowInfo()} className="flex items-center">
+                  <InfoIcon className="size-4" /> {`${selectedConversation?.isgroup ? 'Group' :'Contact'} Info`}
                 </button>
               </li>
               <li>

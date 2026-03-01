@@ -88,6 +88,9 @@ export const useAuthStore = create((set, get) => ({
     try {
       const resdata = await updatePic(data);
       toast.success(resdata.message);
+      set((state) => ({
+        authUser: { ...state.authUser, profilePic: resdata.user.profilePic },
+      }));
     } catch (error) {
       toast.error(error.response?.dats?.message);
       console.log(error);

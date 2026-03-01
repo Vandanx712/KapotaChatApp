@@ -76,7 +76,7 @@ function Sidebar() {
   if (isConversationLoading) return <SidebarSkeleton />;
   return (
     <aside
-      className={`h-full w-full lg:w-[350px] border-r border-base-300 flex flex-col transition-all duration-200 ${selectedConversation ? "hidden lg:flex" : ""}`}
+      className={`h-full pt-4 bg-base-200 w-full lg:w-[350px] border-r border-base-300 flex flex-col transition-all duration-200 ${selectedConversation ? "hidden lg:flex" : ""}`}
     >
       {!open && (
         <>
@@ -266,7 +266,7 @@ function Sidebar() {
               onClick={() => setOpen("")}
             ></label>
 
-            <div className="w-full lg:w-[350px] bg-base-100 border-r border-base-300 flex flex-col">
+            <div className="w-full lg:w-[350px] bg-base-200 border-r border-base-300 flex flex-col">
               <CreateGroup onClose={() => setOpen("")} />
             </div>
           </div>
