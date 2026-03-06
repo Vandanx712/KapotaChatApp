@@ -88,3 +88,18 @@ export const getallUsers = asynchandller(async (req, res) => {
     users,
   });
 });
+
+export const getUserById = asynchandller(async(req,res)=>{
+  const {id} = req.params
+
+  if(!id) throw new ApiError(401,'Missing field')
+
+  const user = await User.findById(id).select('-password').lean()
+  if(!user) throw new ApiError(400,'User not found')
+
+  return res.status(200).json({
+    success:true,
+    message:'Fetch detail successfully',
+    user
+  })
+})

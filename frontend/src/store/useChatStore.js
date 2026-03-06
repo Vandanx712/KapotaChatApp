@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import {
   clearChat,
   createConversation,
+  deleteConversation,
   deleteMessage,
   getConversations,
   getMessages,
@@ -340,6 +341,16 @@ export const useChatStore = create((set, get) => ({
 
   setShowInfo:()=>{
     set((state)=>({showInfo:!state.showInfo}))
+  },
+
+  setDeleteChat:async(id)=>{
+    try {
+      const resdata = await deleteConversation(id)
+      toast.success(resdata.message)
+      set({selectedConversation:null})
+    } catch (error) {
+      console.log(error)
+      toast.error(error.response?.data.message)
+    }
   }
-  
 }));

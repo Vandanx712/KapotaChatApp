@@ -83,6 +83,16 @@ export const updateConBgimage = async(data)=>{
   return response.data
 }
 
+export const contactDetail = async(id)=>{
+  const response = await api.get(`/user/${id}`)
+  return response.data
+}
+
+export const deleteConversation = async(id)=>{
+  const response = await api.delete(`/conversation/delete/${id}`)
+  return response.data
+}
+
 // message part
 
 export const getMessages = async(id)=>{

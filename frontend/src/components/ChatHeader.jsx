@@ -17,7 +17,9 @@ const ChatHeader = () => {
     setUnselectedConversation,
     setConBgimage,
     clearAllMsg,
-    setShowInfo
+    setShowInfo,
+    setDeleteChat,
+    getConversation,
   } = useChatStore();
   const { onlineUsers, authUser } = useAuthStore();
 
@@ -36,23 +38,27 @@ const ChatHeader = () => {
     };
   };
 
+  const onlineUsersSet = new Set(onlineUsers);
+
   let onlinemember = [];
+  let myrole = selectedConversation.isgroup? selectedConversation.groupdetail.membersDetail[authUser._id].role:'';
 
   if (selectedConversation.isgroup) {
     const membersId = Object.keys(
       selectedConversation.groupdetail.membersDetail,
     );
-    onlinemember = membersId.map((id) => {
-      if(id==authUser._id) return;
-      if (onlineUsers.includes(id)) {
-        return selectedConversation.groupdetail.membersDetail[id].fullname;
+    membersId.forEach((id) => {
+      if (id !== authUser._id && onlineUsersSet.has(id)) {
+        onlinemember.push(
+          selectedConversation.groupdetail.membersDetail[id].fullname,
+        );
       }
-    }).filter((mem)=>mem);
+    });
   }
   let statusText = "";
 
   if (!selectedConversation.isgroup) {
-    statusText = onlineUsers.includes(selectedConversation.oruserId)
+    statusText = onlineUsersSet.has(selectedConversation.oruserId)
       ? "Online"
       : "Offline";
   } else {
@@ -69,6 +75,13 @@ const ChatHeader = () => {
 
   const handleClearChat = () => {
     clearAllMsg(selectedConversation.conversationId);
+  };
+
+  const handleDeleteChat = () => {
+    setDeleteChat(selectedConversation.conversationId);
+    setTimeout(() => {
+      getConversation();
+    }, 3000);
   };
 
   return (
@@ -93,9 +106,7 @@ const ChatHeader = () => {
 
           {/* User info */}
           <div className="flex flex-col min-w-0">
-            <h3
-              className="font-medium text-lg truncate"
-            >
+            <h3 className="font-medium text-lg truncate">
               {selectedConversation.isgroup
                 ? selectedConversation.groupdetail.groupname
                 : selectedConversation.name}
@@ -123,29 +134,35 @@ const ChatHeader = () => {
               className="dropdown-content menu mt-5 bg-base-100 rounded-box z-[1] w-52 p-2 shadow"
             >
               <li>
-                <button onClick={()=>setShowInfo()} className="flex items-center">
-                  <InfoIcon className="size-4" /> {`${selectedConversation?.isgroup ? 'Group' :'Contact'} Info`}
-                </button>
-              </li>
-              <li>
                 <button
-                  onClick={() => alert("Must be dimension 800x600 or above")}
+                  onClick={() => setShowInfo()}
+                  className="flex items-center"
                 >
-                  <label
-                    className="flex gap-2 items-center"
-                    htmlFor="avatar-upload"
-                  >
-                    <ImageIcon className="size-4" /> Chat Theme
-                    <input
-                      type="file"
-                      id="avatar-upload"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleimagechange}
-                    />
-                  </label>
+                  <InfoIcon className="size-4" />{" "}
+                  {`${selectedConversation?.isgroup ? "Group" : "Contact"} Info`}
                 </button>
               </li>
+              {myrole != "member" && (
+                <li>
+                  <button
+                    onClick={() => alert("Must be dimension 800x600 or above")}
+                  >
+                    <label
+                      className="flex gap-2 items-center"
+                      htmlFor="avatar-upload"
+                    >
+                      <ImageIcon className="size-4" /> Chat Theme
+                      <input
+                        type="file"
+                        id="avatar-upload"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleimagechange}
+                      />
+                    </label>
+                  </button>
+                </li>
+              )}
               <div className="divider m-0 divider-primary" />
               <li>
                 <button
@@ -155,11 +172,16 @@ const ChatHeader = () => {
                   <MinusCircle className="size-4" /> Clear Chat
                 </button>
               </li>
-              <li>
-                <button className="flex items-center">
-                  <Trash2Icon className="size-4" /> Delete Chat
-                </button>
-              </li>
+              {myrole != "member" && (
+                <li>
+                  <button
+                    onClick={() => handleDeleteChat()}
+                    className="flex items-center"
+                  >
+                    <Trash2Icon className="size-4" /> Delete Chat
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
         </div>

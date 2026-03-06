@@ -1,8 +1,22 @@
-import { LucideArrowRightFromLine, Trash2Icon, X } from "lucide-react";
-import { useEffect } from "react";
+import {
+  Check,
+  Edit,
+  Image,
+  LucideArrowRightFromLine,
+  SmileIcon,
+  Trash2Icon,
+  UserPlusIcon,
+  X,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useAuthStore } from "../store/useAuthStore";
+import { useChatStore } from "../store/useChatStore";
+import EmojiPicker from "emoji-picker-react";
 
 export default function InfoDrawer({ conversation, onClose }) {
   const isGroup = conversation?.isgroup;
+  const { setDeleteChat, getConversation } = useChatStore();
+  const { otherUser, contactDetail, authUser } = useAuthStore();
 
   // ESC key close
   useEffect(() => {
@@ -13,94 +27,241 @@ export default function InfoDrawer({ conversation, onClose }) {
     return () => window.removeEventListener("keydown", handleEsc);
   }, [onClose]);
 
+  useEffect(() => {
+    contactDetail(conversation.oruserId);
+  }, []);
+
+  const handleDeleteChat = () => {
+    setDeleteChat(conversation.conversationId);
+    setTimeout(() => {
+      getConversation();
+    }, 3000);
+  };
+
   function GroupInfo({ group, onClose }) {
-    const membersId = Object.keys(group?.membersDetail);
+    const [groupForm, setGroupForm] = useState(false);
+    const [groupicon, setGroupIcon] = useState(null);
+    const [showPicker, setShowPicker] = useState(false);
+    const [showUser, setShowUser] = useState(false);
+    const [participants, setParticipants] = useState([]);
+
+    const groupNameRef = useRef();
+    const myrole = group?.membersDetail?.[authUser._id]?.role || "member";
+
+    useEffect(() => {
+      if (!group?.membersDetail) return;
+
+      setParticipants(
+        Object.entries(group.membersDetail).map(([id, data]) => ({
+          userId: id,
+          role: data.role,
+        })),
+      );
+    }, [group]);
+
+    const onEmojiClick = (emojiData) => {
+      groupNameRef.current.value += emojiData.emoji;
+      setShowPicker(!showPicker);
+    };
+
+    const handleProfilePic = (e) => {
+      e.preventDefault();
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64Image = reader.result;
+        setGroupIcon(base64Image);
+      };
+    };
+
+    const handleRemove = (id) => {
+      setParticipants((prev) => prev.filter((mem) => mem.userId !== id));
+    };
+
+    const changeRole = (id) => {
+      setParticipants((prev) =>
+        prev.map((mem) =>
+          mem.userId === id
+            ? { ...mem, role: mem.role === "member" ? "admin" : "member" }
+            : mem,
+        ),
+      );
+    };
+
     return (
       <>
-        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-base-300">
           <h2 className="text-lg font-semibold">Group Info</h2>
           <button onClick={onClose} className="btn btn-sm btn-ghost btn-circle">
-            <X className="size-6"/>
+            <X className="size-6" />
           </button>
         </div>
 
-        {/* Group Profile */}
         <div className="flex flex-col items-center gap-3 p-6 border-b border-base-200">
           <div className="avatar">
-            <div className="w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
-              <img src={group?.groupIcon.url} alt="group" />
+            <div className="w-20  rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
+              <img src={groupicon || group?.groupIcon.url} alt="group" />
             </div>
+            {myrole !== "member" && (
+              <button
+                onClick={() => alert("Photo size almost 9mb")}
+                className={`right-0 absolute -bottom-1`}
+              >
+                <label htmlFor="groupIcon-upload">
+                  <Image className=" size-6" />
+                  <input
+                    type="file"
+                    id="groupIcon-upload"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleProfilePic}
+                  />
+                </label>
+              </button>
+            )}
           </div>
 
-          <div className="text-center">
-            <h3 className="text-xl font-semibold">{group?.groupname}</h3>
-            {/* <p className="text-sm text-base-content/70">
-              {membersId.length} members
-            </p> */}
-          </div>
+          {myrole == "member" && (
+            <div className="text-center text-xl font-semibold">
+              <h1>{group.groupname}</h1>
+            </div>
+          )}
 
-          <button className="btn btn-sm btn-outline btn-primary">
-            Edit Info
-          </button>
+          {myrole !== "member" && (
+            <>
+              <div className=" text-xl font-semibold">
+                <div className=" flex items-center">
+                  <input
+                    type="text"
+                    defaultValue={group.groupname}
+                    ref={groupNameRef}
+                    readOnly={!groupForm}
+                    className={`w-full text-center bg-transparent ${groupForm && "border-b border-primary py-2 text-start"} outline-none`}
+                  />
+                  {groupForm && (
+                    <SmileIcon onClick={() => setShowPicker((prev) => !prev)} />
+                  )}
+                </div>
+              </div>
+              <div className=" flex items-center gap-5">
+                <button
+                  onClick={() => setShowUser((prev) => !prev)}
+                  className=" btn btn-md"
+                >
+                  <UserPlusIcon className="size-[22px]" />
+                </button>
+                <button
+                  onClick={() => setGroupForm(!groupForm)}
+                  className="btn btn-md"
+                >
+                  <Edit className="size-[22px]" />
+                </button>
+                {groupForm && (
+                  <button
+                    // onClick={handleSave}
+                    className="btn btn-primary btn-circle"
+                  >
+                    <Check />
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Description */}
-        <div className="p-4">
-          <p className="text-sm text-base-content/95">{membersId.length} members</p>
-          {/* <p className="text-sm">
-            {group?.description || "No description added."}
-          </p> */}
+        <div className="p-3">
+          <p className="text-sm text-base-content/95">
+            {participants.length} members
+          </p>
         </div>
 
-        {/* Members */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {membersId.map((member) => (
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {participants.map((member) => (
             <div
-              key={member}
+              key={member.userId}
               className="flex items-center justify-between bg-base-200 p-3 rounded-lg"
             >
               <div className="flex items-center gap-3">
                 <div className="avatar">
                   <div className="w-10 rounded-full">
-                    <img src={member.profilePic} alt="" />
+                    <img
+                      src={group?.membersDetail[member.userId].profilePic.url}
+                      alt=""
+                    />
                   </div>
                 </div>
 
                 <div>
                   <p className="font-medium">
-                    {group?.membersDetail[member].fullname}
+                    {group?.membersDetail[member.userId].fullname}
                   </p>
-                  {group?.membersDetail[member].role === "admin" && (
+                  {member.role === "admin" && (
                     <p className="text-xs text-primary">Admin</p>
                   )}
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <button className="btn btn-xs btn-outline">
-                  {group?.membersDetail[member].role === "admin"
-                    ? "Remove Admin"
-                    : "Make Admin"}
-                </button>
+              {group?.membersDetail[authUser._id].role === "admin" &&
+                member.userId !== authUser._id && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => changeRole(member.userId)}
+                      className="btn btn-xs btn-outline"
+                    >
+                      {member.role === "admin" ? "Remove Admin" : "Make Admin"}
+                    </button>
 
-                <button className="btn btn-xs btn-error btn-outline">
-                  Remove
-                </button>
-              </div>
+                    <button
+                      onClick={() => handleRemove(member.userId)}
+                      className="btn btn-xs btn-error btn-outline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
             </div>
           ))}
         </div>
 
-        {/* Footer */}
         <div className="p-2 flex border-t border-base-300 justify-evenly">
           <button className="flex rounded-lg px-7 py-3 hover:bg-warning/10 text-warning gap-3 items-center">
             <LucideArrowRightFromLine className="size-4" /> Exit Group
           </button>
-          <button className="flex rounded-lg px-7 py-3 hover:bg-error/30 text-error gap-3 items-center">
-            <Trash2Icon className="size-4" /> Delete Chat
-          </button>
+          {myrole !== "member" && (
+            <button className="flex rounded-lg px-7 py-3 hover:bg-error/30 text-error gap-3 items-center">
+              <Trash2Icon className="size-4" /> Delete Chat
+            </button>
+          )}
         </div>
+        {showUser && (
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
+            show
+          </div>
+        )} 
+        {showPicker && (
+          <>
+            {/* Dark Backdrop: Closes picker when clicking anywhere else */}
+            <div
+              className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
+              onClick={() => setShowPicker((prev) => !prev)}
+            />
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
+              <div className="shadow-2xl border border-base-300 rounded-xl overflow-hidden scale-95 md:scale-100 animate-in zoom-in duration-200">
+                <EmojiPicker
+                  onEmojiClick={(emojiData, event) => {
+                    onEmojiClick(emojiData, event);
+                  }}
+                  theme="dark"
+                  autoFocusSearch={true}
+                  width={window.innerWidth < 450 ? 280 : 350}
+                  height={400}
+                  lazyLoadEmojis={true}
+                />
+              </div>
+            </div>
+          </>
+        )}
       </>
     );
   }
@@ -112,7 +273,7 @@ export default function InfoDrawer({ conversation, onClose }) {
         <div className="flex items-center justify-between p-4 border-b border-base-300">
           <h2 className="text-lg font-semibold">Contact Info</h2>
           <button onClick={onClose} className="btn btn-sm btn-ghost btn-circle">
-            ✕
+            <X className="size-6" />
           </button>
         </div>
 
@@ -120,20 +281,20 @@ export default function InfoDrawer({ conversation, onClose }) {
         <div className="flex flex-col items-center gap-3 p-6 border-b border-base-200">
           <div className="avatar">
             <div className="w-24 rounded-full ring ring-accent ring-offset-base-100 ring-offset-2">
-              <img src={user?.profilePic} alt="profile" />
+              <img src={otherUser?.profilePic.url} alt="profile" />
             </div>
           </div>
 
           <div className="text-center">
-            <h3 className="text-xl font-semibold">{user?.fullname}</h3>
-            <p className="text-sm text-base-content/70">{user?.email}</p>
+            <h3 className="text-xl font-semibold">{otherUser?.fullname}</h3>
+            <p className="text-sm text-base-content/70">{otherUser?.email}</p>
           </div>
         </div>
 
         {/* Bio */}
         <div className="p-4 border-b border-base-200">
           <p className="text-sm text-base-content/70 mb-1">Bio</p>
-          <p className="text-sm">{user?.bio || "No bio added."}</p>
+          <p className="text-sm">{otherUser?.bio || "No bio added."}</p>
         </div>
 
         {/* Posts */}
@@ -141,7 +302,7 @@ export default function InfoDrawer({ conversation, onClose }) {
           <p className="font-medium mb-2">Posts</p>
 
           <div className="grid grid-cols-3 gap-2">
-            {user?.posts?.map((post) => (
+            {otherUser?.posts?.map((post) => (
               <img
                 key={post._id}
                 src={post.image}
@@ -153,8 +314,13 @@ export default function InfoDrawer({ conversation, onClose }) {
         </div>
 
         {/* Delete Chat */}
-        <div className="p-4 mt-auto border-t border-base-300">
-          <button className="btn btn-error w-full">Delete Chat</button>
+        <div className="p-3 mt-auto border-t border-base-300">
+          <button
+            onClick={() => handleDeleteChat()}
+            className="flex rounded-lg px-7 py-3 hover:bg-error/30 text-error gap-3 items-center"
+          >
+            <Trash2Icon className="size-4" /> Delete Chat
+          </button>
         </div>
       </>
     );

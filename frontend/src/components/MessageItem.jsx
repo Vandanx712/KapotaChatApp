@@ -54,7 +54,9 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
   const deletefor = now <= createdAt + ONE_DAY;
 
   let myrole;
+  let profilePic;
   if (selectedConversation.isgroup) {
+    profilePic = selectedConversation.groupdetail.membersDetail[m.sender].profilePic;
     const membersId = Object.keys(
       selectedConversation.groupdetail.membersDetail,
     );
@@ -115,20 +117,18 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
     <div
       className={`px-4 chat ${isSentByMe ? "chat-end" : "chat-start"} ${m?.deletedFor?.includes(authUser._id) ? "hidden" : ""}`}
     >
-      {selectedConversation.groupname && (
-        <div className="chat-image hidden md:avatar">
-          <div className="size-10 rounded-full border">
-            <img
-              src={
-                isSentByMe
-                  ? authUser.profilePic.url || ""
-                  : selectedConversation.profilePic.url || ""
-              }
-              alt="profile"
-            />
-          </div>
+      <div className="chat-image avatar">
+        <div className="md:size-10 size-5 rounded-full border">
+          <img
+            src={
+              isSentByMe
+                ? authUser.profilePic.url || ""
+                : profilePic?.url || selectedConversation?.profilePic.url
+            }
+            alt="profile"
+          />
         </div>
-      )}
+      </div>
 
       <div
         onClick={() => {

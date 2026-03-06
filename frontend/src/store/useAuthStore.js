@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   checkUser,
+  contactDetail,
   forgetPassword,
   loginuser,
   logout,
@@ -15,6 +16,7 @@ const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 export const useAuthStore = create((set, get) => ({
   authUser: null,
+  otherUser:null,
   isSigningUp: false,
   isLoggingIng: false,
   isUpdateProfile: false,
@@ -110,6 +112,16 @@ export const useAuthStore = create((set, get) => ({
       console.log(error);
     } finally {
       set({ isUpdateProfile: false });
+    }
+  }, 
+
+  contactDetail:async(id)=>{
+    try {
+      const resdata = await contactDetail(id)
+      set({otherUser:resdata.user})
+    } catch (error) {
+      console.log(error)
+      toast.error(error.response?.data.message)
     }
   },
 

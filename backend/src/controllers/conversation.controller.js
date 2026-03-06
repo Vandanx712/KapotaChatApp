@@ -35,12 +35,13 @@ export const getConversation = asynchandller(async (req, res) => {
         const membersDetail = {};
         for (const member of con.participants) {
           const memberdetail = await User.findById(member.userId)
-            .select("fullname")
+            .select("fullname profilePic")
             .lean();
           if (!membersDetail[member.userId]) {
             membersDetail[member.userId.toString()] = {
               fullname: memberdetail.fullname,
               role: member.role,
+              profilePic: memberdetail.profilePic,
             };
           }
         }
@@ -103,6 +104,35 @@ export const createConversation = asynchandller(async (req, res) => {
     success: true,
     message: "New conversation create successfully",
   });
+});
+
+export const deleteConversation = asynchandller(async (req, res) => {
+  const { id } = req.params;
+  if (!id) throw new ApiError(401, "Missing field");
+
+  const conversation = await Conversation.findById(id).lean();
+  if (!conversation) throw new ApiError(400, "Conversation not found");
+
+  const messages = await Message.find({
+    conversationId: conversation._id
+  }).lean();
+
+  for (const message of messages) {
+    if (message.image) {
+      await deleteImage(message.image?.key);
+    }
+  }
+
+  await Message.deleteMany({ conversationId: conversation._id });
+  if (conversation.bgImage) {
+    await deleteImage(conversation.bgImage.key);
+  }
+
+  await Conversation.deleteOne({_id:conversation._id})
+  return res.status(200).json({
+    success:true,
+    message:'Conversation delete successfully'
+  })
 });
 
 export const createGroup = asynchandller(async (req, res) => {

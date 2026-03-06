@@ -73,6 +73,15 @@ function Sidebar() {
     setNewChat(false);
   };
 
+  const onlineUsersSet = new Set(onlineUsers);
+
+  const getOnlineGroupUsers = (conversation, onlineUsersSet) => {
+    if (!conversation.isgroup) return [];
+    return Object.entries(conversation.groupdetail.membersDetail).filter(
+      ([id]) => id !== authUser._id && onlineUsersSet.has(id),
+    );
+  };
+
   if (isConversationLoading) return <SidebarSkeleton />;
   return (
     <aside
@@ -105,80 +114,88 @@ function Sidebar() {
 
           <div className="flex-1 min-h-0 overflow-y-auto py-3">
             {!newChat &&
-              conversations.map((conversation) => (
-                <button
-                  key={conversation.conversationId}
-                  onClick={() => setSelectedConversation(conversation)}
-                  className={`
+              conversations.map((conversation) => {
+                const onlineMembers = getOnlineGroupUsers(
+                  conversation,
+                  onlineUsersSet,
+                );
+                return (
+                  <button
+                    key={conversation.conversationId}
+                    onClick={() => setSelectedConversation(conversation)}
+                    className={`
                 w-full p-3 flex items-center gap-3
                 hover:bg-base-300 transition-colors
                 ${selectedConversation?.conversationId === conversation?.conversationId ? "bg-base-300 rounded-lg ring-1 ring-base-300" : ""}
               `}
-                >
-                  <div className="relative min-w-12">
-                    <PhotoProvider>
-                      <PhotoView
-                        src={
-                          conversation.isgroup
-                            ? conversation.groupdetail?.groupIcon.url
-                            : conversation?.profilePic?.url
-                        }
-                      >
-                        <img
+                  >
+                    <div className="relative min-w-12">
+                      <PhotoProvider>
+                        <PhotoView
                           src={
                             conversation.isgroup
                               ? conversation.groupdetail?.groupIcon.url
                               : conversation?.profilePic?.url
                           }
-                          className="size-12 object-cover rounded-full"
-                        />
-                      </PhotoView>
-                    </PhotoProvider>
-                    {onlineUsers.includes(conversation.oruserId) && (
-                      <span
-                        className="absolute bottom-0 right-0 size-3 bg-green-500 
+                        >
+                          <img
+                            src={
+                              conversation.isgroup
+                                ? conversation.groupdetail?.groupIcon.url
+                                : conversation?.profilePic?.url
+                            }
+                            className="size-12 object-cover rounded-full"
+                          />
+                        </PhotoView>
+                      </PhotoProvider>
+                      {!conversation.isgroup
+                        ? onlineUsersSet.has(conversation.oruserId)
+                        : onlineMembers?.length > 0 && (
+                            <span
+                              className="absolute bottom-0 right-0 size-3 bg-green-500 
                     rounded-full"
-                      />
-                    )} 
-                    {/* ahi onlineuser for group mate  */}
-                  </div>
+                            />
+                          )}
+                      {/* ahi onlineuser for group mate  */}
+                    </div>
 
-                  <div className="text-left flex-1 min-w-0">
-                    <div className=" flex justify-between items-center">
-                      <div className="font-medium text-sm truncate flex-1 min-w-0">
-                        {conversation.isgroup
-                          ? conversation.groupdetail.groupname
-                          : conversation.name}
+                    <div className="text-left flex-1 min-w-0">
+                      <div className=" flex justify-between items-center">
+                        <div className="font-medium text-sm truncate flex-1 min-w-0">
+                          {conversation.isgroup
+                            ? conversation.groupdetail.groupname
+                            : conversation.name}
+                        </div>
+                        <div
+                          className={`rounded-full ${conversation.unseenMsg == 0 || conversation.lastmessage.sender == authUser._id ? "hidden" : "flex"} justify-center items-center bg-base-300 p-2 text-xs size-3`}
+                        >
+                          {conversation.lastmessage?.deletedForEveryone
+                            ? conversation.unseenMsg - 1
+                            : conversation.unseenMsg}
+                        </div>
                       </div>
-                      <div
-                        className={`rounded-full ${conversation.unseenMsg == 0 || conversation.lastmessage.sender == authUser._id ? "hidden" : "flex"} justify-center items-center bg-base-300 p-2 text-xs size-3`}
-                      >
-                        {conversation.lastmessage?.deletedForEveryone
-                          ? conversation.unseenMsg - 1
-                          : conversation.unseenMsg}
+                      <div className="text-xs text-zinc-400 truncate">
+                        {Typing.receiverId == conversation.conversationId &&
+                        Typing.userId !== authUser._id
+                          ? conversation.isgroup
+                            ? `${conversation.groupdetail.membersDetail[Typing.userId].fullname} is typing...`
+                            : "typing..."
+                          : conversation?.lastmessage?.deletedForEveryone
+                            ? authUser._id == conversation?.lastmessage?.sender
+                              ? "You deleted this message"
+                              : "This message was deleted"
+                            : conversation.lastmessage?.image
+                              ? "Image"
+                              : conversation?.lastmessage.deletedFor?.includes(
+                                    authUser._id,
+                                  )
+                                ? ""
+                                : conversation?.lastmessage.text || ""}
                       </div>
                     </div>
-                    <div className="text-xs text-zinc-400 truncate">
-                      {Typing.receiverId == conversation.conversationId &&
-                      Typing.userId !== authUser._id
-                        ? conversation.isgroup
-                          ? `${conversation.groupdetail.membersDetail[Typing.userId].fullname} is typing...`
-                          : "typing..."
-                        : conversation?.lastmessage?.deletedForEveryone
-                          ? authUser._id == conversation?.lastmessage?.sender
-                            ? "You deleted this message"
-                            : "This message was deleted"
-                          : conversation.lastmessage?.image
-                            ? "Image"
-                            : conversation?.lastmessage.deletedFor?.includes(
-                                  authUser._id,
-                                )
-                              ? ""
-                              : conversation?.lastmessage.text || ""}
-                    </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             {!newChat && conversations.length === 0 && (
               <div className="text-center text-zinc-500 py-4">
                 No any conversations
