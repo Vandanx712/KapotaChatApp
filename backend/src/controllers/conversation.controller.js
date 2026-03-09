@@ -108,10 +108,18 @@ export const createConversation = asynchandller(async (req, res) => {
 
 export const deleteConversation = asynchandller(async (req, res) => {
   const { id } = req.params;
+  const { _id } = req.user;
+
   if (!id) throw new ApiError(401, "Missing field");
 
   const conversation = await Conversation.findById(id).lean();
   if (!conversation) throw new ApiError(400, "Conversation not found");
+
+  const user = conversation.participants.find(
+    (u) => u.userId.toString() == _id.toString(),
+  );
+  if (user.role !== "admin" && conversation.groupname)
+    throw new ApiError(400, "you can't perform this action");
 
   const messages = await Message.find({
     conversationId: conversation._id,
@@ -238,11 +246,18 @@ export const createGroup = asynchandller(async (req, res) => {
 
 export const updateGroupDetail = asynchandller(async (req, res) => {
   const { conversationId, groupname, groupIcon, oldkey } = req.body;
+  const { _id } = req.user;
 
   if (!conversationId || !groupname) throw new ApiError(401, "Missing Field");
 
   const conversation = await Conversation.findById(conversationId);
   if (!conversation) throw new ApiError(400, "Conversation not found");
+
+  const user = conversation.participants.find(
+    (u) => u.userId.toString() == _id.toString(),
+  );
+  if (user.role !== "admin")
+    throw new ApiError(400, "you can't perform this action");
 
   conversation.groupname = groupname;
   if (groupIcon) {
@@ -294,6 +309,7 @@ export const getOtherUsers = asynchandller(async (req, res) => {
 
 export const updateMembers = asynchandller(async (req, res) => {
   const { id, participants } = req.body;
+  const { _id } = req.user;
 
   if (!id) throw new ApiError(401, "Select group");
   if (participants.length == 0)
@@ -302,11 +318,54 @@ export const updateMembers = asynchandller(async (req, res) => {
   const conversation = await Conversation.findById(id);
   if (!conversation) throw new ApiError(400, "Conversation not found");
 
+  const user = conversation.participants.find(
+    (u) => u.userId.toString() == _id.toString(),
+  );
+  if (user.role !== "admin")
+    throw new ApiError(400, "you can't perform this action");
+
   conversation.participants = participants;
   await conversation.save();
 
   return res.status(200).json({
     success: true,
     message: "Member update successfully",
+  });
+});
+
+export const exitGroup = asynchandller(async (req, res) => {
+  const { id } = req.params;
+  const { _id } = req.user;
+
+  if (!id) throw new ApiError(401, "Select conversation");
+
+  const conversation = await Conversation.findById(id);
+  if (!conversation) throw new ApiError(400, "Conversation not found");
+
+  const user = conversation.participants.find(
+    (u) => u.userId.toString() == _id.toString(),
+  );
+
+  const index = conversation.participants.indexOf(user);
+  if (user.role == "admin") {
+    const admins = conversation.participants.filter(
+      (par) => par.role == "admin" && par.userId.toString() !== _id.toString(),
+    );
+    if (admins.length == 0) {
+      if (index > -1) {
+        const nextIndex = (index + 1) % arr.length;
+        conversation.participants[nextIndex].role = "admin";
+      }
+    }
+  }
+
+  conversation.participants.splice(index, 1);
+  await conversation.save();
+
+  /// socket nu logic aavse
+
+  return res.status(200).json({
+    success: true,
+    message: "Exit group successfully",
   });
 });

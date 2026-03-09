@@ -5,6 +5,7 @@ import {
   createConversation,
   deleteConversation,
   deleteMessage,
+  exitGroup,
   getConversations,
   getMessages,
   getOtherUsers,
@@ -417,4 +418,14 @@ export const useChatStore = create((set, get) => ({
       console.log(error);
     }
   },
+
+  ExitGroup:async(id)=>{
+    try {
+      const resdata = await exitGroup(id)
+      toast.success(resdata.message)
+    } catch (error) {
+      console.log(error)
+      toast.error(error?.response?.data?.message)
+    }
+  }
 }));

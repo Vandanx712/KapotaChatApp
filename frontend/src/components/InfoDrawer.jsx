@@ -22,6 +22,7 @@ export default function InfoDrawer({ conversation, onClose }) {
     setOtherUsers,
     otherUsers,
     upGroupMember,
+    ExitGroup,
   } = useChatStore();
   const { otherUser, contactDetail, authUser } = useAuthStore();
 
@@ -163,6 +164,13 @@ export default function InfoDrawer({ conversation, onClose }) {
 
     const handleUpdate = () => {
       upGroupMember({ id: conversation.conversationId, participants });
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    };
+
+    const handleExitGroup = () => {
+      ExitGroup(conversation.conversationId);
       setTimeout(() => {
         window.location.reload();
       }, 2000);
@@ -316,7 +324,7 @@ export default function InfoDrawer({ conversation, onClose }) {
         </div>
 
         <div className="p-2 flex border-t border-base-300 justify-evenly">
-          <button className="flex rounded-lg px-7 py-3 hover:bg-warning/10 text-warning gap-3 items-center">
+          <button onClick={()=>handleExitGroup()} className="flex rounded-lg px-7 py-3 hover:bg-warning/10 text-warning gap-3 items-center">
             <LucideArrowRightFromLine className="size-4" /> Exit Group
           </button>
           {myrole !== "member" && (

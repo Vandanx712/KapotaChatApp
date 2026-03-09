@@ -108,6 +108,11 @@ export const deleteConversation = async(id)=>{
   return response.data
 }
 
+export const exitGroup = async(id)=>{
+  const response = await api.put(`/conversation/exitgroup/${id}`)
+  return response.data
+}
+
 // message part
 
 export const getMessages = async(id)=>{
