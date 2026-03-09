@@ -114,7 +114,7 @@ export const deleteConversation = asynchandller(async (req, res) => {
   if (!conversation) throw new ApiError(400, "Conversation not found");
 
   const messages = await Message.find({
-    conversationId: conversation._id
+    conversationId: conversation._id,
   }).lean();
 
   for (const message of messages) {
@@ -128,59 +128,10 @@ export const deleteConversation = asynchandller(async (req, res) => {
     await deleteImage(conversation.bgImage.key);
   }
 
-  await Conversation.deleteOne({_id:conversation._id})
-  return res.status(200).json({
-    success:true,
-    message:'Conversation delete successfully'
-  })
-});
-
-export const createGroup = asynchandller(async (req, res) => {
-  const { participants, groupname, groupIcon } = req.body;
-
-  if (
-    [groupname, groupIcon].some((field) => field == "") &&
-    participants.length == 0
-  )
-    throw new ApiError(401, "Missing fields");
-
-  const incorrectformat = participants.filter(
-    (par) => !par.userId || !par.role,
-  );
-  if (incorrectformat.length > 0)
-    throw new ApiError(401, "Something missing in the members field");
-
-  const existedgroup = await Conversation.findOne({ groupname: groupname })
-    .select("_id")
-    .lean();
-  if (existedgroup) throw new ApiError(400, "A groupname already exist");
-
-  const path = StoragePath("", {
-    includeMainFolder: true,
-    includeAvatarFolder: false,
-    includeUserProfilePic: false,
-    includeConversation: true,
-    includeMessageFolder: false,
-  });
-
-  const groupimg = await uploadChatPic(path, groupIcon);
-
-  const newgroup = await Conversation.create({
-    participants,
-    groupname,
-    groupIcon: groupimg,
-  });
-
-  // participants.forEach(par => {
-  //   const socketId = getReceiverSocketId(par.userId);
-  //   if(socketId) {
-  //     io.to(socketId).emit('creategroup')
-  //   }
-  // });
-
+  await Conversation.deleteOne({ _id: conversation._id });
   return res.status(200).json({
     success: true,
-    message: "Group create successfully",
+    message: "Conversation delete successfully",
   });
 });
 
@@ -238,5 +189,124 @@ export const getSurrUsers = asynchandller(async (req, res) => {
     success: true,
     message: "Fetch all users successfully",
     filtered,
+  });
+});
+
+//group part
+
+export const createGroup = asynchandller(async (req, res) => {
+  const { participants, groupname, groupIcon } = req.body;
+
+  if (
+    [groupname, groupIcon].some((field) => field == "") &&
+    participants.length == 0
+  )
+    throw new ApiError(401, "Missing fields");
+
+  const incorrectformat = participants.filter(
+    (par) => !par.userId || !par.role,
+  );
+  if (incorrectformat.length > 0)
+    throw new ApiError(401, "Something missing in the members field");
+
+  const existedgroup = await Conversation.findOne({ groupname: groupname })
+    .select("_id")
+    .lean();
+  if (existedgroup) throw new ApiError(400, "A groupname already exist");
+
+  const path = StoragePath("", {
+    includeMainFolder: true,
+    includeAvatarFolder: false,
+    includeUserProfilePic: false,
+    includeConversation: true,
+    includeMessageFolder: false,
+  });
+
+  const groupimg = await uploadChatPic(path, groupIcon);
+
+  const newgroup = await Conversation.create({
+    participants,
+    groupname,
+    groupIcon: groupimg,
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: "Group create successfully",
+  });
+});
+
+export const updateGroupDetail = asynchandller(async (req, res) => {
+  const { conversationId, groupname, groupIcon, oldkey } = req.body;
+
+  if (!conversationId || !groupname) throw new ApiError(401, "Missing Field");
+
+  const conversation = await Conversation.findById(conversationId);
+  if (!conversation) throw new ApiError(400, "Conversation not found");
+
+  conversation.groupname = groupname;
+  if (groupIcon) {
+    const path = StoragePath("", {
+      includeMainFolder: true,
+      includeAvatarFolder: false,
+      includeUserProfilePic: false,
+      includeConversation: true,
+      includeMessageFolder: false,
+    });
+    await deleteImage(oldkey);
+    conversation.groupIcon = await uploadChatPic(path, groupIcon);
+  }
+  await conversation.save();
+
+  io.to(conversation._id.toString()).emit("udGroupDetail", conversation);
+
+  return res.status(200).json({
+    success: true,
+    message: "Update group detail successfully",
+  });
+});
+
+export const getOtherUsers = asynchandller(async (req, res) => {
+  const { id } = req.params;
+  const { _id } = req.user;
+  if (!id) throw new ApiError(401, "Select group conversation");
+
+  const conversation = await Conversation.findById(id).lean();
+  if (!conversation) throw new ApiError(400, "Conversation not found");
+
+  const users = await User.find({ _id: { $ne: _id } })
+    .select("-password -email")
+    .lean();
+
+  const filtered = users.filter((user) => {
+    const exist = conversation.participants.find(
+      (par) => par.userId.toString() == user._id.toString(),
+    );
+    return !exist;
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: "Fetch all users successfully",
+    filtered,
+  });
+});
+
+export const updateMembers = asynchandller(async (req, res) => {
+  const { id, participants } = req.body;
+
+  if (!id) throw new ApiError(401, "Select group");
+  if (participants.length == 0)
+    throw new ApiError(401, "At least 1 member is required");
+
+  const conversation = await Conversation.findById(id);
+  if (!conversation) throw new ApiError(400, "Conversation not found");
+
+  conversation.participants = participants;
+  await conversation.save();
+
+  return res.status(200).json({
+    success: true,
+    message: "Member update successfully",
   });
 });

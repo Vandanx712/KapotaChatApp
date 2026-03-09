@@ -56,7 +56,7 @@ const MessageItem = memo(({ m, authUser, selectedConversation }) => {
   let myrole;
   let profilePic;
   if (selectedConversation.isgroup) {
-    profilePic = selectedConversation.groupdetail.membersDetail[m.sender].profilePic;
+    profilePic = selectedConversation.groupdetail.membersDetail[m.sender]?.profilePic;
     const membersId = Object.keys(
       selectedConversation.groupdetail.membersDetail,
     );

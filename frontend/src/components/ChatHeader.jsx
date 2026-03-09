@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
+import { useEffect } from "react";
 
 const ChatHeader = () => {
   const {
@@ -20,8 +21,18 @@ const ChatHeader = () => {
     setShowInfo,
     setDeleteChat,
     getConversation,
+    setGroupUpdation,
   } = useChatStore();
-  const { onlineUsers, authUser } = useAuthStore();
+  const { onlineUsers, authUser, socket } = useAuthStore();
+
+  useEffect(() => {
+    socket.on("udGroupDetail", (conversation) =>
+      setGroupUpdation(conversation),
+    );
+    return () => {
+      socket.off('udGroupDetail');
+    };
+  }, [socket]);
 
   const handleimagechange = (e) => {
     e.preventDefault();
@@ -41,7 +52,9 @@ const ChatHeader = () => {
   const onlineUsersSet = new Set(onlineUsers);
 
   let onlinemember = [];
-  let myrole = selectedConversation.isgroup? selectedConversation.groupdetail.membersDetail[authUser._id].role:'';
+  let myrole = selectedConversation.isgroup
+    ? selectedConversation.groupdetail.membersDetail[authUser._id].role
+    : "";
 
   if (selectedConversation.isgroup) {
     const membersId = Object.keys(

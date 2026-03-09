@@ -7,9 +7,12 @@ import {
   deleteMessage,
   getConversations,
   getMessages,
+  getOtherUsers,
   getSurroundUsers,
   sendMessage,
   updateConBgimage,
+  updateGroupDetail,
+  updateMembers,
   updateMessage,
 } from "../lib/axios";
 import { useAuthStore } from "./useAuthStore";
@@ -17,13 +20,14 @@ import { useAuthStore } from "./useAuthStore";
 export const useChatStore = create((set, get) => ({
   message: [],
   users: [],
+  otherUsers: [],
   conversations: [],
   selectedUser: null,
   selectedConversation: null,
   isUsersLoading: false,
   isConversationLoading: false,
   isMessageLoading: false,
-  showInfo:false,
+  showInfo: false,
 
   getConversation: async () => {
     set({ isConversationLoading: true });
@@ -339,18 +343,78 @@ export const useChatStore = create((set, get) => ({
     }));
   },
 
-  setShowInfo:()=>{
-    set((state)=>({showInfo:!state.showInfo}))
+  setShowInfo: () => {
+    set((state) => ({ showInfo: !state.showInfo }));
   },
 
-  setDeleteChat:async(id)=>{
+  setDeleteChat: async (id) => {
     try {
-      const resdata = await deleteConversation(id)
-      toast.success(resdata.message)
-      set({selectedConversation:null})
+      const resdata = await deleteConversation(id);
+      toast.success(resdata.message);
+      set({ selectedConversation: null });
     } catch (error) {
-      console.log(error)
-      toast.error(error.response?.data.message)
+      console.log(error);
+      toast.error(error.response?.data.message);
     }
-  }
+  },
+
+  setGroupUpdation: (conversation) => {
+    set((state) => {
+      const updatedGroup = {
+        groupname: conversation.groupname,
+        groupIcon: conversation.groupIcon,
+      };
+
+      return {
+        conversations: state.conversations.map((con) =>
+          con.conversationId === conversation._id
+            ? {
+                ...con,
+                groupdetail: { ...con.groupdetail, ...updatedGroup },
+              }
+            : con,
+        ),
+
+        selectedConversation:
+          state.selectedConversation?.conversationId === conversation._id
+            ? {
+                ...state.selectedConversation,
+                groupdetail: {
+                  ...state.selectedConversation.groupdetail,
+                  ...updatedGroup,
+                },
+              }
+            : state.selectedConversation,
+      };
+    });
+  },
+
+  udGroupDetail: async (data) => {
+    try {
+      const resdata = await updateGroupDetail(data);
+      toast.success(resdata.message);
+    } catch (error) {
+      console.log(error);
+      toast.error(error.response?.data.message);
+    }
+  },
+
+  setOtherUsers: async (id) => {
+    try {
+      const resdata = await getOtherUsers(id);
+      set({ otherUsers: resdata.filtered });
+    } catch (error) {
+      console.log(error);
+      toast.error(error.response?.data?.message);
+    }
+  },
+
+  upGroupMember: async (data) => {
+    try {
+      const resdata = await updateMembers(data);
+      toast.success(resdata.message);
+    } catch (error) {
+      console.log(error);
+    }
+  },
 }));

@@ -104,9 +104,6 @@ function ChatContainer() {
         />
         <div ref={messageEndRef} />
       </div>
-      {/* {Typing == selectedConversation.oruserId && (
-        <span className="loading loading-dots loading-md mt-5 ml-6"></span>
-      )} */}
       <MessageInput />
     </div>
   );

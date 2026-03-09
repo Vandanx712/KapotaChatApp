@@ -37,7 +37,7 @@ const Navbar = () => {
                 </Link>
 
                 <Link to={"/profile"}>
-                  <img src={authUser.profilePic.url} className="border border-base-200 object-cover rounded-full size-10" />
+                  <img src={authUser.profilePic?.url} className="border border-base-200 object-cover rounded-full size-10" />
                 </Link>
               </>
             )}

@@ -15,7 +15,14 @@ import EmojiPicker from "emoji-picker-react";
 
 export default function InfoDrawer({ conversation, onClose }) {
   const isGroup = conversation?.isgroup;
-  const { setDeleteChat, getConversation } = useChatStore();
+  const {
+    setDeleteChat,
+    getConversation,
+    udGroupDetail,
+    setOtherUsers,
+    otherUsers,
+    upGroupMember,
+  } = useChatStore();
   const { otherUser, contactDetail, authUser } = useAuthStore();
 
   // ESC key close
@@ -31,6 +38,10 @@ export default function InfoDrawer({ conversation, onClose }) {
     contactDetail(conversation.oruserId);
   }, []);
 
+  useEffect(() => {
+    setOtherUsers(conversation.conversationId);
+  }, []);
+
   const handleDeleteChat = () => {
     setDeleteChat(conversation.conversationId);
     setTimeout(() => {
@@ -40,10 +51,12 @@ export default function InfoDrawer({ conversation, onClose }) {
 
   function GroupInfo({ group, onClose }) {
     const [groupForm, setGroupForm] = useState(false);
-    const [groupicon, setGroupIcon] = useState(null);
+    const [groupicon, setGroupIcon] = useState("");
     const [showPicker, setShowPicker] = useState(false);
     const [showUser, setShowUser] = useState(false);
     const [participants, setParticipants] = useState([]);
+    const [members, setMembers] = useState([]);
+    const [tempData, setTempData] = useState({});
 
     const groupNameRef = useRef();
     const myrole = group?.membersDetail?.[authUser._id]?.role || "member";
@@ -51,12 +64,18 @@ export default function InfoDrawer({ conversation, onClose }) {
     useEffect(() => {
       if (!group?.membersDetail) return;
 
-      setParticipants(
-        Object.entries(group.membersDetail).map(([id, data]) => ({
+      const participantsArray = Object.entries(group.membersDetail)
+        .map(([id, data]) => ({
           userId: id,
           role: data.role,
-        })),
-      );
+        }))
+        .sort((a, b) => {
+          if (a.role === "admin" && b.role !== "admin") return -1;
+          if (a.role !== "admin" && b.role === "admin") return 1;
+          return 0;
+        });
+
+      setParticipants(participantsArray);
     }, [group]);
 
     const onEmojiClick = (emojiData) => {
@@ -66,6 +85,7 @@ export default function InfoDrawer({ conversation, onClose }) {
 
     const handleProfilePic = (e) => {
       e.preventDefault();
+      setGroupForm((prev) => !prev);
       const file = e.target.files[0];
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -87,6 +107,65 @@ export default function InfoDrawer({ conversation, onClose }) {
             : mem,
         ),
       );
+    };
+
+    const handleSave = () => {
+      if (
+        groupNameRef.current.value == group.groupname &&
+        groupicon.length == 0
+      ) {
+        setGroupForm((prev) => !prev);
+        return;
+      }
+      udGroupDetail({
+        conversationId: conversation.conversationId,
+        groupname: groupNameRef.current.value,
+        groupIcon: groupicon,
+        oldkey: groupicon.length > 0 ? group.groupIcon?.key : "",
+      });
+      onClose();
+    };
+
+    const removeMember = (id) => {
+      setMembers((prev) => prev.filter((member) => member._id !== id));
+    };
+
+    const addMember = () => {
+      setParticipants((prev) => [
+        ...prev,
+        ...members.map((mem) => ({
+          userId: mem._id,
+          role: "member",
+        })),
+      ]);
+
+      setTempData((prev) => {
+        const updated = { ...prev };
+        members.forEach((mem) => {
+          updated[mem._id] = mem;
+        });
+        return updated;
+      });
+
+      setMembers([]);
+      setShowUser(false);
+    };
+
+    const showSaveButton =
+      participants.some(
+        (p) =>
+          !group.membersDetail[p.userId] ||
+          group.membersDetail[p.userId].role !== p.role,
+      ) ||
+      Object.keys(group.membersDetail).some(
+        (id) => !participants.find((p) => p.userId === id),
+      );
+
+    const handleUpdate = () => {
+      upGroupMember({ id: conversation.conversationId, participants });
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
     };
 
     return (
@@ -159,7 +238,7 @@ export default function InfoDrawer({ conversation, onClose }) {
                 </button>
                 {groupForm && (
                   <button
-                    // onClick={handleSave}
+                    onClick={handleSave}
                     className="btn btn-primary btn-circle"
                   >
                     <Check />
@@ -170,10 +249,18 @@ export default function InfoDrawer({ conversation, onClose }) {
           )}
         </div>
 
-        <div className="p-3">
+        <div className="flex items-center justify-between p-3">
           <p className="text-sm text-base-content/95">
             {participants.length} members
           </p>
+          {showSaveButton && (
+            <button
+              onClick={() => handleUpdate()}
+              className="btn btn-primary btn-circle btn-sm"
+            >
+              <Check />
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-3">
@@ -186,7 +273,10 @@ export default function InfoDrawer({ conversation, onClose }) {
                 <div className="avatar">
                   <div className="w-10 rounded-full">
                     <img
-                      src={group?.membersDetail[member.userId].profilePic.url}
+                      src={
+                        group?.membersDetail[member.userId]?.profilePic.url ||
+                        tempData[member.userId]?.profilePic.url
+                      }
                       alt=""
                     />
                   </div>
@@ -194,7 +284,8 @@ export default function InfoDrawer({ conversation, onClose }) {
 
                 <div>
                   <p className="font-medium">
-                    {group?.membersDetail[member.userId].fullname}
+                    {group?.membersDetail[member.userId]?.fullname ||
+                      tempData[member.userId]?.fullname}
                   </p>
                   {member.role === "admin" && (
                     <p className="text-xs text-primary">Admin</p>
@@ -235,10 +326,63 @@ export default function InfoDrawer({ conversation, onClose }) {
           )}
         </div>
         {showUser && (
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
-            show
+          <div className="fixed min-w-[350px] rounded-xl p-5 bg-black/50 backdrop-blur-[2px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
+            <div className="flex items-center justify-between mb-3">
+              <h2>Add Members</h2>
+              <X onClick={() => setShowUser((prev) => !prev)} />
+            </div>
+            {members.length > 0 && (
+              <div className="shrink-0 flex flex-wrap gap-2 px-4 pb-2 max-h-16 overflow-y-auto">
+                {members.map((mem) => (
+                  <div
+                    key={mem._id}
+                    className="bg-base-300 px-3 py-1 rounded-full flex items-center gap-2 text-sm"
+                  >
+                    <span className="truncate max-w-20">{mem.fullname}</span>
+                    <X
+                      onClick={() => removeMember(mem._id)}
+                      className="size-4 cursor-pointer"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="max-h-52 overflow-y-auto">
+              {otherUsers.map((user) => (
+                <div
+                  onClick={() => {
+                    if (!members.find((m) => m._id === user._id)) {
+                      setMembers((prev) => [...prev, user]);
+                    }
+                  }}
+                  key={user._id}
+                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition hover:bg-base-200`}
+                >
+                  <div className="avatar relative">
+                    <div className="w-10  rounded-full bg-base-300">
+                      <img src={user.profilePic.url} />
+                    </div>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="text-base md:text-lg font-medium truncate">
+                      {user.fullname}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex m-5 items-center justify-center">
+              <button
+                onClick={() => addMember()}
+                disabled={members.length == 0}
+                className="btn btn-primary btn-circle"
+              >
+                <Check />
+              </button>
+            </div>
           </div>
-        )} 
+        )}
         {showPicker && (
           <>
             {/* Dark Backdrop: Closes picker when clicking anywhere else */}

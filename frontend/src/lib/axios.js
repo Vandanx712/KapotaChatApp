@@ -78,6 +78,21 @@ export const createGroup = async(data)=>{
   return response.data
 }
 
+export const getOtherUsers = async(id)=>{
+  const response = await api.get(`/conversation/otherusers/${id}`)
+  return response.data
+}
+
+export const updateGroupDetail = async(data)=>{
+  const response = await api.put('/conversation/update/group',data)
+  return response.data
+}
+
+export const updateMembers = async(data)=>{
+  const response = await api.put('/conversation/update/member',data)
+  return response.data
+}
+
 export const updateConBgimage = async(data)=>{
   const response = await api.put('/conversation/settheme',data)
   return response.data

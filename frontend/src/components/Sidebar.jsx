@@ -23,6 +23,7 @@ function Sidebar() {
     setNmsgInCon,
     setUpdatedMessage,
     setDeletedMessageForSlider,
+    setGroupUpdation
   } = useChatStore();
   const { onlineUsers, socket, authUser } = useAuthStore();
   const { getSurroundingUsers, users, creteConversation } = useChatStore();
@@ -45,7 +46,7 @@ function Sidebar() {
 
   useEffect(() => {
     getConversation();
-  }, [getConversation, users]);
+  }, [getConversation]);
 
   useEffect(() => {
     getSurroundingUsers();
@@ -59,12 +60,16 @@ function Sidebar() {
     );
     socket.on("reacted", (msg) => setUpdatedMessage(msg));
     socket.on("delete", (msg) => setDeletedMessageForSlider(msg));
+    socket.on("udGroupDetail", (conversation) =>
+      setGroupUpdation(conversation),
+    );
     return () => {
       socket.off("istyping");
       socket.off("StopTyping");
       socket.off("newmessage");
       socket.off("reacted");
       socket.off("delete");
+      socket.off('udGroupDetail');
     };
   }, [socket]);
 
