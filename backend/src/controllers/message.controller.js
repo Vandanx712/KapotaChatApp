@@ -104,17 +104,14 @@ export const updateMsgStatus = async (id, userId) => {
     if (!conversation) return null;
 
     const senderId = message.sender?.toString();
-    const participantIds = conversation.participants.map((p) =>
-      p.userId.toString(),
+    const participantIds = conversation.participants.filter(
+      (p) => senderId !== p.userId.toString(),
     );
     const seenBySet = new Set(
       (message.seenBy || []).map((sid) => sid.toString()),
     );
     seenBySet.add(userId.toString());
-    if (senderId) seenBySet.add(senderId);
-
-    const others = participantIds.filter((pid) => pid !== senderId);
-    const isSeen = others.every((pid) => seenBySet.has(pid));
+    const isSeen = participantIds.every((pid) => seenBySet.has(pid));
 
     const updated = await Message.findByIdAndUpdate(
       id,

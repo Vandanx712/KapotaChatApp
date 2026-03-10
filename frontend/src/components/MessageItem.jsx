@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { formatMessageTime } from "../lib/utils";
 import {
   Check,
@@ -6,6 +6,7 @@ import {
   CopyIcon,
   Edit2,
   EllipsisVerticalIcon,
+  LucideInfo,
   SmileIcon,
   Trash2Icon,
   X,
@@ -25,12 +26,44 @@ const MessageItem = memo(
     const [editing, setEditing] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [editedText, setEditedText] = useState(m?.text);
+    const [info, setInfo] = useState(false);
+
     const { socket } = useAuthStore();
     const { setReactedMsg, messageDelete } = useChatStore();
     const [openUp, setOpenUp] = useState(false);
     const [showActions, setShowActions] = useState(false);
     const dropdownRef = useRef(null);
     const isHighlighted = highlightId && m?._id === highlightId;
+
+    const modalRef = useRef(null);
+
+    const onClose = () => {
+      setInfo(false);
+      setDeleting(false);
+      setEditing(false);
+    };
+
+    // click outside close
+    useEffect(() => {
+      const handleClickOutside = (e) => {
+        if (modalRef.current && !modalRef.current.contains(e.target)) {
+          onClose();
+        }
+      };
+
+      const handleEsc = (e) => {
+        if (e.key === "Escape") {
+          onClose();
+        }
+      };
+
+      document.addEventListener("pointerdown", handleClickOutside);
+      window.addEventListener("keydown", handleEsc);
+      return () => {
+        document.removeEventListener("pointerdown", handleClickOutside);
+        window.removeEventListener("keydown", handleEsc);
+      };
+    }, []);
 
     const supportsHover =
       typeof window !== "undefined" &&
@@ -146,7 +179,7 @@ const MessageItem = memo(
       <div
         className={`px-4 chat ${isSentByMe ? "chat-end" : "chat-start"} ${m?.deletedFor?.includes(authUser._id) ? "hidden" : ""}`}
       >
-        <div className={`${unknown?"hidden":'chat-image'} avatar`}>
+        <div className={`${unknown ? "hidden" : "chat-image"} avatar`}>
           <div className="md:size-10 size-5 rounded-full border">
             <img
               src={
@@ -190,33 +223,13 @@ const MessageItem = memo(
 
           <time className="flex gap-2 items-center text-sm opacity-50">
             {formatMessageTime(m.createdAt)}
-            {!selectedConversation.isgroup &&
-              isSentByMe &&
+            {isSentByMe &&
               (m.isSeen ? (
                 <CheckCheck className="size-4" />
               ) : (
                 <Check className="size-4" />
               ))}
           </time>
-          {selectedConversation.isgroup && isSentByMe && seenByCount > 0 && (
-            <div className="relative mt-0.5 w-fit text-xs opacity-80">
-              <span className="peer">Seen by {seenByCount}</span>
-              {seenByNames.length > 0 && (
-                <div className="pointer-events-none absolute bottom-full right-0 mb-2 hidden max-w-[220px] rounded-lg border border-base-300 bg-base-100/95 p-2 text-xs text-base-content shadow-lg backdrop-blur-sm peer-hover:block">
-                  <div className="mb-1 text-[10px] uppercase tracking-wide text-base-content/60">
-                    Seen by
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    {seenByNames.map((name, index) => (
-                      <div key={`${name}-${index}`} className="truncate">
-                        {name}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
           <div
             className={` ${
               m?.deletedForEveryone
@@ -252,10 +265,24 @@ const MessageItem = memo(
                     <CopyIcon className="size-4" /> Copy Message
                   </button>
                 </li>
+                {selectedConversation.isgroup &&
+                  isSentByMe &&
+                  seenByCount > 0 && (
+                    <li>
+                      <button
+                        onClick={() => {
+                          setInfo(true);
+                        }}
+                        className="flex text-sm items-center gap-3"
+                      >
+                        <LucideInfo className="size-4" /> Info Message
+                      </button>
+                    </li>
+                  )}
                 {canEdit && (
                   <li>
                     <button
-                      onClick={() => setEditing((pre) => !pre)}
+                      onClick={() => setEditing(true)}
                       className="flex text-sm items-center gap-3"
                     >
                       <Edit2 className="size-4" />
@@ -281,29 +308,6 @@ const MessageItem = memo(
               }}
               className={`size-5 cursor-pointer ${m.sender == authUser._id ? "mr-2" : "ml-2"}`}
             />
-            {showPicker && (
-              <>
-                <div
-                  className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
-                  onClick={() => setShowPicker(false)}
-                />
-                <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
-                  <div className="shadow-2xl border border-base-300 rounded-xl overflow-hidden scale-95 md:scale-100 animate-in zoom-in duration-200">
-                    <EmojiPicker
-                      onEmojiClick={(emojiData) => {
-                        onEmojiClick(m._id, emojiData);
-                        setShowPicker(false);
-                      }}
-                      theme="dark"
-                      autoFocusSearch={true}
-                      width={window.innerWidth < 450 ? 280 : 350}
-                      height={400}
-                      lazyLoadEmojis={true}
-                    />
-                  </div>
-                </div>
-              </>
-            )}
           </div>
         </div>
         <div className={`${m?.reacted ? "chat-footer" : "hidden"}`}>
@@ -314,74 +318,121 @@ const MessageItem = memo(
         >
           <span className="loading loading-dots loading-md"></span>
         </div>
-        {editing && (
-          <>
-            <div className="fixed inset-0 z-[60]">
-              <div className="fixed min-w-[300px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] shadow-2xl bg-base-100/80 md:p-5 p-3 rounded-xl overflow-hidden">
-                <div className="flex flex-col space-y-5">
-                  <div className="flex gap-2 items-center">
-                    <X
-                      className="size-6 cursor-pointer"
-                      onClick={() => {
-                        setEditing((prv) => !prv);
-                        setEditedText(m.text);
-                      }}
-                    />
-                    <h2 className="text-lg font-medium">Edit Message</h2>
+
+        {info && (
+          <div
+            ref={modalRef}
+            className="fixed min-w-[350px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] shadow-2xl bg-base-100/80 md:p-5 p-3 rounded-xl overflow-hidden"
+          >
+            <div className="flex flex-col">
+              <div className="flex gap-5 items-center">
+                <X
+                  className="size-6 cursor-pointer"
+                  onClick={() => {
+                    setInfo((prv) => !prv);
+                  }}
+                />
+                <h2 className="text-lg font-medium">Seen by ({seenByCount})</h2>
+              </div>
+              <div className="flex p-5 flex-col space-y-3 overflow-auto max-h-[350px]">
+                {seenByNames.map((name, index) => (
+                  <div key={`${name}-${index}`} className="truncate">
+                    {name}
                   </div>
-                  <div className="chat-bubble chat-bubble-primary">
-                    {editedText}
-                  </div>
-                  <div className="md:p-5 p-1 flex gap-5">
-                    <input
-                      value={editedText}
-                      onChange={(e) => setEditedText(e.target.value)}
-                      className="input input-bordered w-full "
-                      rows={2}
-                      autoFocus
-                    />
-                    <button
-                      onClick={handleSaveEdit}
-                      disabled={editedText.trim() === m.text}
-                      className="btn btn-circle"
-                    >
-                      <Check className="size-4" />
-                    </button>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
-          </>
+          </div>
+        )}
+        {editing && (
+          <div
+            ref={modalRef}
+            className="fixed min-w-[300px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] shadow-2xl bg-base-100/80 md:p-5 p-3 rounded-xl overflow-hidden"
+          >
+            <div className="flex flex-col space-y-5">
+              <div className="flex gap-2 items-center">
+                <X
+                  className="size-6 cursor-pointer"
+                  onClick={() => {
+                    setEditing((prv) => !prv);
+                    setEditedText(m.text);
+                  }}
+                />
+                <h2 className="text-lg font-medium">Edit Message</h2>
+              </div>
+              <div className="chat-bubble chat-bubble-primary">
+                {editedText}
+              </div>
+              <div className="md:p-5 p-1 flex gap-5">
+                <input
+                  value={editedText}
+                  onChange={(e) => setEditedText(e.target.value)}
+                  className="input input-bordered w-full "
+                  rows={2}
+                  autoFocus
+                />
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={editedText.trim() === m.text}
+                  className="btn btn-circle"
+                >
+                  <Check className="size-4" />
+                </button>
+              </div>
+            </div>
+          </div>
         )}
         {deleting && (
+          <div
+            ref={modalRef}
+            className="fixed min-w-[300px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] shadow-2xl bg-base-100/80 md:p-5 p-3 rounded-xl overflow-hidden"
+          >
+            <div className="flex flex-col space-y-5">
+              <div className="flex gap-2 items-center">
+                <X
+                  className="size-6 cursor-pointer"
+                  onClick={() => {
+                    setDeleting((prv) => !prv);
+                  }}
+                />
+                <h2 className="text-lg font-medium">Delete Message?</h2>
+              </div>
+              <div className="md:p-5 p-1 flex flex-col gap-3 items-end">
+                <button
+                  onClick={handleDeleteEeveryone}
+                  className={`${deletefor && myrole == "admin" && m.sender == authUser._id ? "" : "hidden"} btn cursor-pointer rounded-2xl text-error`}
+                >
+                  Delete for everyone
+                </button>
+                <button
+                  onClick={handledeleteForMe}
+                  className="btn cursor-pointer rounded-2xl text-error"
+                >
+                  Delete for me
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {showPicker && (
           <>
-            <div className="fixed inset-0 z-[60]">
-              <div className="fixed min-w-[300px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] shadow-2xl bg-base-100/80 md:p-5 p-3 rounded-xl overflow-hidden">
-                <div className="flex flex-col space-y-5">
-                  <div className="flex gap-2 items-center">
-                    <X
-                      className="size-6 cursor-pointer"
-                      onClick={() => {
-                        setDeleting((prv) => !prv);
-                      }}
-                    />
-                    <h2 className="text-lg font-medium">Delete Message?</h2>
-                  </div>
-                  <div className="md:p-5 p-1 flex flex-col gap-3 items-end">
-                    <button
-                      onClick={handleDeleteEeveryone}
-                      className={`${deletefor && myrole == "admin" && m.sender == authUser._id ? "" : "hidden"} btn cursor-pointer rounded-2xl text-error`}
-                    >
-                      Delete for everyone
-                    </button>
-                    <button
-                      onClick={handledeleteForMe}
-                      className="btn cursor-pointer rounded-2xl text-error"
-                    >
-                      Delete for me
-                    </button>
-                  </div>
-                </div>
+            <div
+              className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
+              onClick={() => setShowPicker(false)}
+            />
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
+              <div className="shadow-2xl border border-base-300 rounded-xl overflow-hidden scale-95 md:scale-100 animate-in zoom-in duration-200">
+                <EmojiPicker
+                  onEmojiClick={(emojiData) => {
+                    onEmojiClick(m._id, emojiData);
+                    setShowPicker(false);
+                  }}
+                  theme="dark"
+                  autoFocusSearch={true}
+                  width={window.innerWidth < 450 ? 280 : 350}
+                  height={400}
+                  lazyLoadEmojis={true}
+                />
               </div>
             </div>
           </>
