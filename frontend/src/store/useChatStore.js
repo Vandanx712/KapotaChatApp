@@ -48,9 +48,24 @@ export const useChatStore = create((set, get) => ({
     const authUser = useAuthStore.getState().authUser;
     try {
       const resdata = await getMessages(selectedConversation.conversationId);
-      set({ message: resdata.messages });
+      const updatedMessages = resdata.messages.map((msg) => {
+        const hasSeen =
+          Array.isArray(msg.seenBy) && msg.seenBy.includes(authUser._id);
+        if (msg.sender !== authUser._id && !hasSeen) {
+          return {
+            ...msg,
+            seenBy: Array.from(
+              new Set([...(msg.seenBy || []), authUser._id]),
+            ),
+          };
+        }
+        return msg;
+      });
+      set({ message: updatedMessages });
       resdata.messages.forEach((msg) => {
-        if (msg.sender !== authUser._id && msg.isSeen == false) {
+        const hasSeen =
+          Array.isArray(msg.seenBy) && msg.seenBy.includes(authUser._id);
+        if (msg.sender !== authUser._id && !hasSeen) {
           const socket = useAuthStore.getState().socket;
           socket.emit("msgseen", {
             msgId: msg._id,
@@ -117,10 +132,29 @@ export const useChatStore = create((set, get) => ({
     });
   },
 
-  setMsgSeen: (msgId) => {
+  setMsgSeen: (payload) => {
+    const msgId =
+      typeof payload === "string" ? payload : payload?.msgId;
+    if (!msgId) return;
+    const userId =
+      typeof payload === "object" ? payload?.userId : null;
+    const seenBy =
+      typeof payload === "object" ? payload?.seenBy : null;
+    const isSeen =
+      typeof payload === "object" ? payload?.isSeen : null;
     set((state) => ({
       message: state.message.map((msg) =>
-        msg._id == msgId ? { ...msg, isSeen: true } : msg,
+        msg._id == msgId
+          ? {
+              ...msg,
+              seenBy: seenBy
+                ? seenBy
+                : userId
+                  ? Array.from(new Set([...(msg.seenBy || []), userId]))
+                  : msg.seenBy,
+              isSeen: typeof isSeen === "boolean" ? isSeen : msg.isSeen,
+            }
+          : msg,
       ),
     }));
   },

@@ -53,7 +53,13 @@ export const getConversation = asynchandller(async (req, res) => {
       );
       const [user, unseen] = await Promise.all([
         User.findById(otheruser.userId).select(" fullname profilePic ").lean(),
-        Message.countDocuments({ conversationId: con._id, isSeen: false }),
+        Message.countDocuments({
+          conversationId: con._id,
+          sender: { $ne: _id },
+          deletedFor: { $ne: _id },
+          deletedForEveryone: { $ne: true },
+          seenBy: { $ne: _id },
+        }),
       ]);
 
       return {

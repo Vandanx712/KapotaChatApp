@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton";
 import {
@@ -12,6 +12,7 @@ import { useAuthStore } from "../store/useAuthStore";
 import { PhotoProvider, PhotoView } from "react-photo-view";
 import "react-photo-view/dist/react-photo-view.css";
 import CreateGroup from "./CreateGroup";
+import { getAllUsers } from "../lib/axios";
 
 function Sidebar() {
   const {
@@ -23,13 +24,16 @@ function Sidebar() {
     setNmsgInCon,
     setUpdatedMessage,
     setDeletedMessageForSlider,
-    setGroupUpdation
+    setGroupUpdation,
   } = useChatStore();
   const { onlineUsers, socket, authUser } = useAuthStore();
-  const { getSurroundingUsers, users, creteConversation } = useChatStore();
+  const { creteConversation } = useChatStore();
   const [Typing, setTyping] = useState("");
   const [newChat, setNewChat] = useState(false);
+  const [users, setUsers] = useState([]);
   const [open, setOpen] = useState("");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const menuItems = [
     {
@@ -44,13 +48,37 @@ function Sidebar() {
     },
   ];
 
+  const existConversationSet = useMemo(() => {
+    return new Set(
+      conversations.filter((con) => !con.isgroup).map((con) => con.oruserId),
+    );
+  }, [conversations]);
+
+  useEffect(() => {
+    const loadusers = async () => {
+      try {
+        const resdata = await getAllUsers();
+        setUsers(resdata.users);
+      } catch (error) {
+        console.log(error);
+      }
+    };
+    loadusers();
+    setDebouncedSearch("");
+    setSearch("");
+  }, [newChat]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
   useEffect(() => {
     getConversation();
   }, [getConversation]);
-
-  useEffect(() => {
-    getSurroundingUsers();
-  }, [newChat]);
 
   useEffect(() => {
     socket.on("newmessage", (newMessage) => setNmsgInCon(newMessage));
@@ -69,7 +97,7 @@ function Sidebar() {
       socket.off("newmessage");
       socket.off("reacted");
       socket.off("delete");
-      socket.off('udGroupDetail');
+      socket.off("udGroupDetail");
     };
   }, [socket]);
 
@@ -85,6 +113,26 @@ function Sidebar() {
     return Object.entries(conversation.groupdetail.membersDetail).filter(
       ([id]) => id !== authUser._id && onlineUsersSet.has(id),
     );
+  };
+
+  const filteredChats = conversations.filter((chat) => {
+    if (chat.isgroup) {
+      return chat.groupdetail.groupname
+        .toLowerCase()
+        .includes(debouncedSearch.toLowerCase());
+    } else
+      return chat.name.toLowerCase().includes(debouncedSearch.toLowerCase());
+  });
+
+  const filteredUsers = users.filter((user) => {
+    return user.fullname.toLowerCase().includes(debouncedSearch.toLowerCase());
+  });
+
+  const setSelectedChat = (id) => {
+    setSelectedConversation(
+      conversations.find((con) => con.oruserId == id && !con.isgroup),
+    );
+    setNewChat((prev) => !prev);
   };
 
   if (isConversationLoading) return <SidebarSkeleton />;
@@ -110,7 +158,9 @@ function Sidebar() {
                 <Search className="size-5" />
                 <input
                   type="text"
+                  value={search}
                   placeholder={`${newChat ? "Search Name" : "Search Conversation"}`}
+                  onChange={(e) => setSearch(e.target.value)}
                   className=" w-full bg-transparent outline-none"
                 />
               </label>
@@ -119,7 +169,7 @@ function Sidebar() {
 
           <div className="flex-1 min-h-0 overflow-y-auto py-3">
             {!newChat &&
-              conversations.map((conversation) => {
+              filteredChats.map((conversation) => {
                 const onlineMembers = getOnlineGroupUsers(
                   conversation,
                   onlineUsersSet,
@@ -154,14 +204,18 @@ function Sidebar() {
                         </PhotoView>
                       </PhotoProvider>
                       {!conversation.isgroup
-                        ? onlineUsersSet.has(conversation.oruserId)
+                        ? onlineUsersSet.has(conversation.oruserId) && (
+                            <span
+                              className="absolute bottom-0 right-0 size-3 bg-green-500 
+                    rounded-full"
+                            />
+                          )
                         : onlineMembers?.length > 0 && (
                             <span
                               className="absolute bottom-0 right-0 size-3 bg-green-500 
                     rounded-full"
                             />
                           )}
-                      {/* ahi onlineuser for group mate  */}
                     </div>
 
                     <div className="text-left flex-1 min-w-0">
@@ -232,11 +286,11 @@ function Sidebar() {
                 <div className="flex-1 space-y-2 overflow-y-auto p-2">
                   <div className="flex gap-2 p-4">
                     <Users />
-                    Chat with surrounding users
+                    Start Chat with users
                   </div>
-                  {users.map((user) => (
+                  {filteredUsers.map((user) => (
                     <div
-                      // onClick={() => setSelectedChannel(UserCheck2)}
+                      onClick={() => setSelectedChat(user._id)}
                       className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition hover:bg-base-200`}
                     >
                       <div className="avatar relative">
@@ -260,12 +314,14 @@ function Sidebar() {
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => handleChatClick(user._id)}
-                        className="btn btn-sm btn-primary btn-outline"
-                      >
-                        Chat
-                      </button>
+                      {!existConversationSet.has(user._id) && (
+                        <button
+                          onClick={() => handleChatClick(user._id)}
+                          className="btn btn-sm btn-primary btn-outline"
+                        >
+                          Chat
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

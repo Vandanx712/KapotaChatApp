@@ -11,6 +11,8 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
+import { PhotoProvider, PhotoView } from "react-photo-view";
+import "react-photo-view/dist/react-photo-view.css";
 import EmojiPicker from "emoji-picker-react";
 
 export default function InfoDrawer({ conversation, onClose }) {
@@ -188,7 +190,11 @@ export default function InfoDrawer({ conversation, onClose }) {
         <div className="flex flex-col items-center gap-3 p-6 border-b border-base-200">
           <div className="avatar">
             <div className="w-20  rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
-              <img src={groupicon || group?.groupIcon.url} alt="group" />
+              <PhotoProvider>
+                <PhotoView src={groupicon || group?.groupIcon.url}>
+                  <img src={groupicon || group?.groupIcon.url} alt="group" />
+                </PhotoView>
+              </PhotoProvider>
             </div>
             {myrole !== "member" && (
               <button
@@ -280,13 +286,22 @@ export default function InfoDrawer({ conversation, onClose }) {
               <div className="flex items-center gap-3">
                 <div className="avatar">
                   <div className="w-10 rounded-full">
-                    <img
-                      src={
-                        group?.membersDetail[member.userId]?.profilePic.url ||
-                        tempData[member.userId]?.profilePic.url
-                      }
-                      alt=""
-                    />
+                    <PhotoProvider>
+                      <PhotoView
+                        src={
+                          group?.membersDetail[member.userId]?.profilePic.url ||
+                          tempData[member.userId]?.profilePic.url
+                        }
+                      >
+                        <img
+                          src={
+                            group?.membersDetail[member.userId]?.profilePic
+                              .url || tempData[member.userId]?.profilePic.url
+                          }
+                          alt=""
+                        />
+                      </PhotoView>
+                    </PhotoProvider>
                   </div>
                 </div>
 
@@ -324,7 +339,10 @@ export default function InfoDrawer({ conversation, onClose }) {
         </div>
 
         <div className="p-2 flex border-t border-base-300 justify-evenly">
-          <button onClick={()=>handleExitGroup()} className="flex rounded-lg px-7 py-3 hover:bg-warning/10 text-warning gap-3 items-center">
+          <button
+            onClick={() => handleExitGroup()}
+            className="flex rounded-lg px-7 py-3 hover:bg-warning/10 text-warning gap-3 items-center"
+          >
             <LucideArrowRightFromLine className="size-4" /> Exit Group
           </button>
           {myrole !== "member" && (
@@ -433,7 +451,11 @@ export default function InfoDrawer({ conversation, onClose }) {
         <div className="flex flex-col items-center gap-3 p-6 border-b border-base-200">
           <div className="avatar">
             <div className="w-24 rounded-full ring ring-accent ring-offset-base-100 ring-offset-2">
-              <img src={otherUser?.profilePic.url} alt="profile" />
+              <PhotoProvider>
+                <PhotoView src={otherUser?.profilePic.url}>
+                  <img src={otherUser?.profilePic.url} alt="profile" />
+                </PhotoView>
+              </PhotoProvider>
             </div>
           </div>
 
@@ -455,12 +477,16 @@ export default function InfoDrawer({ conversation, onClose }) {
 
           <div className="grid grid-cols-3 gap-2">
             {otherUser?.posts?.map((post) => (
-              <img
-                key={post._id}
-                src={post.image}
-                alt=""
-                className="rounded-lg object-cover h-20 w-full"
-              />
+              <PhotoProvider>
+                <PhotoView src={post.image}>
+                  <img
+                    key={post._id}
+                    src={post.image}
+                    alt=""
+                    className="rounded-lg object-cover h-20 w-full"
+                  />
+                </PhotoView>
+              </PhotoProvider>
             ))}
           </div>
         </div>

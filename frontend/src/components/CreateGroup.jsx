@@ -27,6 +27,8 @@ function CreateGroup({ onClose }) {
   const [groupname, setGroupname] = useState("");
   const [groupicon, setGroupIcon] = useState(null);
   const [showPicker, setShowPicker] = useState("");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   useEffect(() => {
     const loadusers = async () => {
@@ -39,6 +41,18 @@ function CreateGroup({ onClose }) {
     };
     loadusers();
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const filteredUsers = users.filter((user) => {
+      return user.fullname.toLowerCase().includes(debouncedSearch.toLowerCase());
+  });
 
   const removeMember = (id) => {
     setMembers((prev) => prev.filter((member) => member._id !== id));
@@ -91,6 +105,8 @@ function CreateGroup({ onClose }) {
             <Search className="size-5" />
             <input
               type="text"
+              value={search}
+              onChange={(e) =>setSearch(e.target.value)}
               placeholder="Search Name"
               className="w-full bg-transparent outline-none"
             />
@@ -114,7 +130,7 @@ function CreateGroup({ onClose }) {
         )}
 
         <div className="flex-1 max-h-56 overflow-y-auto p-4 space-y-2">
-          {users.map((user) => (
+          {filteredUsers.map((user) => (
             <div
               key={user._id}
               onClick={() => {
@@ -181,7 +197,7 @@ function CreateGroup({ onClose }) {
                 </span>
                 <button
                   onClick={() => alert("Photo size almost 9mb")}
-                  className={`${groupicon ? ' -right-1':' right-1'} absolute bottom-1`}
+                  className={`${groupicon ? " -right-1" : " right-1"} absolute bottom-1`}
                 >
                   <label htmlFor="avatar-upload">
                     <Image className=" size-6" />
@@ -196,7 +212,7 @@ function CreateGroup({ onClose }) {
                   </label>
                 </button>
               </>
-              
+
               {groupicon && (
                 <img
                   src={groupicon}
@@ -272,7 +288,7 @@ function CreateGroup({ onClose }) {
           {/* Dark Backdrop: Closes picker when clicking anywhere else */}
           <div
             className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
-            onClick={() => setShowPicker((prev)=>!prev)}
+            onClick={() => setShowPicker((prev) => !prev)}
           />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
             <div className="shadow-2xl border border-base-300 rounded-xl overflow-hidden scale-95 md:scale-100 animate-in zoom-in duration-200">

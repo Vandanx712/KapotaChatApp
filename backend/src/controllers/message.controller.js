@@ -6,6 +6,8 @@ import { asynchandller } from "../util/asynchandller.js";
 import { StoragePath } from "../util/filepath.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 export const getMessages = asynchandller(async (req, res) => {
   const { id } = req.params;
 
@@ -16,6 +18,35 @@ export const getMessages = asynchandller(async (req, res) => {
   return res.status(200).json({
     success: true,
     message: "Fetch all messages successfully",
+    messages,
+  });
+});
+
+export const searchMessages = asynchandller(async (req, res) => {
+  const { id } = req.params;
+  const { q, limit } = req.query;
+  const { _id } = req.user;
+
+  if (!id) throw new ApiError(401, "Select Conversation");
+  if (!q || q.trim().length === 0) throw new ApiError(401, "Missing field");
+
+  const safeLimit = Math.min(parseInt(limit, 10) || 20, 50);
+  const regex = new RegExp(escapeRegex(q.trim()), "i");
+
+  const messages = await Message.find({
+    conversationId: id,
+    deletedForEveryone: { $ne: true },
+    deletedFor: { $ne: _id },
+    text: regex,
+  })
+    .select("_id text sender createdAt")
+    .sort({ createdAt: -1 })
+    .limit(safeLimit)
+    .lean();
+
+  return res.status(200).json({
+    success: true,
+    message: "Search messages successfully",
     messages,
   });
 });
@@ -47,6 +78,7 @@ export const sendMessage = asynchandller(async (req, res) => {
     sender: senderId,
     text: text,
     image: messageimage,
+    seenBy: [senderId],
   });
 
   await Conversation.updateOne({ _id: id }, { lastMessage: newMessage._id });
@@ -62,14 +94,38 @@ export const sendMessage = asynchandller(async (req, res) => {
 
 export const updateMsgStatus = async (id, userId) => {
   try {
-    await Message.updateOne(
-      {
-        _id: id,
-      },
-      { seenBy: userId, isSeen: true },
+    const message = await Message.findById(id).lean();
+    if (!message) return null;
+    if (message.sender?.toString() === userId.toString()) return null;
+
+    const conversation = await Conversation.findById(message.conversationId)
+      .select("participants")
+      .lean();
+    if (!conversation) return null;
+
+    const senderId = message.sender?.toString();
+    const participantIds = conversation.participants.map((p) =>
+      p.userId.toString(),
     );
+    const seenBySet = new Set(
+      (message.seenBy || []).map((sid) => sid.toString()),
+    );
+    seenBySet.add(userId.toString());
+    if (senderId) seenBySet.add(senderId);
+
+    const others = participantIds.filter((pid) => pid !== senderId);
+    const isSeen = others.every((pid) => seenBySet.has(pid));
+
+    const updated = await Message.findByIdAndUpdate(
+      id,
+      { $addToSet: { seenBy: userId }, isSeen },
+      { new: true },
+    ).lean();
+
+    return updated;
   } catch (error) {
     console.log(error);
+    return null;
   }
 };
 

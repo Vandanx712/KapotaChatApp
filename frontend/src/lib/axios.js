@@ -137,3 +137,8 @@ export const clearChat = async(id)=>{
   const res = await api.put(`/message/clear/${id}`)
   return res.data
 }
+
+export const searchMessages = async(id, params = {})=>{
+  const response = await api.get(`/message/search/${id}`, { params })
+  return response.data
+}

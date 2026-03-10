@@ -39,10 +39,15 @@ io.on("connection", (socket) => {
   });
 
   socket.on("msgseen", async ({ msgId, senderId }) => {
+    const updated = await updateMsgStatus(msgId, userId);
     const receiverSocketId = userSocketMap[senderId];
-    if (receiverSocketId) {
-      await updateMsgStatus(msgId, userId);
-      io.to(receiverSocketId).emit("msgseen", { msgId });
+    if (receiverSocketId && updated) {
+      io.to(receiverSocketId).emit("msgseen", {
+        msgId,
+        userId,
+        seenBy: updated.seenBy,
+        isSeen: updated.isSeen,
+      });
     }
   });
 

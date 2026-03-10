@@ -4,15 +4,15 @@ import {
   ImageIcon,
   InfoIcon,
   MinusCircle,
+  Search,
   Trash2Icon,
   VideoIcon,
-  X,
 } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import { useEffect } from "react";
 
-const ChatHeader = () => {
+const ChatHeader = ({ onToggleSearch, showSearch }) => {
   const {
     selectedConversation,
     setUnselectedConversation,
@@ -73,7 +73,7 @@ const ChatHeader = () => {
   if (!selectedConversation.isgroup) {
     statusText = onlineUsersSet.has(selectedConversation.oruserId)
       ? "Online"
-      : "Offline";
+      : "Click here for contact info";
   } else {
     if (onlinemember.length > 1) {
       statusText = `${onlinemember[0]} & ${onlinemember.length - 1} other${
@@ -118,7 +118,7 @@ const ChatHeader = () => {
           </div>
 
           {/* User info */}
-          <div className="flex flex-col min-w-0">
+          <div onClick={() => setShowInfo()} className="flex flex-col min-w-0 cursor-pointer">
             <h3 className="font-medium text-lg truncate">
               {selectedConversation.isgroup
                 ? selectedConversation.groupdetail.groupname
@@ -138,6 +138,14 @@ const ChatHeader = () => {
           <button className="">
             <VideoIcon />
           </button>
+          {onToggleSearch && (
+            <button
+              onClick={onToggleSearch}
+              className={`${showSearch ? "text-primary" : ""}`}
+            >
+              <Search className="size-5" />
+            </button>
+          )}
           <div className="dropdown dropdown-bottom dropdown-end">
             <button>
               <EllipsisVerticalIcon />
