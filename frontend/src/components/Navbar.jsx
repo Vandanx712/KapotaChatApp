@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { CircleFadingPlusIcon, Compass, MessageSquare, Settings, User } from "lucide-react";
+import { Compass, ImagePlus, MessageSquare, Settings, User } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 
 const Navbar = () => {
@@ -23,8 +23,8 @@ const Navbar = () => {
           <div className="flex items-center md:gap-9 gap-5">
             {authUser && (
               <>
-                <Link to={'/status'} className={`hover:text-secondary transition-color tooltip tooltip-bottom`}data-tip='Status'>
-                  <CircleFadingPlusIcon className="size-5"/>
+                <Link to={'/status'} className={`hover:text-secondary transition-color tooltip tooltip-bottom`}data-tip='Add Post'>
+                  <ImagePlus className="size-5"/>
                 </Link>
                 <Link to={'/explore'} className={`hover:text-secondary transition-color tooltip tooltip-bottom`}data-tip='Explore'>
                   <Compass className="size-5" />
