@@ -25,6 +25,7 @@ function Sidebar() {
     setUpdatedMessage,
     setDeletedMessageForSlider,
     setGroupUpdation,
+    refreshGroupMember,
   } = useChatStore();
   const { onlineUsers, socket, authUser } = useAuthStore();
   const { creteConversation } = useChatStore();
@@ -91,6 +92,9 @@ function Sidebar() {
     socket.on("udGroupDetail", (conversation) =>
       setGroupUpdation(conversation),
     );
+    socket.on("refresh", (type, conversation) => {
+      refreshGroupMember(type, conversation);
+    });
     return () => {
       socket.off("istyping");
       socket.off("StopTyping");
@@ -98,6 +102,7 @@ function Sidebar() {
       socket.off("reacted");
       socket.off("delete");
       socket.off("udGroupDetail");
+      socket.off("refresh");
     };
   }, [socket]);
 
@@ -116,12 +121,9 @@ function Sidebar() {
   };
 
   const filteredChats = conversations.filter((chat) => {
-    if (chat.isgroup) {
-      return chat.groupdetail.groupname
-        .toLowerCase()
-        .includes(debouncedSearch.toLowerCase());
-    } else
-      return chat.name.toLowerCase().includes(debouncedSearch.toLowerCase());
+    const name = chat.isgroup ? chat.groupdetail?.groupname : chat.name;
+
+    return (name || "").toLowerCase().includes(debouncedSearch.toLowerCase());
   });
 
   const filteredUsers = users.filter((user) => {
@@ -226,7 +228,7 @@ function Sidebar() {
                             : conversation.name}
                         </div>
                         <div
-                          className={`rounded-full ${conversation.unseenMsg == 0 || conversation.lastmessage.sender == authUser._id ? "hidden" : "flex"} justify-center items-center bg-base-300 p-2 text-xs size-3`}
+                          className={`rounded-full ${conversation.unseenMsg == 0 || conversation.lastmessage?.sender == authUser._id ? "hidden" : "flex"} justify-center items-center bg-base-300 p-2 text-xs size-3`}
                         >
                           {conversation.lastmessage?.deletedForEveryone
                             ? conversation.unseenMsg - 1

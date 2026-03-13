@@ -2,7 +2,7 @@ import { Server } from "socket.io";
 import express from "express";
 import http from "http";
 import { updateMsgStatus } from "../controllers/message.controller.js";
-import { getUserConversations } from "../controllers/conversation.controller.js";
+import { Conversation } from "../models/conversation.model.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -16,7 +16,7 @@ const io = new Server(server, {
 //used for onlineusers
 const userSocketMap = {};
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   console.log("A user connected", socket.id);
 
   const userId = socket.handshake.query.userId;
@@ -24,10 +24,16 @@ io.on("connection", (socket) => {
   // io.emit() is used to send events to all connected clients
 
   io.emit("getonlineusers", Object.keys(userSocketMap));
-  const conversations = getUserConversations();
-  conversations.forEach((conv) => {
-    socket.join(conv._id.toString());
-  });
+  if (userId) {
+    const conversations = await Conversation.find({
+      "participants.userId": userId,
+    })
+      .select("_id")
+      .lean();
+    conversations.forEach((conv) => {
+      socket.join(conv._id.toString());
+    });
+  }
 
   //message part
   socket.on("istyping", ({ receiverId }) => {

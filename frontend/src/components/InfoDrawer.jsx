@@ -38,10 +38,6 @@ export default function InfoDrawer({ conversation, onClose }) {
   }, [onClose]);
 
   useEffect(() => {
-    contactDetail(conversation.oruserId);
-  }, []);
-
-  useEffect(() => {
     setOtherUsers(conversation.conversationId);
   }, []);
 
@@ -49,7 +45,7 @@ export default function InfoDrawer({ conversation, onClose }) {
     setDeleteChat(conversation.conversationId);
     setTimeout(() => {
       getConversation();
-    }, 3000);
+    }, 1000);
   };
 
   function GroupInfo({ group, onClose }) {
@@ -166,16 +162,12 @@ export default function InfoDrawer({ conversation, onClose }) {
 
     const handleUpdate = () => {
       upGroupMember({ id: conversation.conversationId, participants });
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      onClose()
     };
 
     const handleExitGroup = () => {
       ExitGroup(conversation.conversationId);
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      onClose()
     };
 
     return (
@@ -437,6 +429,9 @@ export default function InfoDrawer({ conversation, onClose }) {
   }
 
   function ContactInfo({ user, onClose }) {
+    useEffect(() => {
+      contactDetail(user.oruserId);
+    }, []);
     return (
       <>
         {/* Header */}

@@ -89,6 +89,7 @@ function ChatContainer() {
   const lastmsg = message[message.length - 1];
   useEffect(() => {
     if (!lastmsg || !socket) return;
+    if (lastmsg.system) return;
     const hasSeen =
       Array.isArray(lastmsg?.seenBy) &&
       lastmsg.seenBy.includes(authUser?._id);
@@ -122,7 +123,7 @@ function ChatContainer() {
     );
     socket.on("delete", (msg) => setDeletedMessage(msg));
     socket.on("clearchat", (conversation) => setClearChat(conversation));
-    onlineToMessage();
+    socket.on('newmessage',(newMessage)=>onlineToMessage(newMessage))
     return () => {
       offlineToMessage();
       socket.off("msgseen");
@@ -131,6 +132,7 @@ function ChatContainer() {
       socket.off("changeBgimage");
       socket.off("delete");
       socket.off("clearchat");
+      socket.off("newmessage");
     };
   }, [socket]);
 

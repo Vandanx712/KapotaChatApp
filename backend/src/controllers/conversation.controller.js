@@ -7,9 +7,104 @@ import { deleteImage, uploadChatPic } from "../lib/cloudinary.js";
 import { StoragePath } from "../util/filepath.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 
-let userconversations = [];
-export const getUserConversations = () => {
-  return userconversations.map((con) => con._id);
+const getConversationRoomId = (conversation) => {
+  const id = conversation?.conversationId || conversation?._id;
+  return id ? id.toString() : "";
+};
+
+const createSystemMessages = async (conversationId, texts) => {
+  if (!texts.length) return [];
+  const payload = texts.map((text) => ({
+    conversationId,
+    text,
+    system: true,
+    isSeen: true,
+  }));
+  return Message.insertMany(payload);
+};
+
+const emitSystemMessages = async (messages, conversation, type) => {
+  if (!messages.length || !conversation) return;
+  messages.forEach((newMessage) => {
+   io.to(conversation._id.toString()).emit("newmessage", newMessage);
+  });
+
+  if (!conversation.groupname) return;
+  const con = await buildGroupConversationPayload(conversation);
+  if (con) emitRefresh(type, con);
+};
+
+const emitRefresh = (type, conversation) => {
+  const roomId = getConversationRoomId(conversation);
+  if (!roomId) return;
+  io.to(roomId).emit("refresh", type, conversation);
+};
+
+const joinUsersToRoom = async (userIds, room, isgroup) => {
+  const uniqueIds = Array.from(new Set(userIds.map((id) => id.toString())));
+  const roomId = getConversationRoomId(room);
+  const groupPayload = isgroup ? await buildGroupConversationPayload(room) : null;
+  uniqueIds.forEach((userId) => {
+    const socketId = getReceiverSocketId(userId);
+    if (!socketId) return;
+    const socket = io.sockets.sockets.get(socketId);
+    if (socket && roomId) socket.join(roomId);
+    if (isgroup && groupPayload) {
+      io.to(socketId).emit("refresh", "NEW_CONVERSATION", groupPayload);
+    }
+  });
+};
+
+const leaveUsersFromRoom = (userIds, room) => {
+  const uniqueIds = Array.from(new Set(userIds.map((id) => id.toString())));
+  const roomId = getConversationRoomId(room);
+  uniqueIds.forEach((userId) => {
+    const socketId = getReceiverSocketId(userId);
+    if (!socketId) return;
+    const socket = io.sockets.sockets.get(socketId);
+    if (socket && roomId) socket.leave(roomId);
+    io.to(socketId).emit("refresh", "EXIT_GROUP", room);
+  });
+};
+
+const getUserDetail = async (id) => {
+  const user = await User.findById(id).select("fullname profilePic").lean();
+  return user;
+};
+
+const getMemberDetail = async (conversation) => {
+  const groupdetail = {};
+  groupdetail.groupname = conversation.groupname;
+  groupdetail.groupIcon = conversation.groupIcon;
+  const membersDetail = {};
+  for (const member of conversation.participants) {
+    const memberdetail = await getUserDetail(member.userId);
+    if (!membersDetail[member.userId]) {
+      membersDetail[member.userId.toString()] = {
+        fullname: memberdetail.fullname,
+        role: member.role,
+        profilePic: memberdetail.profilePic,
+      };
+    }
+  }
+  groupdetail.membersDetail = membersDetail;
+  return groupdetail;
+};
+
+const buildGroupConversationPayload = async (conversation) => {
+  if (!conversation?.groupname) return null;
+  const groupdetail = await getMemberDetail(conversation);
+  return {
+    conversationId: conversation._id,
+    oruserId: "",
+    name: "",
+    profilePic: "",
+    isgroup: true,
+    groupdetail,
+    unseenMsg: 0,
+    bgImage: conversation.bgImage ?? {},
+    lastmessage: conversation.lastMessage ? conversation.lastMessage : "",
+  };
 };
 
 export const getConversation = asynchandller(async (req, res) => {
@@ -23,50 +118,37 @@ export const getConversation = asynchandller(async (req, res) => {
     .sort({ updatedAt: -1 })
     .lean();
 
-  userconversations = conversations;
-
   const filtered = await Promise.all(
     conversations.map(async (con) => {
-      const groupdetail = {};
+      let groupdetail = {};
 
       if (con.groupname) {
-        groupdetail.groupname = con.groupname;
-        groupdetail.groupIcon = con.groupIcon;
-        const membersDetail = {};
-        for (const member of con.participants) {
-          const memberdetail = await User.findById(member.userId)
-            .select("fullname profilePic")
-            .lean();
-          if (!membersDetail[member.userId]) {
-            membersDetail[member.userId.toString()] = {
-              fullname: memberdetail.fullname,
-              role: member.role,
-              profilePic: memberdetail.profilePic,
-            };
-          }
-        }
-        groupdetail.membersDetail = membersDetail;
+        groupdetail = await getMemberDetail(con);
       }
 
       const otheruser = con.participants.find(
         (par) => par.userId.toString() != _id.toString(),
       );
-      const [user, unseen] = await Promise.all([
-        User.findById(otheruser.userId).select(" fullname profilePic ").lean(),
+
+      let user;
+      if (!con.groupname) user = await getUserDetail(otheruser.userId);
+
+      const [unseen] = await Promise.all([
         Message.countDocuments({
           conversationId: con._id,
           sender: { $ne: _id },
           deletedFor: { $ne: _id },
           deletedForEveryone: { $ne: true },
+          system: { $ne: true },
           seenBy: { $ne: _id },
         }),
       ]);
 
       return {
         conversationId: con._id,
-        oruserId: user._id,
-        name: user.fullname,
-        profilePic: user.profilePic,
+        oruserId: user?._id ?? "",
+        name: user?.fullname ?? "",
+        profilePic: user?.profilePic ?? "",
         isgroup: con.groupname ? true : false,
         groupdetail,
         unseenMsg: unseen,
@@ -91,21 +173,56 @@ export const createConversation = asynchandller(async (req, res) => {
   if (!oruserId)
     throw new ApiError(401, "Please select user to start new conversation");
 
-  const existed = await Conversation.findOne({
-    "participants.userId": { $all: [oruserId, _id] },
-  })
-    .select("_id")
-    .lean();
-  if (existed)
-    return res.status(400).json({
-      success: false,
-      message: "Conversation with this user is allready exist",
-    });
-
-  await Conversation.create({
+  const newConversation = await Conversation.create({
     participants: [{ userId: _id }, { userId: oruserId }],
   });
 
+  await joinUsersToRoom(
+    newConversation.participants.map((par) => par.userId),
+    newConversation,
+    false,
+  );
+
+  const currentUser = await getUserDetail(_id);
+  const otherUser = await getUserDetail(oruserId);
+  if (!otherUser) throw new ApiError(400, "User not found");
+
+  const baseConversation = {
+    conversationId: newConversation._id,
+    isgroup: false,
+    groupdetail: {},
+    unseenMsg: 0,
+    bgImage: newConversation.bgImage ?? {},
+    lastmessage: newConversation.lastMessage ? newConversation.lastMessage : "",
+  };
+
+  const forCurrentUser = {
+    ...baseConversation,
+    oruserId: otherUser._id,
+    name: otherUser.fullname,
+    profilePic: otherUser.profilePic,
+  };
+
+  const forOtherUser = {
+    ...baseConversation,
+    oruserId: currentUser?._id || _id,
+    name: currentUser?.fullname || "",
+    profilePic: currentUser?.profilePic || "",
+  };
+
+  const currentSocketId = getReceiverSocketId(_id.toString());
+  if (currentSocketId) {
+    io.to(currentSocketId).emit(
+      "refresh",
+      "NEW_CONVERSATION",
+      forCurrentUser,
+    );
+  }
+
+  const otherSocketId = getReceiverSocketId(oruserId.toString());
+  if (otherSocketId) {
+    io.to(otherSocketId).emit("refresh", "NEW_CONVERSATION", forOtherUser);
+  }
   return res.status(200).json({
     success: true,
     message: "New conversation create successfully",
@@ -141,6 +258,14 @@ export const deleteConversation = asynchandller(async (req, res) => {
   if (conversation.bgImage) {
     await deleteImage(conversation.bgImage.key);
   }
+  if (conversation.groupIcon) {
+    await deleteImage(conversation.groupIcon.key);
+  }
+  const participantIds = conversation.participants.map((p) =>
+    p.userId.toString(),
+  );
+
+  emitRefresh("DELETE_CONVERSATION", conversation);
 
   await Conversation.deleteOne({ _id: conversation._id });
   return res.status(200).json({
@@ -210,6 +335,7 @@ export const getSurrUsers = asynchandller(async (req, res) => {
 
 export const createGroup = asynchandller(async (req, res) => {
   const { participants, groupname, groupIcon } = req.body;
+  const { _id } = req.user;
 
   if (
     [groupname, groupIcon].some((field) => field == "") &&
@@ -243,6 +369,27 @@ export const createGroup = asynchandller(async (req, res) => {
     groupname,
     groupIcon: groupimg,
   });
+
+  const actor = await getUserDetail(_id);
+  const actorName = actor?.fullname || "Someone";
+  const participantIds = participants.map((p) => p.userId.toString());
+  await joinUsersToRoom(participantIds, newgroup, true);
+  const addedIds = participantIds.filter((id) => id !== _id.toString());
+  if (addedIds.length > 0) {
+    const addedUsers = await User.find({ _id: { $in: addedIds } })
+      .select("fullname")
+      .lean();
+    const nameMap = new Map(
+      addedUsers.map((user) => [user._id.toString(), user.fullname]),
+    );
+    const texts = addedIds.map(
+      (id) => `${actorName} added ${nameMap.get(id) || "a member"}`,
+    );
+    const systemMessages = await createSystemMessages(newgroup._id, texts);
+    newgroup.lastMessage = systemMessages[systemMessages.length - 1]._id;
+    await newgroup.save();
+    emitSystemMessages(systemMessages, newgroup, "NEW_CONVERSATION");
+  }
 
   return res.status(200).json({
     success: true,
@@ -330,8 +477,42 @@ export const updateMembers = asynchandller(async (req, res) => {
   if (user.role !== "admin")
     throw new ApiError(400, "you can't perform this action");
 
+  const prevIds = conversation.participants.map((p) => p.userId.toString());
+  const nextIds = participants.map((p) => p.userId.toString());
+  const addedIds = nextIds.filter((id) => !prevIds.includes(id));
+  const removedIds = prevIds.filter((id) => !nextIds.includes(id));
+
   conversation.participants = participants;
   await conversation.save();
+
+  await joinUsersToRoom(addedIds, conversation, true);
+  leaveUsersFromRoom(removedIds, conversation);
+
+  if (addedIds.length > 0 || removedIds.length > 0) {
+    const actor = await getUserDetail(_id);
+    const actorName = actor?.fullname || "Someone";
+    const changedIds = [...new Set([...addedIds, ...removedIds])];
+    const changedUsers = await User.find({ _id: { $in: changedIds } })
+      .select("fullname")
+      .lean();
+    const nameMap = new Map(
+      changedUsers.map((u) => [u._id.toString(), u.fullname]),
+    );
+
+    const texts = [
+      ...addedIds.map(
+        (id) => `${actorName} added ${nameMap.get(id) || "a member"}`,
+      ),
+      ...removedIds.map(
+        (id) => `${actorName} removed ${nameMap.get(id) || "a member"}`,
+      ),
+    ];
+
+    const systemMessages = await createSystemMessages(conversation._id, texts);
+    conversation.lastMessage = systemMessages[systemMessages.length - 1]._id;
+    await conversation.save();
+    emitSystemMessages(systemMessages, conversation, "UPDATE_MEMBERS");
+  }
 
   return res.status(200).json({
     success: true,
@@ -359,16 +540,23 @@ export const exitGroup = asynchandller(async (req, res) => {
     );
     if (admins.length == 0) {
       if (index > -1) {
-        const nextIndex = (index + 1) % arr.length;
+        const nextIndex = (index + 1) % conversation.participants.length;
         conversation.participants[nextIndex].role = "admin";
       }
     }
   }
 
+  leaveUsersFromRoom([_id], conversation);
+
+  const userdetail = await getUserDetail(_id);
+  const text = [`${userdetail.fullname} left`];
+
+  const systemMessages = await createSystemMessages(conversation._id, text);
+  conversation.lastMessage = systemMessages[systemMessages.length - 1]._id;
+
   conversation.participants.splice(index, 1);
   await conversation.save();
-
-  /// socket nu logic aavse
+  emitSystemMessages(systemMessages, conversation, "UPDATE_MEMBERS");
 
   return res.status(200).json({
     success: true,

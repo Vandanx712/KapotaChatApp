@@ -29,11 +29,22 @@ const MessageItem = memo(
     const [info, setInfo] = useState(false);
 
     const { socket } = useAuthStore();
-    const { setReactedMsg, messageDelete } = useChatStore();
-    const [openUp, setOpenUp] = useState(false);
-    const [showActions, setShowActions] = useState(false);
-    const dropdownRef = useRef(null);
-    const isHighlighted = highlightId && m?._id === highlightId;
+  const { setReactedMsg, messageDelete } = useChatStore();
+  const [openUp, setOpenUp] = useState(false);
+  const [showActions, setShowActions] = useState(false);
+  const dropdownRef = useRef(null);
+  const isHighlighted = highlightId && m?._id === highlightId;
+
+  if (m?.system) {
+    if (m?.deletedFor?.includes(authUser._id)) return null;
+    return (
+      <div className="px-4 flex justify-center m-2">
+        <div className="chat-bubble chat-bubble-neutral text-xs sm:text-sm">
+          {m.text}
+        </div>
+      </div>
+    );
+  }
 
     const modalRef = useRef(null);
 

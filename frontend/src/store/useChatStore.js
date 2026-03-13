@@ -49,20 +49,20 @@ export const useChatStore = create((set, get) => ({
     try {
       const resdata = await getMessages(selectedConversation.conversationId);
       const updatedMessages = resdata.messages.map((msg) => {
+        if (msg.system) return msg;
         const hasSeen =
           Array.isArray(msg.seenBy) && msg.seenBy.includes(authUser._id);
         if (msg.sender !== authUser._id && !hasSeen) {
           return {
             ...msg,
-            seenBy: Array.from(
-              new Set([...(msg.seenBy || []), authUser._id]),
-            ),
+            seenBy: Array.from(new Set([...(msg.seenBy || []), authUser._id])),
           };
         }
         return msg;
       });
       set({ message: updatedMessages });
       resdata.messages.forEach((msg) => {
+        if (msg.system) return;
         const hasSeen =
           Array.isArray(msg.seenBy) && msg.seenBy.includes(authUser._id);
         if (msg.sender !== authUser._id && !hasSeen) {
@@ -95,22 +95,18 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  onlineToMessage: () => {
+  onlineToMessage: (newmsg) => {
     const { selectedConversation } = get();
     const authUser = useAuthStore.getState().authUser;
     if (!selectedConversation) return;
-
-    const socket = useAuthStore.getState().socket;
-    socket.on("newmessage", (newmsg) => {
-      if (
-        newmsg.conversationId == selectedConversation.conversationId &&
-        newmsg.sender == authUser._id
-      )
-        return;
-      set((state) => ({
-        message: [...state.message, newmsg],
-      }));
-    });
+    if (
+      newmsg.conversationId == selectedConversation.conversationId &&
+      newmsg.sender == authUser._id
+    )
+      return;
+    set((state) => ({
+      message: [...state.message, newmsg],
+    }));
   },
 
   offlineToMessage: () => {
@@ -133,15 +129,11 @@ export const useChatStore = create((set, get) => ({
   },
 
   setMsgSeen: (payload) => {
-    const msgId =
-      typeof payload === "string" ? payload : payload?.msgId;
+    const msgId = typeof payload === "string" ? payload : payload?.msgId;
     if (!msgId) return;
-    const userId =
-      typeof payload === "object" ? payload?.userId : null;
-    const seenBy =
-      typeof payload === "object" ? payload?.seenBy : null;
-    const isSeen =
-      typeof payload === "object" ? payload?.isSeen : null;
+    const userId = typeof payload === "object" ? payload?.userId : null;
+    const seenBy = typeof payload === "object" ? payload?.seenBy : null;
+    const isSeen = typeof payload === "object" ? payload?.isSeen : null;
     set((state) => ({
       message: state.message.map((msg) =>
         msg._id == msgId
@@ -168,17 +160,20 @@ export const useChatStore = create((set, get) => ({
       if (index === -1) return state;
       const updatedConversations = [...state.conversations];
       const [targetCon] = updatedConversations.splice(index, 1);
-      const isOwnMessage = newMessage.sender === authUser._id;
-      const isOpenConversation =
-        state.selectedConversation?.conversationId ===
-        newMessage?.conversationId;
+      const isOwnMessage = newMessage.sender == authUser._id;
+      const isSystem = newMessage.system == true;
+      const selectedConId = state.selectedConversation?.conversationId;
+      const isOpenConversation = selectedConId === newMessage.conversationId;
+      let nextUnseen = targetCon?.unseenMsg || 0;
+      if (isSystem) {
+        nextUnseen = 0;
+      } else {
+        nextUnseen = isOwnMessage || isOpenConversation ? 0 : nextUnseen + 1;
+      }
       const updatedTargetCon = {
         ...targetCon,
         lastmessage: newMessage,
-        unseenMsg:
-          isOwnMessage || isOpenConversation
-            ? 0
-            : (targetCon?.unseenMsg || 0) + 1,
+        unseenMsg: nextUnseen,
       };
       updatedConversations.unshift(updatedTargetCon);
       return { conversations: updatedConversations };
@@ -266,15 +261,18 @@ export const useChatStore = create((set, get) => ({
             ...con.lastmessage,
             text:
               message.reacted !== con.lastmessage.reacted
-                ? authUser._id == message.userId
-                  ? `You reacted ${message?.reacted} to '${message.text}'`
-                  : `${con.name} reacted ${message.reacted} to '${message.text}'`
+                ? con.isgroup
+                  ? authUser._id == message.userId
+                    ? `You reacted ${message?.reacted} to '${message.text}'`
+                    : `${con.groupdetail.membersDetail[message.userId].fullname} reacted ${message.reacted} to '${message.text}'`
+                  : authUser._id == message.userId
+                    ? `You reacted ${message?.reacted} to '${message.text}'`
+                    : `${con.name} reacted ${message.reacted} to '${message.text}'`
                 : message.text,
           },
         };
       }),
     }));
-    console.log(get().conversations, "updated con");
   },
 
   setReactedMsg: (message) => {
@@ -453,13 +451,89 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  ExitGroup:async(id)=>{
+  ExitGroup: async (id) => {
     try {
-      const resdata = await exitGroup(id)
-      toast.success(resdata.message)
+      const resdata = await exitGroup(id);
+      toast.success(resdata.message);
     } catch (error) {
-      console.log(error)
-      toast.error(error?.response?.data?.message)
+      console.log(error);
+      toast.error(error?.response?.data?.message);
     }
-  }
+  },
+
+  refreshGroupMember: (type, conversation) => {
+    set((state) => {
+      let conversations = [...state.conversations];
+      let selectedConversation = state.selectedConversation;
+
+      const getId = (con) =>
+        con?.conversationId?.toString?.() ??
+        con?.conversationId ??
+        con?._id?.toString?.() ??
+        con?._id;
+
+      const incomingId = getId(conversation);
+
+      switch (type) {
+        case "NEW_CONVERSATION": {
+          if (!incomingId) break;
+          const existingIndex = conversations.findIndex(
+            (con) => getId(con) === incomingId,
+          );
+          const normalizedConversation = conversation?.conversationId
+            ? conversation
+            : { ...conversation, conversationId: incomingId };
+          if (existingIndex !== -1) {
+            const existing = conversations[existingIndex];
+            conversations.splice(existingIndex, 1);
+            conversations.unshift({ ...existing, ...normalizedConversation });
+          } else {
+            conversations = [normalizedConversation, ...conversations];
+          }
+          break;
+        }
+
+        case "UPDATE_MEMBERS": {
+          if (!incomingId) break;
+          conversations = conversations.map((con) =>
+            getId(con) === incomingId
+              ? {
+                  ...con,
+                  groupdetail: conversation.groupdetail ?? con.groupdetail,
+                }
+              : con,
+          );
+
+          if (
+            selectedConversation &&
+            getId(selectedConversation) === incomingId
+          ) {
+            selectedConversation = {
+              ...selectedConversation,
+              groupdetail:
+                conversation.groupdetail ?? selectedConversation.groupdetail,
+            };
+          }
+          break;
+        }
+
+        case "DELETE_CONVERSATION":
+        case "EXIT_GROUP": {
+          if (!incomingId) break;
+          conversations = conversations.filter(
+            (con) => getId(con) !== incomingId,
+          );
+
+          if (
+            selectedConversation &&
+            getId(selectedConversation) === incomingId
+          ) {
+            selectedConversation = null;
+          }
+          break;
+        }
+      }
+      return { conversations, selectedConversation };
+    });
+  },
 }));

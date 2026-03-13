@@ -16,6 +16,10 @@ const messageSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
+    system: {
+      type: Boolean,
+      default: false,
+    },
     isSeen: {
       type: Boolean,
       default: false,

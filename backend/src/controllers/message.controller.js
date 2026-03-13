@@ -96,6 +96,7 @@ export const updateMsgStatus = async (id, userId) => {
   try {
     const message = await Message.findById(id).lean();
     if (!message) return null;
+    if (message.system) return null;
     if (message.sender?.toString() === userId.toString()) return null;
 
     const conversation = await Conversation.findById(message.conversationId)
@@ -104,9 +105,9 @@ export const updateMsgStatus = async (id, userId) => {
     if (!conversation) return null;
 
     const senderId = message.sender?.toString();
-    const participantIds = conversation.participants.filter(
-      (p) => senderId !== p.userId.toString(),
-    );
+    const participantIds = conversation.participants
+      .filter((p) => senderId !== p.userId.toString())
+      .map((p) => p.userId.toString());
     const seenBySet = new Set(
       (message.seenBy || []).map((sid) => sid.toString()),
     );
@@ -155,20 +156,9 @@ export const updateMessage = asynchandller(async (req, res) => {
   }
   if (!message) throw new ApiError(401, "Message not found");
 
-  const oruser = conversation.participants.find(
-    (user) => user.userId.toString() !== _id.toString(),
-  );
-
   const msg = { ...message._doc, userId: _id };
-  const mysocketId = getReceiverSocketId(_id);
-  if (mysocketId) {
-    io.to(mysocketId).emit("reacted", msg);
-  }
 
-  const receiversocketId = getReceiverSocketId(oruser.userId);
-  if (receiversocketId) {
-    io.to(receiversocketId).emit("reacted", msg);
-  }
+  io.to(conversation._id.toString()).emit("reacted", msg);
 
   return res.status(200).json({
     success: true,
