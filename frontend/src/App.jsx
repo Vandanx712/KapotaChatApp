@@ -12,7 +12,7 @@ import {Toaster} from 'react-hot-toast'
 import { useThemeStore } from "./store/useThemeStore";
 import Explore from "./pages/Explore";
 import ForgetPassword from "./pages/ForgetPassword";
-import Status from "./pages/Status";
+import AddPost from "./pages/AddPost";
 
 function App() {
   const { authUser, checkAuth, isCheckingAuth } = useAuthStore();
@@ -34,7 +34,7 @@ function App() {
         <Route path="/login" element={!authUser ? <Login /> : <Navigate to='/' />} />
         <Route path="/forget-password" element={<ForgetPassword/>}/>
         <Route path="/" element={authUser ? <Home /> : <Navigate to='/login' />} />
-        <Route path="/status" element={authUser ? <Status /> : <Navigate to='/login' />} />
+        <Route path="/addpost" element={authUser ? <AddPost /> : <Navigate to='/login' />} />
         <Route path="/explore" element={authUser ? <Explore /> : <Navigate to='/login' />}/>
         <Route path="/setting" element={authUser ? <Setting /> : <Navigate to='/login' />} />
         <Route path="/profile" element={authUser ? <Profile /> : <Navigate to='/login' />} />

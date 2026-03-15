@@ -23,7 +23,7 @@ const Navbar = () => {
           <div className="flex items-center md:gap-9 gap-5">
             {authUser && (
               <>
-                <Link to={'/status'} className={`hover:text-secondary transition-color tooltip tooltip-bottom`}data-tip='Add Post'>
+                <Link to={'/addpost'} className={`hover:text-secondary transition-color tooltip tooltip-bottom`}data-tip='Add Post'>
                   <ImagePlus className="size-5"/>
                 </Link>
                 <Link to={'/explore'} className={`hover:text-secondary transition-color tooltip tooltip-bottom`}data-tip='Explore'>

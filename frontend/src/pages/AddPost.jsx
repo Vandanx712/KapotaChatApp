@@ -9,18 +9,9 @@ import {
   Trash2,
   Type,
 } from "lucide-react";
-
-const FILTERS = [
-  "Original",
-  "Warm",
-  "Cool",
-  "Vintage",
-  "Mono",
-  "Noir",
-  "Sunset",
-  "Forest",
-  "Soft",
-];
+import { useAuthStore } from "../store/useAuthStore";
+import { useThemeStore } from "../store/useThemeStore";
+import Cropper from "react-easy-crop";
 
 const MUSIC_LIBRARY = [
   { id: "m1", title: "Late Night Drive", artist: "Kaito" },
@@ -30,7 +21,10 @@ const MUSIC_LIBRARY = [
   { id: "m5", title: "Echoes", artist: "Nico" },
 ];
 
-function Status() {
+function AddPost() {
+  const { authUser } = useAuthStore();
+  const { FILTERS } = useThemeStore();
+
   const [imagePreview, setImagePreview] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("Original");
   const [filterStrength, setFilterStrength] = useState(70);
@@ -40,7 +34,18 @@ function Status() {
   const [selectedMusic, setSelectedMusic] = useState(null);
   const [hideLikes, setHideLikes] = useState(false);
   const [disableComments, setDisableComments] = useState(false);
-  const [audience, setAudience] = useState("public");
+
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [aspect, setAspect] = useState(4 / 5);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [ratioType, setRatioType] = useState("portrait");
+
+  const RATIOS = {
+    square: 1 / 1,
+    portrait: 4 / 5,
+    landscape: 16 / 9,
+  };
 
   const filteredMusic = useMemo(() => {
     if (!musicQuery.trim()) return MUSIC_LIBRARY;
@@ -62,6 +67,42 @@ function Status() {
     reader.readAsDataURL(file);
   };
 
+  const changeRatio = (type) => {
+    setRatioType(type);
+    setAspect(RATIOS[type]);
+    setZoom(1);
+    setCrop({ x: 0, y: 0 });
+  };
+
+  const getCroppedImage = async () => {
+    const image = new Image();
+    image.src = imagePreview;
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = croppedAreaPixels.width;
+    canvas.height = croppedAreaPixels.height;
+
+    ctx.filter = FILTERS[selectedFilter](filterStrength);
+
+    ctx.drawImage(
+      image,
+      croppedAreaPixels.x,
+      croppedAreaPixels.y,
+      croppedAreaPixels.width,
+      croppedAreaPixels.height,
+      0,
+      0,
+      croppedAreaPixels.width,
+      croppedAreaPixels.height,
+    );
+
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => resolve(blob), "image/jpeg");
+    });
+  };
+
   const clearImage = () => {
     setImagePreview("");
   };
@@ -73,8 +114,7 @@ function Status() {
           <div>
             <h1 className="text-2xl font-bold">Create Post</h1>
             <p className="text-base-content/60">
-              Build your post step by step. More tools can be added later
-              without changing the layout.
+              Build your post step by step.
             </p>
           </div>
           <button className="btn btn-primary">Share Post</button>
@@ -85,6 +125,7 @@ function Status() {
             <div className="card-body gap-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Preview</h2>
+
                 {imagePreview && (
                   <button className="btn btn-ghost btn-xs" onClick={clearImage}>
                     <Trash2 className="size-4" />
@@ -92,13 +133,81 @@ function Status() {
                   </button>
                 )}
               </div>
-              <div className="aspect-[4/5] w-full overflow-hidden rounded-xl border border-base-300 bg-base-100">
+
+              {/* Ratio Switch */}
+              {imagePreview && (
+                <div className="flex justify-center">
+                  <div className="join">
+                    <button
+                      onClick={() => changeRatio("square")}
+                      className={`btn btn-xs join-item ${
+                        ratioType === "square" ? "btn-primary" : "btn-outline"
+                      }`}
+                    >
+                      1:1
+                    </button>
+
+                    <button
+                      onClick={() => changeRatio("portrait")}
+                      className={`btn btn-xs join-item ${
+                        ratioType === "portrait" ? "btn-primary" : "btn-outline"
+                      }`}
+                    >
+                      4:5
+                    </button>
+
+                    <button
+                      onClick={() => changeRatio("landscape")}
+                      className={`btn btn-xs join-item ${
+                        ratioType === "landscape"
+                          ? "btn-primary"
+                          : "btn-outline"
+                      }`}
+                    >
+                      16:9
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview Area */}
+              <div
+                className={`relative w-full overflow-hidden rounded-xl border border-base-300 bg-base-100 ${ratioType === "square" ? "aspect-square" : ratioType === "landscape" ? "aspect-video" : "aspect-[4/5]"}`}
+              >
                 {imagePreview ? (
-                  <img
-                    src={imagePreview}
-                    alt="Preview"
-                    className="h-full w-full object-cover"
-                  />
+                  <>
+                    <Cropper
+                      image={imagePreview}
+                      crop={crop}
+                      zoom={zoom}
+                      aspect={aspect}
+                      onCropChange={setCrop}
+                      onZoomChange={setZoom}
+                      onCropComplete={(area, pixels) =>
+                        setCroppedAreaPixels(pixels)
+                      }
+                      style={{
+                        containerStyle: {
+                          width: "100%",
+                          height: "100%",
+                          filter: FILTERS[selectedFilter](filterStrength),
+                        },
+                      }}
+                    />
+
+                    {/* Zoom Slider */}
+                    <div className="absolute bottom-2 left-2 right-2 bg-base-200/80 backdrop-blur rounded-lg p-2">
+                      <input
+                        type="range"
+                        min={1}
+                        max={3}
+                        step={0.1}
+                        value={zoom}
+                        onChange={(e) => setZoom(e.target.value)}
+                        className="range range-xs"
+                      />
+                    </div>
+                  </>
                 ) : (
                   <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-base-content/60">
                     <div className="rounded-full bg-base-200 p-4">
@@ -108,6 +217,8 @@ function Status() {
                   </div>
                 )}
               </div>
+
+              {/* Upload Button */}
               <label className="btn btn-outline btn-primary">
                 <ImagePlus className="size-4" />
                 Upload Image
@@ -130,18 +241,26 @@ function Status() {
               </div>
               <div className="collapse-content space-y-4">
                 <div className="flex flex-wrap gap-2">
-                  {FILTERS.map((filter) => (
-                    <button
-                      key={filter}
-                      onClick={() => setSelectedFilter(filter)}
-                      className={`btn btn-xs ${
-                        selectedFilter === filter
-                          ? "btn-primary"
-                          : "btn-ghost"
-                      }`}
+                  {Object.keys(FILTERS).map((name) => (
+                    <div
+                      key={name}
+                      onClick={() => imagePreview && setSelectedFilter(name)}
+                      className="cursor-pointer text-center"
                     >
-                      {filter}
-                    </button>
+                      <img
+                        src={imagePreview || authUser.profilePic.url}
+                        style={{
+                          filter: FILTERS[name](filterStrength),
+                        }}
+                        className="size-20 rounded-lg object-cover"
+                      />
+
+                      <p
+                        className={`text-xs mt-2 ${selectedFilter === name ? " rounded-full p-1 bg-primary/40" : ""}`}
+                      >
+                        {name}
+                      </p>
+                    </div>
                   ))}
                 </div>
                 <div>
@@ -149,14 +268,18 @@ function Status() {
                     <span>Strength</span>
                     <span>{filterStrength}%</span>
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={filterStrength}
-                    onChange={(e) => setFilterStrength(Number(e.target.value))}
-                    className="range range-primary"
-                  />
+                  {selectedFilter !== "Original" && (
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={filterStrength}
+                      onChange={(e) =>
+                        setFilterStrength(Number(e.target.value))
+                      }
+                      className="range range-primary"
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -260,18 +383,6 @@ function Status() {
                     onChange={(e) => setDisableComments(e.target.checked)}
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm">Audience</label>
-                  <select
-                    className="select select-bordered w-full"
-                    value={audience}
-                    onChange={(e) => setAudience(e.target.value)}
-                  >
-                    <option value="public">Public</option>
-                    <option value="friends">Friends</option>
-                    <option value="only-me">Only me</option>
-                  </select>
-                </div>
               </div>
             </div>
           </div>
@@ -281,4 +392,4 @@ function Status() {
   );
 }
 
-export default Status;
+export default AddPost;

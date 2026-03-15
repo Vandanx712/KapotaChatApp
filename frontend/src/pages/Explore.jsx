@@ -94,30 +94,16 @@ function Explore() {
           <main>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <div className="flex items-center gap-2 text-primary">
-                  <Compass className="size-4" />
-                  <span className="text-sm font-semibold uppercase tracking-widest">
-                    Explore
-                  </span>
-                </div>
                 <h1 className="mt-2 text-2xl font-bold">
-                  Discover fresh posts
+                  Explore nearby posts
                 </h1>
                 <p className="text-base-content/60">
                   A curated grid inspired by Instagram explore.
                 </p>
               </div>
-              <label className="input input-bordered flex items-center gap-2 sm:w-72">
-                <Search className="size-4" />
-                <input
-                  type="text"
-                  placeholder="Search posts"
-                  className="w-full bg-transparent"
-                />
-              </label>
             </div>
 
-            <div className="mt-6 grid grid-cols-3 auto-rows-[110px] gap-2 sm:auto-rows-[140px] sm:gap-3 md:auto-rows-[170px] lg:auto-rows-[190px]">
+            <div className="mt-6 grid grid-cols-3 auto-rows-[110px] gap-2 sm:auto-rows-[140px] sm:gap-3 md:auto-rows-[170px] lg:auto-rows-[200px]">
               {EXPLORE_POSTS.map((post) => (
                 <div
                   key={post.id}
@@ -130,11 +116,11 @@ function Explore() {
                   />
                   <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition group-hover:opacity-100">
                     <div className="flex items-center gap-4 text-sm font-semibold text-white">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 cursor-pointer">
                         <Heart className="size-4" />
                         {post.likes}
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 cursor-pointer">
                         <MessageCircle className="size-4" />
                         {post.comments}
                       </div>
@@ -157,6 +143,14 @@ function Explore() {
                     {onlineNearby.length} online
                   </div>
                 </div>
+                <label className="input input-bordered flex items-center gap-2">
+                  <Search className="size-4" />
+                  <input
+                    type="text"
+                    placeholder="Search posts"
+                    className="w-full bg-transparent"
+                  />
+                </label>
 
                 {onlineNearby.length > 0 && (
                   <div className="flex gap-3 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
@@ -167,7 +161,10 @@ function Explore() {
                       >
                         <div className="avatar relative">
                           <div className="w-10 rounded-full bg-base-300">
-                            <img src={user.profilePic?.url} alt={user.fullname} />
+                            <img
+                              src={user.profilePic?.url}
+                              alt={user.fullname}
+                            />
                           </div>
                           <span className="absolute bottom-0 right-0 size-2 rounded-full bg-green-500" />
                         </div>
