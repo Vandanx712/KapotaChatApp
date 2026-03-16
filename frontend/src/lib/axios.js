@@ -142,3 +142,10 @@ export const searchMessages = async(id, params = {})=>{
   const response = await api.get(`/message/search/${id}`, { params })
   return response.data
 }
+
+//songs part
+
+export const getAllSongs = async()=>{
+  const response = await api.get('/service/getall')
+  return response.data
+}

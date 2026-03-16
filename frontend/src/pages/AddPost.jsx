@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ImagePlus,
   MapPin,
@@ -12,14 +12,15 @@ import {
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
 import Cropper from "react-easy-crop";
+import { getAllSongs } from "../lib/axios";
 
-const MUSIC_LIBRARY = [
-  { id: "m1", title: "Late Night Drive", artist: "Kaito" },
-  { id: "m2", title: "Golden Hour", artist: "Nova" },
-  { id: "m3", title: "City Lights", artist: "Rhea" },
-  { id: "m4", title: "Sunrise Bloom", artist: "Aria" },
-  { id: "m5", title: "Echoes", artist: "Nico" },
-];
+// const MUSIC_LIBRARY = [
+//   { id: "m1", title: "Late Night Drive", artist: "Kaito" },
+//   { id: "m2", title: "Golden Hour", artist: "Nova" },
+//   { id: "m3", title: "City Lights", artist: "Rhea" },
+//   { id: "m4", title: "Sunrise Bloom", artist: "Aria" },
+//   { id: "m5", title: "Echoes", artist: "Nico" },
+// ];
 
 function AddPost() {
   const { authUser } = useAuthStore();
@@ -28,6 +29,7 @@ function AddPost() {
   const [imagePreview, setImagePreview] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("Original");
   const [filterStrength, setFilterStrength] = useState(70);
+  const [musicLibrary, setMusicLibrary] = useState([]);
   const [caption, setCaption] = useState("");
   const [location, setLocation] = useState("");
   const [musicQuery, setMusicQuery] = useState("");
@@ -40,20 +42,42 @@ function AddPost() {
   const [aspect, setAspect] = useState(4 / 5);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [ratioType, setRatioType] = useState("portrait");
+  const audioRef = useRef(null);
+  const playPreview = (song) => {
+    const audio = audioRef.current;
 
+    audio.pause();
+    audio.src = song.track_file;
+    audio.currentTime = 0;
+
+    audio.play();
+
+    setTimeout(() => {
+      audio.pause();
+    }, 30000);
+  };
   const RATIOS = {
     square: 1 / 1,
     portrait: 4 / 5,
     landscape: 16 / 9,
   };
 
+  useEffect(() => {
+    loadSongs();
+  }, []);
+
+  const loadSongs = async () => {
+    const songs = await getAllSongs();
+    setMusicLibrary(songs.tracks);
+  };
+
   const filteredMusic = useMemo(() => {
-    if (!musicQuery.trim()) return MUSIC_LIBRARY;
+    if (!musicQuery.trim()) return musicLibrary;
     const q = musicQuery.toLowerCase();
-    return MUSIC_LIBRARY.filter(
+    return musicLibrary.filter(
       (track) =>
-        track.title.toLowerCase().includes(q) ||
-        track.artist.toLowerCase().includes(q),
+        track.track_title.toLowerCase().includes(q) ||
+        track.artist_name.toLowerCase().includes(q),
     );
   }, [musicQuery]);
 
@@ -301,7 +325,7 @@ function AddPost() {
                 <div className="max-h-40 space-y-2 overflow-y-auto">
                   {filteredMusic.map((track) => (
                     <button
-                      key={track.id}
+                      key={track.track_id}
                       onClick={() => setSelectedMusic(track)}
                       className={`flex w-full items-center justify-between rounded-lg border border-base-300 p-2 text-left transition ${
                         selectedMusic?.id === track.id
@@ -310,14 +334,19 @@ function AddPost() {
                       }`}
                     >
                       <div>
-                        <p className="text-sm font-medium">{track.title}</p>
+                        <img src={track.album_image} width="40" />
+                        <p className="text-sm font-medium">{track.track_title}</p>
                         <p className="text-xs text-base-content/60">
-                          {track.artist}
+                          {track.artist_name}
                         </p>
                       </div>
-                      <Sparkles className="size-4 text-primary" />
+                      <Sparkles
+                        onClick={() => playPreview(track)}
+                        className="size-4 text-primary"
+                      />
                     </button>
                   ))}
+                  <audio ref={audioRef} />
                 </div>
               </div>
             </div>
