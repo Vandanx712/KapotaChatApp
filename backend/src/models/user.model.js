@@ -11,12 +11,12 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
     },
-    gender:{
-      type:String,
-      enum:['male','female']
+    gender: {
+      type: String,
+      enum: ["male", "female"],
     },
-    bio:{
-      type:String
+    bio: {
+      type: String,
     },
     profilePic: {
       type: mongoose.Schema.Types.Mixed,
@@ -24,12 +24,16 @@ const userSchema = new mongoose.Schema(
     loginlimits: {
       type: Number,
     },
-    isOnline:{
-      type:Boolean,
-      default:false
-    }
+    location: {
+      lng: { type: Number },
+      lat: { type: Number },
+    }, // [lng, lat]
+    isOnline: {
+      type: Boolean,
+      default: false,
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 userSchema.index({ email: 1 });

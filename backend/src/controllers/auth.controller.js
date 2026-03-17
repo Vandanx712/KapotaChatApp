@@ -7,9 +7,9 @@ import { getAvatars } from "../lib/cloudinary.js";
 import { StoragePath } from "../util/filepath.js";
 
 export const signup = asynchandller(async (req, res) => {
-  const { fullname, email, password, gender } = req.body;
+  const { fullname, email, password, gender,location } = req.body;
 
-  if ([fullname, email, password, gender].some((field) => field == ""))
+  if ([fullname, email, password, gender,location].some((field) => field == ""))
     throw new ApiError(401, "Missing Fields");
   if (password.length < 6)
     throw new ApiError(400, "Password must be at least 6 character");
@@ -35,6 +35,7 @@ export const signup = asynchandller(async (req, res) => {
     profilePic: genderImages[index],
     gender: gender,
     bio: "Hello ladies & gentleman! I am using Kapota",
+    location:location
   });
 
   generateToken(newuser._id, res);
@@ -47,7 +48,8 @@ export const signup = asynchandller(async (req, res) => {
       email: newuser.email,
       profilePic: newuser.profilePic,
       bio: newuser.bio,
-      gender:newuser.gender
+      gender:newuser.gender,
+      location:newuser.location
     },
   });
 });
@@ -74,7 +76,8 @@ export const login = asynchandller(async (req, res) => {
       email: user.email,
       profilePic: user.profilePic,
       bio: user.bio,
-      gender:user.gender
+      gender:user.gender,
+      location:newuser.location
     },
   });
 });

@@ -42,7 +42,7 @@ export const useAuthStore = create((set, get) => ({
     try {
       const resdata = await register(data);
       toast.success(resdata.message);
-      set({ authUser: data });
+      set({ authUser: resdata.user });
       get().connectSocket();
     } catch (error) {
       toast.error(error?.response?.data?.message);

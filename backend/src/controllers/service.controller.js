@@ -1,0 +1,50 @@
+import axios from "axios";
+import { getGoogleUrl } from "../lib/googleUrl.js";
+import { asynchandller } from "../util/asynchandller.js";
+
+//location part
+export const getSuggestion = asynchandller(async (req, res) => {
+  const { location } = req.user;
+  const radius = process.env.RADIUS;
+
+  const url = getGoogleUrl(
+    `nearbysearch/json?location=${location.lat},${location.lng}&radius=${radius}`,
+  );
+  console.log(url)
+  const response = await axios.get(url);
+  const resdata = response.data.results
+    .filter((p) => p.rating >= 4.2)
+    .slice(0, 10);
+
+  const places = resdata.map((place) => ({
+    name: place.name,
+    address: place.vicinity,
+    lat: place.geometry.location.lat,
+    lng: place.geometry.location.lng,
+    types: place.types,
+  }));
+
+  return res.status(200).json({
+    success: true,
+    message: "Fetch surrounding places successfully",
+    places,
+  });
+});
+
+export const searchLocation = asynchandller(async (req, res) => {
+  const { query } = req.query;
+
+  const url = getGoogleUrl(`autocomplete/json?input=${query}`);
+  const response = await axios.get(url);
+
+  const results = response.data.predictions.map((item) => ({
+    name: item.description,
+    placeId: item.place_id,
+  }));
+
+  return res.status(200).json({
+    success:true,
+    message:'Fetch search location successfully',
+    results
+  })
+});

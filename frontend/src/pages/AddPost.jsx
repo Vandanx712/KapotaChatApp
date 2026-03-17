@@ -3,6 +3,7 @@ import {
   ImagePlus,
   MapPin,
   Music2,
+  Search,
   Settings2,
   SlidersHorizontal,
   Sparkles,
@@ -12,6 +13,7 @@ import {
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
 import Cropper from "react-easy-crop";
+import { getSuggestion, searchLocation } from "../lib/axios";
 
 function AddPost() {
   const { authUser } = useAuthStore();
@@ -21,8 +23,9 @@ function AddPost() {
   const [selectedFilter, setSelectedFilter] = useState("Original");
   const [filterStrength, setFilterStrength] = useState(70);
   const [caption, setCaption] = useState("");
-  const [location, setLocation] = useState("");
-  const [selectedMusic, setSelectedMusic] = useState(null);
+  const [locationquery, setLocationQuery] = useState("");
+  const [searchSuggestions,setSearchSuggestions] = useState([])
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [hideLikes, setHideLikes] = useState(false);
   const [disableComments, setDisableComments] = useState(false);
 
@@ -39,13 +42,32 @@ function AddPost() {
   };
 
   useEffect(() => {
-    loadSongs();
+    loadSuggestions();
   }, []);
 
-  const loadSongs = async () => {
-    const songs = await getAllSongs();
-    setMusicLibrary(songs.tracks);
+  useEffect(()=>{
+    setSearchSuggestions([])
+  },[locationquery==''])
+
+  const loadSuggestions = async () => {
+    try {
+      const resdata = await getSuggestion();
+      setLocationSuggestions(resdata.places);
+    } catch (error) {
+      console.log(error);
+    }
   };
+
+  const handleSearch=async()=>{
+    try {
+      const resdata = await searchLocation(locationquery.trim())
+      setSearchSuggestions(resdata.results)
+    } catch (error) {
+      console.log(error)
+    }
+  }
+
+  const locations = searchSuggestions || locationSuggestions
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
@@ -300,13 +322,85 @@ function AddPost() {
                 Location
               </div>
               <div className="collapse-content">
-                <input
-                  type="text"
-                  placeholder="Add location"
-                  className="input input-bordered w-full"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                />
+                <label className="flex items-center gap-2 input input-bordered input-md w-full">
+                  <input
+                    type="text"
+                    placeholder="Add location"
+                    className=" w-full"
+                    value={locationquery}
+                    onChange={(e)=>setLocationQuery(e.target.value)}
+                  />
+                  <Search onClick={()=>handleSearch()} className="size-5 cursor-pointer" />
+                </label>
+                <div className="mt-3 rounded-lg border border-base-300 bg-base-100">
+                  <div className="flex items-center justify-between px-3 py-2 text-xs text-base-content/60">
+                    <span>Suggestions</span>
+                    <span>{locationSuggestions.length}</span>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto overscroll-contain">
+                    {locationSuggestions.length === 0 ? (
+                      <div className="px-3 py-3 text-sm text-base-content/50">
+                        "No suggestions found."
+                      </div>
+                    ) : (
+                      <ul className="divide-y divide-base-300">
+                        {locationSuggestions.map((suggestion, index) => {
+                          const lat = Number(suggestion.lat);
+                          const lng = Number(suggestion.lng);
+                          const types = Array.isArray(suggestion.types)
+                            ? suggestion.types
+                            : [];
+
+                          return (
+                            <li
+                              key={`${suggestion.name}-${suggestion.address}-${index}`}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  // setLocation({
+                                  //   name: suggestion.name,
+                                  //   coordinates: {
+                                  //     lng: suggestion.lng,
+                                  //     lat: suggestion.lat,
+                                  //   },
+                                  // });
+                                  // setLocationSuggestions([]);
+                                }}
+                                className="w-full px-3 py-2 text-left hover:bg-base-200/70"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="text-sm font-medium">
+                                      {suggestion.name || "Unknown place"}
+                                    </div>
+                                    {suggestion.address && (
+                                      <div className="text-xs text-base-content/60">
+                                        {suggestion.address}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                {types.length > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-1">
+                                    {types.slice(0, 4).map((type) => (
+                                      <span
+                                        key={`${type}-${index}`}
+                                        className="badge badge-ghost badge-xs"
+                                      >
+                                        {type.replace(/_/g, " ")}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 

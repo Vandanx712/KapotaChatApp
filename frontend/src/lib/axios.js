@@ -144,3 +144,15 @@ export const searchMessages = async(id, params = {})=>{
 }
 
 //post part
+
+
+//location 
+export const getSuggestion = async()=>{
+  const response = await api.get('/service/get/places')
+  return response.data
+}
+
+export const searchLocation = async(query)=>{
+  const response = await api.get(`/service/search?query=${query}`)
+  return response.data
+}
