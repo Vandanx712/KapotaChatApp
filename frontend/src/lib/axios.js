@@ -149,6 +149,21 @@ export const createPost = async(data)=>{
   return response.data
 }
 
+export const getMyPosts = async()=>{
+  const response = await api.get('/post/myposts')
+  return response.data
+}
+
+export const updatePostSettings = async(data)=>{
+  const response = await api.put('/post/',data)
+  return response.data
+}
+
+export const deletePost = async(id)=>{
+  const response = await api.delete(`/post/${id}`)
+  return response.data
+}
+
 //location 
 export const getSuggestion = async()=>{
   const response = await api.get('/service/get/places')

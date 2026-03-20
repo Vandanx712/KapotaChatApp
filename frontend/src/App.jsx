@@ -13,6 +13,7 @@ import { useThemeStore } from "./store/useThemeStore";
 import Explore from "./pages/Explore";
 import ForgetPassword from "./pages/ForgetPassword";
 import AddPost from "./pages/AddPost";
+import UserProfile from "./pages/UserProfile";
 
 function App() {
   const { authUser, checkAuth, isCheckingAuth } = useAuthStore();
@@ -38,6 +39,7 @@ function App() {
         <Route path="/explore" element={authUser ? <Explore /> : <Navigate to='/login' />}/>
         <Route path="/setting" element={authUser ? <Setting /> : <Navigate to='/login' />} />
         <Route path="/profile" element={authUser ? <Profile /> : <Navigate to='/login' />} />
+        <Route path="/profile/:id" element={authUser ? <UserProfile /> : <Navigate to='/login' />} />
       </Routes>
       <Toaster position="top-center" reverseOrder={false}/>
     </div>

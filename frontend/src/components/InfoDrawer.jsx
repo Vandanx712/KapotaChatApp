@@ -1,5 +1,7 @@
 import {
   Check,
+  ChevronLeft,
+  ChevronRight,
   CircleSlash2,
   Edit,
   Image,
@@ -18,9 +20,103 @@ import { useChatStore } from "../store/useChatStore";
 import { PhotoProvider, PhotoView } from "react-photo-view";
 import "react-photo-view/dist/react-photo-view.css";
 import EmojiPicker from "emoji-picker-react";
+import { useNavigate } from "react-router-dom";
+
+const cardClass = "p-5 ";
+
+function MediaSlider({ mediaFiles }) {
+  const sliderRef = useRef(null);
+
+  const handleScroll = (direction) => {
+    sliderRef.current?.scrollBy({
+      left: direction * 180,
+      behavior: "smooth",
+    });
+  };
+
+  return (
+    <section className={cardClass}>
+      <SectionTitle
+        title="Media"
+        subtitle={`${mediaFiles.length} shared ${
+          mediaFiles.length === 1 ? "item" : "items"
+        }`}
+        action={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleScroll(-1)}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-base-200 bg-base-100 text-base-content/70 transition hover:border-base-300 hover:text-base-content"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleScroll(1)}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-base-200 bg-base-100 text-base-content/70 transition hover:border-base-300 hover:text-base-content"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+        }
+      />
+      {mediaFiles.length > 0 ? (
+        <div
+          ref={sliderRef}
+          className="mt-3 flex space-x-5 overflow-x-auto scroll-smooth no-scrollbar"
+        >
+          <PhotoProvider>
+            {mediaFiles.map((file) => (
+              <PhotoView src={file.image.url}>
+                <img
+                  src={file.image.url}
+                  alt=""
+                  className="rounded-lg object-cover size-20 shrink-0 cursor-pointer"
+                />
+              </PhotoView>
+            ))}
+          </PhotoProvider>
+        </div>
+      ) : (
+        <button className="btn btn-disabled btn-lg mt-3">
+          <CircleSlash2 />
+        </button>
+      )}
+    </section>
+  );
+}
+
+function SectionTitle({ title, subtitle, action }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-base-content/75">
+          {title}
+        </h3>
+        {subtitle && (
+          <p className="mt-1 text-sm text-base-content/55">{subtitle}</p>
+        )}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function ActionTile({ icon: Icon, label, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex bg-error/5 space-x-3 rounded-2xl px-10 py-3 transition text-warning hover:bg-error/15"
+    >
+      <Icon className="size-5" />
+      <span className="min-w-0 text-sm font-medium">{label}</span>
+    </button>
+  );
+}
 
 export default function InfoDrawer({ conversation, onClose }) {
   const isGroup = conversation?.isgroup;
+  const navigate = useNavigate();
   const {
     setDeleteChat,
     clearAllMsg,
@@ -33,7 +129,11 @@ export default function InfoDrawer({ conversation, onClose }) {
   } = useChatStore();
   const { authUser } = useAuthStore();
 
-  // ESC key close
+  useEffect(() => {
+    if (!conversation.isgroup) return;
+    setOtherUsers(conversation.conversationId);
+  }, []);
+
   useEffect(() => {
     const handleEsc = (e) => {
       if (e.key === "Escape") onClose();
@@ -46,6 +146,8 @@ export default function InfoDrawer({ conversation, onClose }) {
     setDeleteChat(conversation.conversationId);
   };
 
+  const mediaFiles = message.filter((file) => file?.image?.url);
+
   function GroupInfo({ group, onClose }) {
     const [groupForm, setGroupForm] = useState(false);
     const [groupicon, setGroupIcon] = useState("");
@@ -57,10 +159,6 @@ export default function InfoDrawer({ conversation, onClose }) {
 
     const groupNameRef = useRef();
     const myrole = group?.membersDetail?.[authUser._id]?.role || "member";
-
-    useEffect(() => {
-      setOtherUsers(conversation.conversationId);
-    }, []);
 
     useEffect(() => {
       if (!group?.membersDetail) return;
@@ -181,170 +279,199 @@ export default function InfoDrawer({ conversation, onClose }) {
           </button>
         </div>
 
-        <div className="flex flex-col items-center gap-3 p-6 border-b border-base-200">
-          <div className="avatar">
-            <div className="w-20  rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
-              <PhotoProvider>
-                <PhotoView src={groupicon || group?.groupIcon.url}>
-                  <img src={groupicon || group?.groupIcon.url} alt="group" />
-                </PhotoView>
-              </PhotoProvider>
-            </div>
-            {myrole !== "member" && (
-              <button
-                onClick={() => alert("Photo size almost 9mb")}
-                className={`right-0 absolute -bottom-1`}
-              >
-                <label htmlFor="groupIcon-upload">
-                  <Image className=" size-6" />
-                  <input
-                    type="file"
-                    id="groupIcon-upload"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={handleProfilePic}
-                  />
-                </label>
-              </button>
-            )}
-          </div>
-
-          {myrole == "member" && (
-            <div className="text-center text-xl font-semibold">
-              <h1>{group.groupname}</h1>
-            </div>
-          )}
-
-          {myrole !== "member" && (
-            <>
-              <div className=" text-xl font-semibold">
-                <div className=" flex items-center">
-                  <input
-                    type="text"
-                    defaultValue={group.groupname}
-                    ref={groupNameRef}
-                    readOnly={!groupForm}
-                    className={`w-full text-center bg-transparent ${groupForm && "border-b border-primary py-2 text-start"} outline-none`}
-                  />
-                  {groupForm && (
-                    <SmileIcon onClick={() => setShowPicker((prev) => !prev)} />
-                  )}
+        <div className="flex-1 overflow-y-auto scroll-smooth no-scrollbar">
+          <div className="flex flex-col">
+            <div className="flex flex-col items-center gap-3 p-6 border-b border-base-200">
+              <div className="avatar">
+                <div className="w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
+                  <PhotoProvider>
+                    <PhotoView src={groupicon || group?.groupIcon.url}>
+                      <img
+                        src={groupicon || group?.groupIcon.url}
+                        alt="group"
+                      />
+                    </PhotoView>
+                  </PhotoProvider>
                 </div>
-              </div>
-              <div className=" flex items-center gap-5">
-                <button
-                  onClick={() => setShowUser((prev) => !prev)}
-                  className=" btn btn-md"
-                >
-                  <UserPlusIcon className="size-[22px]" />
-                </button>
-                <button
-                  onClick={() => setGroupForm(!groupForm)}
-                  className="btn btn-md"
-                >
-                  <Edit className="size-[22px]" />
-                </button>
-                {groupForm && (
+                {myrole !== "member" && (
                   <button
-                    onClick={handleSave}
-                    className="btn btn-primary btn-circle"
+                    onClick={() => alert("Photo size almost 9mb")}
+                    className="right-0 absolute -bottom-1"
                   >
-                    <Check />
+                    <label htmlFor="groupIcon-upload">
+                      <Image className="size-6" />
+                      <input
+                        type="file"
+                        id="groupIcon-upload"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleProfilePic}
+                      />
+                    </label>
                   </button>
                 )}
               </div>
-            </>
-          )}
-        </div>
 
-        <div className="flex items-center justify-between p-3">
-          <p className="text-sm text-base-content/95">
-            {participants.length} members
-          </p>
-          {showSaveButton && (
-            <button
-              onClick={() => handleUpdate()}
-              className="btn btn-primary btn-circle btn-sm"
-            >
-              <Check />
-            </button>
-          )}
-        </div>
+              {myrole == "member" && (
+                <div className="text-center text-xl font-semibold">
+                  <h1>{group.groupname}</h1>
+                </div>
+              )}
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-3">
-          {participants.map((member) => (
-            <div
-              key={member.userId}
-              className="flex items-center justify-between bg-base-200 p-3 rounded-lg"
-            >
-              <div className="flex items-center gap-3">
-                <div className="avatar">
-                  <div className="w-10 rounded-full">
-                    <PhotoProvider>
-                      <PhotoView
-                        src={
-                          group?.membersDetail[member.userId]?.profilePic.url ||
-                          tempData[member.userId]?.profilePic.url
-                        }
-                      >
-                        <img
-                          src={
-                            group?.membersDetail[member.userId]?.profilePic
-                              .url || tempData[member.userId]?.profilePic.url
-                          }
-                          alt=""
+              {myrole !== "member" && (
+                <>
+                  <div className="text-xl font-semibold">
+                    <div className="flex items-center">
+                      <input
+                        type="text"
+                        defaultValue={group.groupname}
+                        ref={groupNameRef}
+                        readOnly={!groupForm}
+                        className={`w-full text-center bg-transparent ${groupForm && "border-b border-primary py-2 text-start"} outline-none`}
+                      />
+                      {groupForm && (
+                        <SmileIcon
+                          onClick={() => setShowPicker((prev) => !prev)}
                         />
-                      </PhotoView>
-                    </PhotoProvider>
+                      )}
+                    </div>
                   </div>
-                </div>
-
-                <div>
-                  <p className="font-medium">
-                    {group?.membersDetail[member.userId]?.fullname ||
-                      tempData[member.userId]?.fullname}
-                  </p>
-                  {member.role === "admin" && (
-                    <p className="text-xs text-primary">Admin</p>
-                  )}
-                </div>
-              </div>
-
-              {group?.membersDetail[authUser._id].role === "admin" &&
-                member.userId !== authUser._id && (
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-5">
                     <button
-                      onClick={() => changeRole(member.userId)}
-                      className="btn btn-xs btn-outline"
+                      onClick={() => setShowUser((prev) => !prev)}
+                      className="btn btn-md btn-ghost btn-circle"
                     >
-                      {member.role === "admin" ? "Remove Admin" : "Make Admin"}
+                      <UserPlusIcon className="size-[22px]" />
                     </button>
-
                     <button
-                      onClick={() => handleRemove(member.userId)}
-                      className="btn btn-xs btn-error btn-outline"
+                      onClick={() => setGroupForm(!groupForm)}
+                      className="btn btn-md btn-ghost btn-circle"
                     >
-                      Remove
+                      <Edit className="size-[22px]" />
                     </button>
+                    {groupForm && (
+                      <button
+                        onClick={handleSave}
+                        className="btn btn-primary btn-circle"
+                      >
+                        <Check />
+                      </button>
+                    )}
                   </div>
-                )}
+                </>
+              )}
             </div>
-          ))}
+
+            <MediaSlider mediaFiles={mediaFiles} />
+
+            <section className={cardClass}>
+              <SectionTitle
+                title="Members"
+                subtitle="Roles and permissions for everyone in the group"
+                action={
+                  showSaveButton ? (
+                    <button
+                      type="button"
+                      onClick={handleUpdate}
+                      className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-content transition hover:opacity-90"
+                    >
+                      <Check className="size-4" />
+                      Update
+                    </button>
+                  ) : null
+                }
+              />
+              <div
+                className={`mt-4 space-y-3 max-h-[26rem] overflow-y-auto pr-1 no-scrollbar}`}
+              >
+                {participants.map((member) => (
+                  <div
+                    key={member.userId}
+                    className="flex items-center justify-between bg-base-200 p-3 rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="avatar">
+                        <div className="w-10 rounded-full">
+                          <PhotoProvider>
+                            <PhotoView
+                              src={
+                                group?.membersDetail[member.userId]?.profilePic
+                                  .url ||
+                                tempData[member.userId]?.profilePic.url
+                              }
+                            >
+                              <img
+                                src={
+                                  group?.membersDetail[member.userId]
+                                    ?.profilePic.url ||
+                                  tempData[member.userId]?.profilePic.url
+                                }
+                                alt=""
+                              />
+                            </PhotoView>
+                          </PhotoProvider>
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="font-medium">
+                          {group?.membersDetail[member.userId]?.fullname ||
+                            tempData[member.userId]?.fullname}
+                        </p>
+                        {member.role === "admin" && (
+                          <p className="text-xs text-primary">Admin</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {group?.membersDetail?.[authUser._id]?.role === "admin" &&
+                      member.userId !== authUser._id && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => changeRole(member.userId)}
+                            className="btn btn-xs btn-outline"
+                          >
+                            {member.role === "admin"
+                              ? "Remove Admin"
+                              : "Make Admin"}
+                          </button>
+
+                          <button
+                            onClick={() => handleRemove(member.userId)}
+                            className="btn btn-xs btn-error btn-outline"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                  </div>
+                ))}
+              </div>{" "}
+            </section>
+
+            <section className={cardClass}>
+              <SectionTitle
+                title="Chat Actions"
+                subtitle="Quick actions for this group conversation"
+              />
+              <div className="mt-4 space-y-3">
+                <ActionTile
+                  icon={LucideArrowRightFromLine}
+                  label="Exit group"
+                  onClick={handleExitGroup}
+                />
+                {myrole !== "member" && (
+                  <ActionTile
+                    icon={Trash2Icon}
+                    label="Delete chat"
+                    onClick={handleDeleteChat}
+                  />
+                )}
+              </div>
+            </section>
+          </div>
         </div>
 
-        <div className="p-2 flex border-t border-base-300 justify-evenly">
-          <button
-            onClick={() => handleExitGroup()}
-            className="flex rounded-lg px-7 py-3 hover:bg-warning/10 text-warning gap-3 items-center"
-          >
-            <LucideArrowRightFromLine className="size-4" /> Exit Group
-          </button>
-          {myrole !== "member" && (
-            <button className="flex rounded-lg px-7 py-3 hover:bg-error/30 text-error gap-3 items-center">
-              <Trash2Icon className="size-4" /> Delete Chat
-            </button>
-          )}
-        </div>
         {showUser && (
           <div className="fixed min-w-[350px] rounded-xl p-5 bg-black/50 backdrop-blur-[2px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
             <div className="flex items-center justify-between mb-3">
@@ -376,10 +503,10 @@ export default function InfoDrawer({ conversation, onClose }) {
                     }
                   }}
                   key={user._id}
-                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition hover:bg-base-200`}
+                  className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition hover:bg-base-200"
                 >
                   <div className="avatar relative">
-                    <div className="w-10  rounded-full bg-base-300">
+                    <div className="w-10 rounded-full bg-base-300">
                       <img src={user.profilePic.url} />
                     </div>
                   </div>
@@ -405,7 +532,6 @@ export default function InfoDrawer({ conversation, onClose }) {
         )}
         {showPicker && (
           <>
-            {/* Dark Backdrop: Closes picker when clicking anywhere else */}
             <div
               className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
               onClick={() => setShowPicker((prev) => !prev)}
@@ -431,13 +557,16 @@ export default function InfoDrawer({ conversation, onClose }) {
   }
 
   function ContactInfo({ user, onClose }) {
-    const mediaFiles = message.filter((file) => file.image);
     const handleClearChat = () => {
       clearAllMsg(user.conversationId);
     };
+    const handleOpenProfile = () => {
+      if (!user?.oruserId) return;
+      onClose();
+      navigate(`/profile/${user.oruserId}`);
+    };
     return (
       <>
-        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-base-300">
           <h2 className="text-lg font-semibold">Contact Info</h2>
           <button onClick={onClose} className="btn btn-sm btn-ghost btn-circle">
@@ -445,80 +574,64 @@ export default function InfoDrawer({ conversation, onClose }) {
           </button>
         </div>
 
-        {/* Profile */}
-        <div className="flex flex-col items-center gap-3 p-6 border-b border-base-200">
-          <div className="avatar">
-            <div className="w-24 rounded-full ring ring-accent ring-offset-base-100 ring-offset-2">
-              <PhotoProvider>
-                <PhotoView src={user?.profilePic.url}>
-                  <img src={user?.profilePic.url} alt="profile" />
-                </PhotoView>
-              </PhotoProvider>
+        <div className="flex-1 overflow-y-auto scroll-smooth no-scrollbar">
+          <div className="flex flex-col">
+            <div className="flex flex-col items-center gap-3 p-6 border-b border-base-200">
+              <div className="avatar">
+                <div className="w-24 rounded-full ring ring-accent ring-offset-base-100 ring-offset-2">
+                  <PhotoProvider>
+                    <PhotoView src={user?.profilePic.url}>
+                      <img src={user?.profilePic.url} alt="profile" />
+                    </PhotoView>
+                  </PhotoProvider>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <h3 className="text-xl font-semibold">{user?.name}</h3>
+              </div>
+
+              <div className="p-3 space-x-3 flex items-center justify-center">
+                <div className="flex text-sm flex-col items-center">
+                  <button
+                    type="button"
+                    onClick={handleOpenProfile}
+                    className="btn btn-circle btn-ghost"
+                  >
+                    <User2Icon className="size-5" />
+                  </button>
+                  Profile
+                </div>
+                <div className="flex text-sm flex-col items-center">
+                  <button className="btn btn-circle btn-ghost">
+                    <VideoIcon className="size-5" />
+                  </button>
+                  Video Call
+                </div>
+              </div>
             </div>
+
+            <MediaSlider mediaFiles={mediaFiles} />
+
+            <section className={cardClass}>
+              <SectionTitle
+                title="Chat Actions"
+                subtitle="Clean up or remove this conversation"
+              />
+              <div className="mt-4 space-y-3">
+                <ActionTile
+                  icon={MinusCircle}
+                  label="Clear chat"
+                  onClick={handleClearChat}
+                />
+                <ActionTile
+                  icon={Trash2Icon}
+                  label="Delete chat"
+                  onClick={handleDeleteChat}
+                />
+              </div>
+            </section>
           </div>
-
-          <div className="text-center">
-            <h3 className="text-xl font-semibold">{user?.name}</h3>
-          </div>
-
-          <div className="p-3 space-x-3 flex items-center justify-center">
-            <div className="flex text-sm flex-col items-center">
-              <button className="btn btn-circle btn-ghost">
-                <User2Icon className="size-5" />
-              </button>
-              Profile
-            </div>
-            <div className="flex text-sm flex-col items-center">
-              <button className="btn btn-circle btn-ghost">
-                <VideoIcon className="size-5" />
-              </button>
-              Video Call
-            </div>
-          </div>
-        </div>
-
-        {/* Posts */}
-        <div className="p-4 border-b border-base-200">
-          <div className="flex items-center justify-between">
-            <p className="font-medium mb-2">Media images</p>
-            <p>{mediaFiles.length}</p>
-          </div>
-
-          {mediaFiles.length > 0 ? (
-            <div className="flex space-x-5">
-              {mediaFiles?.map((file) => (
-                <PhotoProvider>
-                  <PhotoView src={file.image.url}>
-                    <img
-                      src={file.image.url}
-                      alt=""
-                      className="rounded-lg object-cover size-20"
-                    />
-                  </PhotoView>
-                </PhotoProvider>
-              ))}
-            </div>
-          ) : (
-            <button className="btn btn-disabled btn-lg">
-              <CircleSlash2 />
-            </button>
-          )}
-        </div>
-
-        {/* Delete Chat */}
-        <div className="p-3 mt-auto">
-          <button
-            className="flex rounded-lg px-7 py-3 text-error gap-3 items-center"
-            onClick={() => handleClearChat()}
-          >
-            <MinusCircle className="size-5" /> Clear Chat
-          </button>
-          <button
-            onClick={() => handleDeleteChat()}
-            className="flex rounded-lg px-7 py-3 text-error gap-3 items-center"
-          >
-            <Trash2Icon className="size-5" /> Delete Chat
-          </button>
         </div>
       </>
     );
@@ -526,13 +639,10 @@ export default function InfoDrawer({ conversation, onClose }) {
 
   return (
     <div className="absolute inset-0 z-50 flex justify-end">
-      {/* Backdrop */}
       <div
         onClick={onClose}
         className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
       />
-
-      {/* Drawer */}
       <div className="relative w-full md:w-[450px] h-full bg-base-100 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
         {isGroup ? (
           <GroupInfo group={conversation.groupdetail} onClose={onClose} />

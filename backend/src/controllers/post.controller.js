@@ -91,7 +91,7 @@ export const deletePost = asynchandller(async (req, res) => {
 export const userAllPost = asynchandller(async (req, res) => {
   const { _id } = req.user;
 
-  const posts = await Post.find({ user: _id }).lean();
+  const posts = await Post.find({ user: _id }).sort({ createdAt: -1 }).lean();
 
   return res.status(200).json({
     success: true,

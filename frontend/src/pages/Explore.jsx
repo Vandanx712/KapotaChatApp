@@ -78,7 +78,6 @@ const INITIAL_VISIBLE_POSTS = 4;
 const POSTS_PER_BATCH = 2;
 
 function Explore() {
-  const { creteConversation } = useChatStore();
   const { authUser, onlineUsers } = useAuthStore();
   const navigate = useNavigate();
 
@@ -174,12 +173,6 @@ function Explore() {
                     <span className="break-words">{post.location}</span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-primary btn-outline"
-                >
-                  Chat
-                </button>
               </div>
 
               <div className="overflow-hidden">

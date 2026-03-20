@@ -1,25 +1,35 @@
-import React, { useState } from "react";
-import { useThemeStore } from "../store/useThemeStore";
-import { THEMES } from "../constants";
+import { useEffect, useMemo, useState } from "react";
 import {
+  Archive,
   ArrowLeft,
   ArrowRight,
   Bell,
   CircleQuestionMark,
+  EllipsisVerticalIcon,
+  Heart,
   Key,
-  Keyboard,
   Lock,
+  MapPin,
   MessageCircle,
-  Monitor,
   Send,
   Settings,
   Settings2,
+  Share2,
+  Trash2,
   Video,
 } from "lucide-react";
-import { useAuthStore } from "../store/useAuthStore";
+import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import { THEMES } from "../constants";
+import {
+  deletePost,
+  getMyPosts,
+  updatePostSettings,
+} from "../lib/axios";
+import { useAuthStore } from "../store/useAuthStore";
+import { useThemeStore } from "../store/useThemeStore";
 
-const preview_message = [
+const previewMessages = [
   { id: 1, content: "Hey! How's it going", issent: false },
   {
     id: 2,
@@ -28,280 +38,790 @@ const preview_message = [
   },
 ];
 
+const settingsItems = [
+  {
+    id: 1,
+    icon: Key,
+    label: "Account",
+    description: "Security notifications, account info",
+  },
+  {
+    id: 2,
+    icon: Settings2,
+    label: "Post",
+    description: "See posts, post setting",
+  },
+  {
+    id: 3,
+    icon: Lock,
+    label: "Privacy",
+    description: "Blocked contacts, disappearing messages",
+  },
+  {
+    id: 4,
+    icon: MessageCircle,
+    label: "Chats",
+    description: "Theme, wallpaper, chat settings",
+  },
+  {
+    id: 5,
+    icon: Video,
+    label: "Video & voice",
+    description: "Camera, microphone & speakers",
+  },
+  {
+    id: 6,
+    icon: Bell,
+    label: "Notifications",
+    description: "Message notifications",
+  },
+  {
+    id: 8,
+    icon: CircleQuestionMark,
+    label: "Help and feedback",
+    description: "Help centre, contact us, privacy policy",
+  },
+];
+
+function SectionShell({ item, onBack, children }) {
+  const Icon = item.icon;
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="border-b border-base-300 bg-base-100/90 px-5 py-5 backdrop-blur lg:px-8">
+        <div className="flex items-start gap-4">
+          <button
+            type="button"
+            onClick={onBack}
+            className="btn btn-circle btn-ghost lg:hidden"
+          >
+            <ArrowLeft className="size-5" />
+          </button>
+
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-primary/10 text-primary">
+            <Icon className="size-6" />
+          </div>
+
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold text-base-content">
+              {item.label}
+            </h1>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-base-content/70">
+              {item.description}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-5 lg:p-8">{children}</div>
+    </div>
+  );
+}
+
 function Setting() {
   const [activeSection, setActiveSection] = useState("all");
+  const [myPosts, setMyPosts] = useState([]);
+  const [postLoading, setPostLoading] = useState(false);
+  const [updatingPostId, setUpdatingPostId] = useState("");
+  const [postToDelete, setPostToDelete] = useState(null);
   const { theme, setTheme } = useThemeStore();
   const { authUser, logout } = useAuthStore();
-
   const navigate = useNavigate();
 
-  const settingsItems = [
-    {
-      id: 1,
-      icon: <Key />,
-      label: "Account",
-      description: "Security notifications, account info",
-    },
-    {
-      id: 2,
-      icon: <Settings2 />,
-      label: "Post",
-      description: "See Posts, Post Setting",
-    },
-    {
-      id: 3,
-      icon: <Lock />,
-      label: "Privacy",
-      description: "Blocked contacts, disappearing messages",
-    },
-    {
-      id: 4,
-      icon: <MessageCircle />,
-      label: "Chats",
-      description: "Theme, wallpaper, chat settings",
-    },
-    {
-      id: 5,
-      icon: <Video />,
-      label: "Video & voice",
-      description: "Camera, microphone & speakers",
-    },
-    {
-      id: 6,
-      icon: <Bell />,
-      label: "Notifications",
-      description: "Message notifications",
-    },
-    {
-      id: 8,
-      icon: <CircleQuestionMark />,
-      label: "Help and feedback",
-      description: "Help centre, contact us, privacy policy",
-    },
-  ];
+  const activeItem = useMemo(
+    () => settingsItems.find((item) => item.label === activeSection) || null,
+    [activeSection],
+  );
 
-  const handleItemClick = (label) => {
-    if (label == "Profile") navigate("/profile");
-    if (label == "Chats") setActiveSection("Chats");
-    if (label == "Logout") {
+  const postOverview = useMemo(
+    () => ({
+      total: myPosts.length,
+      archived: myPosts.filter((post) => post.isArchived).length,
+      hiddenLikes: myPosts.filter((post) => post.hideLike).length,
+      shareDisabled: myPosts.filter((post) => post.disableShare).length,
+    }),
+    [myPosts],
+  );
+
+  const loadMyPosts = async () => {
+    try {
+      setPostLoading(true);
+      const response = await getMyPosts();
+      setMyPosts(response.posts || []);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to load posts");
+    } finally {
+      setPostLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === "Post") {
+      loadMyPosts();
+    }
+  }, [activeSection]);
+
+  const handleItemClick = async (label) => {
+    if (label === "Profile") {
+      navigate("/profile");
+      return;
+    }
+
+    if (label === "Logout") {
       try {
-        logout();
+        await logout();
       } catch (error) {
         console.log(error);
       }
+      return;
+    }
+
+    setActiveSection(label);
+  };
+
+  const handlePostSettingChange = async (postId, field, checked) => {
+    const previousPosts = [...myPosts];
+    const updatedPosts = myPosts.map((post) =>
+      post._id === postId ? { ...post, [field]: checked } : post,
+    );
+
+    setMyPosts(updatedPosts);
+    setUpdatingPostId(postId);
+
+    const changedPost = updatedPosts.find((post) => post._id === postId);
+
+    try {
+      const response = await updatePostSettings({
+        postId,
+        hideLikes: changedPost.hideLike,
+        disableShare: changedPost.disableShare,
+        isArchived: changedPost.isArchived,
+      });
+      toast.success(response.message);
+    } catch (error) {
+      setMyPosts(previousPosts);
+      toast.error(error.response?.data?.message || "Failed to update post");
+    } finally {
+      setUpdatingPostId("");
     }
   };
 
-  const renderContent = () => {
-    switch (activeSection) {
-      case "Chats":
-        return (
-          <div className="flex flex-col space-y-5 overflow-hidden p-5">
-            <div className=" flex items-center gap-5">
-              <button
-                onClick={() => setActiveSection("all")}
-                className=" text-xl p-2 rounded-full hover:bg-base-100"
-              >
-                <ArrowLeft />
-              </button>
-              <p className=" text-xl">{activeSection}</p>
-            </div>
-            <div className="flex flex-col gap-1">
-              <h2 className="text-lg font-semibold">Theme</h2>
-              <p className="text-sm text-base-content/70">
-                Choose a theme for your chat interface
-              </p>
-            </div>
+  const handleDeletePost = async () => {
+    if (!postToDelete?._id) return;
 
-            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-              {THEMES.map((t) => (
-                <button
-                  key={t}
-                  className={`
-                group flex flex-col items-center gap-1.5 p-2 rounded-lg transition-colors
-                ${theme === t ? "bg-base-300" : "hover:bg-base-200/50"}
-              `}
-                  onClick={() => setTheme(t)}
-                >
-                  <div
-                    className="relative h-8 w-full rounded-md overflow-hidden"
-                    data-theme={t}
+    try {
+      setUpdatingPostId(postToDelete._id);
+      const response = await deletePost(postToDelete._id);
+      setMyPosts((prev) => prev.filter((post) => post._id !== postToDelete._id));
+      setPostToDelete(null);
+      toast.success(response.message);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to delete post");
+    } finally {
+      setUpdatingPostId("");
+    }
+  };
+
+  const renderChatsSection = () => (
+    <SectionShell item={activeItem} onBack={() => setActiveSection("all")}>
+      <div className="space-y-6">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="card border border-base-300 bg-base-100 shadow-sm">
+            <div className="card-body gap-6">
+              <div>
+                <h2 className="card-title text-lg">Theme</h2>
+                <p className="text-sm text-base-content/70">
+                  Choose a theme for your chat interface.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 xl:grid-cols-5">
+                {THEMES.map((itemTheme) => (
+                  <button
+                    key={itemTheme}
+                    type="button"
+                    className={`group rounded-2xl border p-2 transition ${
+                      theme === itemTheme
+                        ? "border-primary bg-primary/10"
+                        : "border-base-300 bg-base-100 hover:border-base-content/20 hover:bg-base-200/60"
+                    }`}
+                    onClick={() => setTheme(itemTheme)}
                   >
-                    <div className="absolute inset-0 grid grid-cols-4 gap-px p-1">
-                      <div className="rounded bg-primary"></div>
-                      <div className="rounded bg-secondary"></div>
-                      <div className="rounded bg-accent"></div>
-                      <div className="rounded bg-neutral"></div>
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-medium truncate w-full text-center">
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {/* Preview Section */}
-            <h3 className="text-lg font-semibold mb-3">Preview</h3>
-            <div className="rounded-xl border border-base-300 overflow-hidden bg-base-100 shadow-lg">
-              <div className="p-4 bg-base-200">
-                <div className="max-w-lg mx-auto">
-                  {/* Mock Chat UI */}
-                  <div className="bg-base-100 rounded-xl shadow-sm overflow-hidden">
-                    {/* Chat Header */}
-                    <div className="px-4 py-3 border-b border-base-300 bg-base-100">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-content font-medium">
-                          J
-                        </div>
-                        <div>
-                          <h3 className="font-medium text-sm">John Doe</h3>
-                          <p className="text-xs text-base-content/70">Online</p>
-                        </div>
+                    <div
+                      className="relative h-10 w-full overflow-hidden rounded-xl"
+                      data-theme={itemTheme}
+                    >
+                      <div className="absolute inset-0 grid grid-cols-4 gap-px p-1">
+                        <div className="rounded bg-primary"></div>
+                        <div className="rounded bg-secondary"></div>
+                        <div className="rounded bg-accent"></div>
+                        <div className="rounded bg-neutral"></div>
                       </div>
                     </div>
-
-                    {/* Chat Messages */}
-                    <div className="p-4 space-y-4 min-h-[200px] max-h-[200px] overflow-y-auto bg-base-100">
-                      {preview_message.map((message) => (
-                        <div
-                          key={message.id}
-                          className={`flex ${message.issent ? "justify-end" : "justify-start"}`}
-                        >
-                          <div
-                            className={`
-                          max-w-[80%] rounded-xl p-3 shadow-sm
-                          ${message.issent ? "bg-primary text-primary-content" : "bg-base-200"}
-                        `}
-                          >
-                            <p className="text-sm">{message.content}</p>
-                            <p
-                              className={`
-                            text-[10px] mt-1.5
-                            ${message.issent ? "text-primary-content/70" : "text-base-content/70"}
-                          `}
-                            >
-                              12:00 PM
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Chat Input */}
-                    <div className="p-4 border-t border-base-300 bg-base-100">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          className="input input-bordered flex-1 text-sm h-10"
-                          placeholder="Type a message..."
-                          value="This is a preview"
-                          readOnly
-                        />
-                        <button className="btn btn-primary h-10 min-h-0">
-                          <Send size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                    <span className="mt-2 block truncate text-[11px] font-medium">
+                      {itemTheme.charAt(0).toUpperCase() + itemTheme.slice(1)}
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
           </div>
-        );
 
-      default:
-        break;
-    }
-  };
+          <div className="card border border-base-300 bg-base-100 shadow-sm">
+            <div className="card-body gap-4">
+              <div>
+                <h2 className="card-title text-lg">Preview</h2>
+                <p className="text-sm text-base-content/70">
+                  A quick look at how chats feel with the current theme.
+                </p>
+              </div>
 
-  return (
-    <div className="h-full pt-16 max-w-[1600px] grid lg:grid-cols-[400px_1fr] bg-base-100">
-      {/* Sidebar */}
-      <div
-        className={`${activeSection == "all" ? "flex" : "hidden lg:flex"} flex-col border-r pr-3 border-base-300 overflow-hidden`}
-      >
-        {/* Profile Section */}
-        <div
-          className="flex items-center gap-3 md:gap-4 mt-5 mx-3 p-3 rounded-lg md:px-6 cursor-pointer hover:bg-base-200 transition-colors active:bg-base-300"
-          onClick={() => handleItemClick("Profile")}
-        >
-          <div className=" flex items-center justify-center">
-            <img
-              src={authUser.profilePic.url}
-              className="w-12 h-12 md:w-16 md:h-16 rounded-full object-cover"
-            />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-base md:text-lg font-medium truncate">
-              {authUser.fullname}
-            </div>
-            <div className="text-sm text-base-content/70 truncate">
-              {authUser.bio}
+              <div className="overflow-hidden rounded-3xl border border-base-300 bg-base-200">
+                <div className="border-b border-base-300 bg-base-100 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary font-medium text-primary-content">
+                      J
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium">John Doe</h3>
+                      <p className="text-xs text-base-content/70">Online</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 bg-base-100 p-4">
+                  {previewMessages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${
+                        message.issent ? "justify-end" : "justify-start"
+                      }`}
+                    >
+                      <div
+                        className={`max-w-[80%] rounded-2xl p-3 text-sm shadow-sm ${
+                          message.issent
+                            ? "bg-primary text-primary-content"
+                            : "bg-base-200 text-base-content"
+                        }`}
+                      >
+                        <p>{message.content}</p>
+                        <p
+                          className={`mt-1 text-[10px] ${
+                            message.issent
+                              ? "text-primary-content/70"
+                              : "text-base-content/70"
+                          }`}
+                        >
+                          12:00 PM
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-base-300 bg-base-100 p-4">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      className="input input-bordered flex-1 text-sm"
+                      value="This is a preview"
+                      readOnly
+                    />
+                    <button type="button" className="btn btn-primary">
+                      <Send className="size-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+      </div>
+    </SectionShell>
+  );
 
-        <div className="divider m-5"></div>
+  const renderGenericSection = () => {
+    const highlights = activeItem.description
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
 
-        {/* Settings List */}
-        <div className="flex-1 overflow-y-auto">
-          {settingsItems.map((item, index) => (
+    const Icon = activeItem.icon;
+
+    return (
+      <SectionShell item={activeItem} onBack={() => setActiveSection("all")}>
+        <div className="grid gap-4 xl:grid-cols-2">
+          {highlights.map((highlight) => (
             <div
-              key={item.id}
-              className="flex items-center gap-4 md:gap-5 px-4 md:px-6 py-3 md:py-4 cursor-pointer hover:bg-base-200 hover:mx-3 hover:rounded-lg transition-colors animate-slideIn"
-              style={{ animationDelay: `${index * 0.05}s` }}
-              onClick={() => handleItemClick(item.label)}
+              key={highlight}
+              className="card border border-base-300 bg-base-100 shadow-sm"
             >
-              <div className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center text-primary-content text-base md:text-xl flex-shrink-0">
-                {item.icon}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm md:text-base truncate">
-                  {item.label}
-                </div>
-                <div className="text-xs md:text-sm text-base-content/70 truncate">
-                  {item.description}
+              <div className="card-body">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <Icon className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="card-title text-base">{highlight}</h3>
+                    <p className="text-sm leading-6 text-base-content/70">
+                      {activeItem.label} controls for {highlight.toLowerCase()} can
+                      live here while keeping the same section-based settings flow.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
           ))}
-        </div>
 
-        <div className="divider m-5"></div>
-
-        {/* Logout */}
-        <div
-          className="flex items-center gap-4 mb-4 md:gap-5 px-4 md:px-6 py-3 md:py-4 cursor-pointer hover:bg-error/5 hover:mx-3 hover:rounded-lg transition-colors active:bg-error/10 animate-slideIn"
-          style={{ animationDelay: "0.4s" }}
-          onClick={() => handleItemClick("Logout")}
-        >
-          <div className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center text-error text-base md:text-xl flex-shrink-0">
-            <ArrowRight />
-          </div>
-          <div className="flex-1">
-            <div className="text-lg md:text-base text-error font-medium">
-              Log out
+          <div className="card border border-dashed border-base-300 bg-base-100 shadow-sm xl:col-span-2">
+            <div className="card-body">
+              <h3 className="card-title text-base">Section Summary</h3>
+              <p className="text-sm leading-6 text-base-content/70">
+                This page now follows your switch-based navigation, and the UI
+                for each section is shaped directly from the section label and
+                description so it stays consistent as you add more settings.
+              </p>
             </div>
           </div>
         </div>
-      </div>
+      </SectionShell>
+    );
+  };
 
-      {activeSection !== "all" && (
-        <div className="lg:hidden">{renderContent()}</div>
-      )}
+  const renderPostSection = () => (
+    <SectionShell item={activeItem} onBack={() => setActiveSection("all")}>
+      <div className="space-y-6">
+        <div className="stats stats-vertical border border-base-300 bg-base-100 shadow-sm lg:stats-horizontal">
+          <div className="stat">
+            <div className="stat-title">Total posts</div>
+            <div className="stat-value text-3xl">{postOverview.total}</div>
+            <div className="stat-desc">All uploads in your account</div>
+          </div>
+          <div className="stat">
+            <div className="stat-title">Archived</div>
+            <div className="stat-value text-3xl">{postOverview.archived}</div>
+            <div className="stat-desc">Posts hidden from the feed</div>
+          </div>
+          <div className="stat">
+            <div className="stat-title">Likes hidden</div>
+            <div className="stat-value text-3xl">{postOverview.hiddenLikes}</div>
+            <div className="stat-desc">Posts with hidden like count</div>
+          </div>
+          <div className="stat">
+            <div className="stat-title">Share disabled</div>
+            <div className="stat-value text-3xl">{postOverview.shareDisabled}</div>
+            <div className="stat-desc">Posts not allowed to share</div>
+          </div>
+        </div>
 
-      {/* Main Content - Empty State (Hidden on mobile) */}
-      <div className="hidden lg:flex items-center justify-center bg-base-200">
-        {activeSection == "all" && (
-          <div className="text-center">
-            <Settings className="text-8xl md:text-9xl text-base-content/70 mx-auto mb-6" />
-            <h2 className="text-3xl md:text-4xl font-light">Settings</h2>
+        {postLoading ? (
+          <div className="grid gap-5 xl:grid-cols-2">
+            {[1, 2].map((item) => (
+              <div
+                key={item}
+                className="card border border-base-300 bg-base-100 shadow-sm"
+              >
+                <div className="card-body gap-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-2">
+                      <div className="skeleton h-5 w-40"></div>
+                      <div className="skeleton h-4 w-28"></div>
+                    </div>
+                    <div className="skeleton h-10 w-10 rounded-full"></div>
+                  </div>
+                  <div className="skeleton h-72 w-full rounded-3xl"></div>
+                  <div className="skeleton h-16 w-full rounded-2xl"></div>
+                  <div className="skeleton h-24 w-full rounded-2xl"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : myPosts.length === 0 ? (
+          <div className="card border border-dashed border-base-300 bg-base-100 shadow-sm">
+            <div className="card-body items-center py-16 text-center">
+              <Settings2 className="size-14 text-base-content/35" />
+              <h2 className="mt-2 text-xl font-semibold">No posts yet</h2>
+              <p className="max-w-md text-sm leading-6 text-base-content/70">
+                Once you share posts, they will show up here with quick controls
+                for likes, sharing, archive state, and delete.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-5 xl:grid-cols-2">
+            {myPosts.map((post) => (
+              <div
+                key={post._id}
+                className="card border border-base-300 bg-base-100 shadow-sm"
+              >
+                <div className="card-body gap-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="card-title text-lg">{authUser.fullname}</h2>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-base-content/70">
+                        <span className="badge badge-ghost gap-1">
+                          <MapPin className="size-3.5" />
+                          {post.location?.name || "No location"}
+                        </span>
+                        <span className="badge badge-outline">
+                          {new Date(post.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="dropdown dropdown-end">
+                      <button
+                        type="button"
+                        tabIndex={0}
+                        className="btn btn-circle btn-ghost btn-sm"
+                      >
+                        <EllipsisVerticalIcon className="size-5" />
+                      </button>
+
+                      <div
+                        tabIndex={0}
+                        className="dropdown-content z-[1] mt-3 w-72 rounded-box border border-base-300 bg-base-100 p-3 shadow-xl"
+                      >
+                        <div className="mb-3 flex items-center justify-between">
+                          <p className="text-sm font-semibold">Post settings</p>
+                          {updatingPostId === post._id && (
+                            <span className="loading loading-spinner loading-xs"></span>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="flex cursor-pointer items-center justify-between rounded-box bg-base-200/70 px-3 py-3">
+                            <div>
+                              <p className="text-sm font-medium">Hide like</p>
+                              <p className="text-xs text-base-content/60">
+                                Hide like count on this post
+                              </p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              className="toggle toggle-primary toggle-sm"
+                              checked={post.hideLike}
+                              disabled={updatingPostId === post._id}
+                              onChange={(e) =>
+                                handlePostSettingChange(
+                                  post._id,
+                                  "hideLike",
+                                  e.target.checked,
+                                )
+                              }
+                            />
+                          </label>
+
+                          <label className="flex cursor-pointer items-center justify-between rounded-box bg-base-200/70 px-3 py-3">
+                            <div>
+                              <p className="text-sm font-medium">Disable shared</p>
+                              <p className="text-xs text-base-content/60">
+                                Stop other users from sharing this post
+                              </p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              className="toggle toggle-primary toggle-sm"
+                              checked={post.disableShare}
+                              disabled={updatingPostId === post._id}
+                              onChange={(e) =>
+                                handlePostSettingChange(
+                                  post._id,
+                                  "disableShare",
+                                  e.target.checked,
+                                )
+                              }
+                            />
+                          </label>
+
+                          <label className="flex cursor-pointer items-center justify-between rounded-box bg-base-200/70 px-3 py-3">
+                            <div>
+                              <p className="text-sm font-medium">isArchived</p>
+                              <p className="text-xs text-base-content/60">
+                                Keep the post but hide it from explore feed
+                              </p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              className="toggle toggle-primary toggle-sm"
+                              checked={post.isArchived}
+                              disabled={updatingPostId === post._id}
+                              onChange={(e) =>
+                                handlePostSettingChange(
+                                  post._id,
+                                  "isArchived",
+                                  e.target.checked,
+                                )
+                              }
+                            />
+                          </label>
+
+                          <button
+                            type="button"
+                            onClick={() => setPostToDelete(post)}
+                            className="btn btn-error btn-outline btn-sm mt-2 w-full"
+                            disabled={updatingPostId === post._id}
+                          >
+                            <Trash2 className="size-4" />
+                            Delete post
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="overflow-hidden rounded-[1.75rem] bg-base-200">
+                    <img
+                      src={post.image?.url}
+                      alt={post.caption || "Post image"}
+                      className="max-h-[28rem] w-full object-contain"
+                      loading="lazy"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">
+                      Caption
+                    </p>
+                    <p className="text-sm leading-6 text-base-content/80">
+                      {post.caption || "No caption added for this post."}
+                    </p>
+                  </div>
+
+                  <div className="stats stats-horizontal w-full border border-base-300 bg-base-100 shadow-none">
+                    <div className="stat px-4 py-3">
+                      <div className="stat-figure text-error">
+                        <Heart className="size-5" />
+                      </div>
+                      <div className="stat-title">Like</div>
+                      <div className="stat-value text-lg">
+                        {post.likesCount ?? 0}
+                      </div>
+                    </div>
+
+                    <div className="stat px-4 py-3">
+                      <div className="stat-figure text-primary">
+                        <Share2 className="size-5" />
+                      </div>
+                      <div className="stat-title">Shared</div>
+                      <div className="stat-value text-lg">
+                        {post.sharesCount ?? 0}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {post.hideLike && (
+                      <span className="badge badge-outline">Hide like on</span>
+                    )}
+                    {post.disableShare && (
+                      <span className="badge badge-outline">
+                        Shared disabled
+                      </span>
+                    )}
+                    {post.isArchived && (
+                      <span className="badge badge-neutral gap-1">
+                        <Archive className="size-3.5" />
+                        Archived
+                      </span>
+                    )}
+                    {!post.hideLike && !post.disableShare && !post.isArchived && (
+                      <span className="badge badge-success badge-outline">
+                        Active post
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
-        {renderContent()}
       </div>
-    </div>
+    </SectionShell>
+  );
+
+  const renderContent = () => {
+    if (!activeItem) return null;
+
+    switch (activeSection) {
+      case "Chats":
+        return renderChatsSection();
+      case "Post":
+        return renderPostSection();
+      default:
+        return renderGenericSection();
+    }
+  };
+
+  return (
+    <>
+      <div className="h-full max-w-[1600px] bg-base-100 pt-16 lg:grid lg:grid-cols-[390px_1fr]">
+        <div
+          className={`${
+            activeSection === "all" ? "flex" : "hidden lg:flex"
+          } flex-col border-r border-base-300`}
+        >
+          <div
+            className="mx-3 mt-5 flex cursor-pointer items-center gap-4 rounded-3xl p-4 transition hover:bg-base-200/60"
+            onClick={() => handleItemClick("Profile")}
+          >
+            <img
+              src={authUser.profilePic.url}
+              alt={authUser.fullname}
+              className="h-14 w-14 rounded-full object-cover md:h-16 md:w-16"
+            />
+
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-base font-semibold md:text-lg">
+                {authUser.fullname}
+              </div>
+              <div className="truncate text-sm text-base-content/70">
+                {authUser.bio}
+              </div>
+            </div>
+          </div>
+
+          <div className="divider mx-5 my-5"></div>
+
+          <div className="flex-1 overflow-y-auto px-3 pb-3">
+            {settingsItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeSection === item.label;
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleItemClick(item.label)}
+                  className={`mb-2 flex w-full items-center gap-4 rounded-3xl px-4 py-4 text-left transition ${
+                    isActive
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-base-200/70"
+                  }`}
+                >
+                  <div
+                    className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+                      isActive
+                        ? "bg-primary text-primary-content"
+                        : "bg-base-200 text-base-content/75"
+                    }`}
+                  >
+                    <Icon className="size-5" />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium text-base-content">
+                      {item.label}
+                    </div>
+                    <div className="truncate text-sm text-base-content/65">
+                      {item.description}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="divider mx-5 my-5"></div>
+
+          <div className="px-3 pb-4">
+            <button
+              type="button"
+              onClick={() => handleItemClick("Logout")}
+              className="flex w-full items-center gap-4 rounded-3xl px-4 py-4 text-left text-error transition hover:bg-error/10"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-error/10">
+                <ArrowRight className="size-5" />
+              </div>
+              <div className="font-medium">Log out</div>
+            </button>
+          </div>
+        </div>
+
+        {activeSection !== "all" && <div className="lg:hidden">{renderContent()}</div>}
+
+        <div className="hidden bg-base-200/40 lg:flex lg:min-h-0 lg:flex-col">
+          {activeSection === "all" ? (
+            <div className="flex h-full items-center justify-center p-10">
+              <div className="max-w-2xl text-center">
+                <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-[2rem] bg-primary/10 text-primary">
+                  <Settings className="size-14" />
+                </div>
+                <h2 className="mt-8 text-4xl font-semibold">Settings</h2>
+                <p className="mt-3 text-base leading-7 text-base-content/70">
+                  Pick a section from the left to manage account preferences,
+                  post controls, privacy, chat theme, and more.
+                </p>
+                <div className="mt-8 grid gap-4 md:grid-cols-2">
+                  {settingsItems.slice(0, 4).map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <div
+                        key={item.id}
+                        className="rounded-3xl border border-base-300 bg-base-100 p-5 text-left shadow-sm"
+                      >
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                          <Icon className="size-5" />
+                        </div>
+                        <h3 className="mt-4 text-lg font-semibold">
+                          {item.label}
+                        </h3>
+                        <p className="mt-2 text-sm leading-6 text-base-content/70">
+                          {item.description}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : (
+            renderContent()
+          )}
+        </div>
+      </div>
+
+      {postToDelete && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="text-lg font-semibold">Delete this post?</h3>
+            <p className="py-3 text-sm leading-6 text-base-content/70">
+              This will permanently remove the post from your account. You
+              cannot undo this action.
+            </p>
+
+            <div className="modal-action">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setPostToDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-error"
+                onClick={handleDeletePost}
+                disabled={updatingPostId === postToDelete._id}
+              >
+                {updatingPostId === postToDelete._id && (
+                  <span className="loading loading-spinner loading-xs"></span>
+                )}
+                Delete post
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="modal-backdrop"
+            onClick={() => setPostToDelete(null)}
+          >
+            close
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 

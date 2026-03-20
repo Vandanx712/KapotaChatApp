@@ -3,6 +3,7 @@ import { asynchandller } from "../util/asynchandller.js";
 import { StoragePath } from "../util/filepath.js";
 import { deleteImage, getAvatars, uploadChatPic } from "../lib/cloudinary.js";
 import { User } from "../models/user.model.js";
+import { Post } from "../models/post.model.js";
 
 //getall predefind avatars
 export const getPreAvatars = asynchandller(async (req, res) => {
@@ -96,10 +97,16 @@ export const getUserById = asynchandller(async(req,res)=>{
 
   const user = await User.findById(id).select('-password').lean()
   if(!user) throw new ApiError(400,'User not found')
+  const posts = await Post.find({ user: id, isArchived: false })
+    .sort({ createdAt: -1 })
+    .lean()
 
   return res.status(200).json({
     success:true,
     message:'Fetch detail successfully',
-    user
+    user: {
+      ...user,
+      posts,
+    }
   })
 })
