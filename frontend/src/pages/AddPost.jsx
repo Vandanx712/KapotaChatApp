@@ -1,39 +1,52 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ImagePlus,
   MapPin,
-  Music2,
   Search,
   Settings2,
   SlidersHorizontal,
-  Sparkles,
   Trash2,
   Type,
+  X,
 } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
 import Cropper from "react-easy-crop";
-import { getSuggestion, searchLocation } from "../lib/axios";
+import {
+  createPost,
+  getPlaceDetail,
+  getSuggestion,
+  searchLocation,
+} from "../lib/axios";
+import toast from "react-hot-toast";
 
 function AddPost() {
   const { authUser } = useAuthStore();
   const { FILTERS } = useThemeStore();
+  const skipAutoSearchRef = useRef(false);
 
   const [imagePreview, setImagePreview] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("Original");
   const [filterStrength, setFilterStrength] = useState(70);
   const [caption, setCaption] = useState("");
-  const [locationquery, setLocationQuery] = useState("");
-  const [searchSuggestions,setSearchSuggestions] = useState([])
+  const [locationQuery, setLocationQuery] = useState("");
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [placeDetailData, setPlaceDetailData] = useState(null);
   const [locationSuggestions, setLocationSuggestions] = useState([]);
+  const [isSearchingLocations, setIsSearchingLocations] = useState(false);
   const [hideLikes, setHideLikes] = useState(false);
-  const [disableComments, setDisableComments] = useState(false);
+  const [disableShare, setDisableShare] = useState(false);
+  const [isArchived, setIsArchived] = useState(false);
 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [aspect, setAspect] = useState(4 / 5);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [ratioType, setRatioType] = useState("portrait");
+
+  const navigate = useNavigate();
 
   const RATIOS = {
     square: 1 / 1,
@@ -45,9 +58,31 @@ function AddPost() {
     loadSuggestions();
   }, []);
 
-  useEffect(()=>{
-    setSearchSuggestions([])
-  },[locationquery==''])
+  useEffect(() => {
+    if (locationQuery.trim()) return;
+    setSearchSuggestions([]);
+    setIsSearchingLocations(false);
+  }, [locationQuery]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchDetail = async () => {
+      if (selectedLocation?.placeId) {
+        setPlaceDetailData(null);
+        const detail = await loadPlaceDetail(selectedLocation);
+        if (isMounted) {
+          setPlaceDetailData(detail || null);
+        }
+      } else {
+        setPlaceDetailData(null);
+      }
+    };
+
+    fetchDetail();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedLocation]);
 
   const loadSuggestions = async () => {
     try {
@@ -58,16 +93,83 @@ function AddPost() {
     }
   };
 
-  const handleSearch=async()=>{
-    try {
-      const resdata = await searchLocation(locationquery.trim())
-      setSearchSuggestions(resdata.results)
-    } catch (error) {
-      console.log(error)
-    }
-  }
+  const runLocationSearch = async (query) => {
+    const trimmedQuery = query.trim();
 
-  const locations = searchSuggestions || locationSuggestions
+    if (!trimmedQuery) {
+      setSearchSuggestions([]);
+      setIsSearchingLocations(false);
+      return;
+    }
+
+    setIsSearchingLocations(true);
+    try {
+      const resdata = await searchLocation(trimmedQuery);
+      setSearchSuggestions(resdata.results || []);
+    } catch (error) {
+      console.log(error);
+      setSearchSuggestions([]);
+    } finally {
+      setIsSearchingLocations(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!locationQuery.trim()) return;
+    if (skipAutoSearchRef.current) {
+      skipAutoSearchRef.current = false;
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      runLocationSearch(locationQuery);
+    }, 350);
+
+    return () => clearTimeout(timeoutId);
+  }, [locationQuery]);
+
+  const handleSearch = async () => {
+    await runLocationSearch(locationQuery);
+  };
+
+  const loadPlaceDetail = async (location) => {
+    if (location.address) return;
+    try {
+      const resdata = await getPlaceDetail(location.placeId);
+      return resdata?.detail;
+    } catch (error) {
+      console.log(error);
+      return null;
+    }
+  };
+
+  const resolvedSelectedLocation = useMemo(() => {
+    if (!selectedLocation) return null;
+    if (!selectedLocation.placeId) return selectedLocation;
+
+    return {
+      ...selectedLocation,
+      ...(placeDetailData || {}),
+    };
+  }, [placeDetailData, selectedLocation]);
+
+  const locations = useMemo(() => {
+    if (resolvedSelectedLocation) return [resolvedSelectedLocation];
+    return locationQuery.trim() ? searchSuggestions : locationSuggestions;
+  }, [
+    locationQuery,
+    locationSuggestions,
+    resolvedSelectedLocation,
+    searchSuggestions,
+  ]);
+
+  const clearSelectedLocation = () => {
+    setSelectedLocation(null);
+    setLocationQuery("");
+    setSearchSuggestions([]);
+    setIsSearchingLocations(false);
+    setPlaceDetailData(null);
+  };
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
@@ -89,7 +191,9 @@ function AddPost() {
   const getCroppedImage = async () => {
     const image = new Image();
     image.src = imagePreview;
-
+    await new Promise((resolve) => {
+      image.onload = resolve;
+    });
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
 
@@ -111,8 +215,43 @@ function AddPost() {
     );
 
     return new Promise((resolve) => {
-      canvas.toBlob((blob) => resolve(blob), "image/jpeg");
+      canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.9);
     });
+  };
+
+  const handleSave = async () => {
+    if (!imagePreview) return toast.error("Image must be required");
+    const locationSource = placeDetailData ?? selectedLocation;
+    try {
+      const blob = await getCroppedImage();
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onload = async () => {
+        const post = {
+          image: reader.result,
+          caption,
+          location: locationSource
+            ? {
+                name: locationSource.name,
+                type: "Point",
+                coordinates: [locationSource.lat, locationSource.lng],
+              }
+            : null,
+          hideLikes,
+          disableShare,
+          isArchived,
+        };
+        try {
+          const redata = await createPost(post);
+          toast.success(redata.message);
+          navigate("/");
+        } catch (error) {
+          (console.log(error), toast.error(error.response?.data?.message));
+        }
+      };
+    } catch (error) {
+      console.log(error);
+    }
   };
 
   const clearImage = () => {
@@ -129,7 +268,9 @@ function AddPost() {
               Build your post step by step.
             </p>
           </div>
-          <button className="btn btn-primary">Share Post</button>
+          <button onClick={() => handleSave()} className="btn btn-primary">
+            Share Post
+          </button>
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -238,6 +379,7 @@ function AddPost() {
                   type="file"
                   accept="image/*"
                   className="hidden"
+                  onClick={() => alert("Image size must be 9mb")}
                   onChange={handleImageChange}
                 />
               </label>
@@ -327,59 +469,107 @@ function AddPost() {
                     type="text"
                     placeholder="Add location"
                     className=" w-full"
-                    value={locationquery}
-                    onChange={(e)=>setLocationQuery(e.target.value)}
+                    value={locationQuery}
+                    onChange={(e) => {
+                      if (selectedLocation) {
+                        setSelectedLocation(null);
+                        setPlaceDetailData(null);
+                      }
+                      setLocationQuery(e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSearch();
+                      }
+                    }}
                   />
-                  <Search onClick={()=>handleSearch()} className="size-5 cursor-pointer" />
+                  {selectedLocation ? (
+                    <button
+                      type="button"
+                      onClick={clearSelectedLocation}
+                      className="text-base-content/60 transition-colors hover:text-error"
+                    >
+                      <X className="size-5" />
+                    </button>
+                  ) : (
+                    <Search
+                      onClick={handleSearch}
+                      className="size-5 cursor-pointer"
+                    />
+                  )}
                 </label>
                 <div className="mt-3 rounded-lg border border-base-300 bg-base-100">
                   <div className="flex items-center justify-between px-3 py-2 text-xs text-base-content/60">
-                    <span>Suggestions</span>
-                    <span>{locationSuggestions.length}</span>
+                    <span>
+                      {selectedLocation ? "Selected Location" : "Suggestions"}
+                    </span>
+                    <span>{locations.length}</span>
                   </div>
                   <div className="max-h-56 overflow-y-auto overscroll-contain">
-                    {locationSuggestions.length === 0 ? (
+                    {isSearchingLocations ? (
                       <div className="px-3 py-3 text-sm text-base-content/50">
-                        "No suggestions found."
+                        Searching locations...
+                      </div>
+                    ) : locations.length === 0 ? (
+                      <div className="px-3 py-3 text-sm text-base-content/50">
+                        {locationQuery.trim()
+                          ? "No search results found."
+                          : "No nearby location suggestions available."}
                       </div>
                     ) : (
                       <ul className="divide-y divide-base-300">
-                        {locationSuggestions.map((suggestion, index) => {
-                          const lat = Number(suggestion.lat);
-                          const lng = Number(suggestion.lng);
-                          const types = Array.isArray(suggestion.types)
-                            ? suggestion.types
+                        {locations.map((suggestion, index) => {
+                          const types = Array.isArray(suggestion?.types)
+                            ? suggestion?.types
                             : [];
+
+                          if (!suggestion) return null;
 
                           return (
                             <li
-                              key={`${suggestion.name}-${suggestion.address}-${index}`}
+                              key={`${suggestion.placeId || suggestion.name || "location"}-${index}`}
                             >
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  // setLocation({
-                                  //   name: suggestion.name,
-                                  //   coordinates: {
-                                  //     lng: suggestion.lng,
-                                  //     lat: suggestion.lat,
-                                  //   },
-                                  // });
-                                  // setLocationSuggestions([]);
-                                }}
-                                className="w-full px-3 py-2 text-left hover:bg-base-200/70"
+                              <div
+                                className={`w-full px-3 py-2 text-left ${selectedLocation ? "" : "hover:bg-base-200/70"}`}
                               >
                                 <div className="flex items-start justify-between gap-3">
                                   <div>
                                     <div className="text-sm font-medium">
-                                      {suggestion.name || "Unknown place"}
+                                      {suggestion?.name || "Unknown place"}
                                     </div>
-                                    {suggestion.address && (
+                                    {suggestion?.address && (
                                       <div className="text-xs text-base-content/60">
-                                        {suggestion.address}
+                                        {suggestion?.address}
                                       </div>
                                     )}
                                   </div>
+                                  {selectedLocation ? (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        clearSelectedLocation();
+                                      }}
+                                      className="text-base-content/50 transition-colors hover:text-error"
+                                    >
+                                      <X className="size-4" />
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        skipAutoSearchRef.current = true;
+                                        setPlaceDetailData(null);
+                                        setSelectedLocation(suggestion);
+                                        setLocationQuery(suggestion.name || "");
+                                        setSearchSuggestions([]);
+                                      }}
+                                      className="text-xs font-medium text-primary transition-colors hover:text-primary/70"
+                                    >
+                                      Select
+                                    </button>
+                                  )}
                                 </div>
                                 {types.length > 0 && (
                                   <div className="mt-2 flex flex-wrap gap-1">
@@ -393,7 +583,7 @@ function AddPost() {
                                     ))}
                                   </div>
                                 )}
-                              </button>
+                              </div>
                             </li>
                           );
                         })}
@@ -421,12 +611,21 @@ function AddPost() {
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">Disable comments</span>
+                  <span className="text-sm">Disable share</span>
                   <input
                     type="checkbox"
                     className="toggle toggle-primary"
-                    checked={disableComments}
-                    onChange={(e) => setDisableComments(e.target.checked)}
+                    checked={disableShare}
+                    onChange={(e) => setDisableShare(e.target.checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Archive</span>
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-primary"
+                    checked={isArchived}
+                    onChange={(e) => setIsArchived(e.target.checked)}
                   />
                 </div>
               </div>

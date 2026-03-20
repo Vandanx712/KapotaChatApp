@@ -13,10 +13,11 @@ import {
   Monitor,
   Send,
   Settings,
+  Settings2,
   Video,
 } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from "react-router-dom";
 
 const preview_message = [
   { id: 1, content: "Hey! How's it going", issent: false },
@@ -28,24 +29,24 @@ const preview_message = [
 ];
 
 function Setting() {
-  const [activeSection, setActiveSection] = useState('all')
+  const [activeSection, setActiveSection] = useState("all");
   const { theme, setTheme } = useThemeStore();
   const { authUser, logout } = useAuthStore();
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   const settingsItems = [
     {
       id: 1,
-      icon: <Monitor />,
-      label: "General",
-      description: "Startup and close",
-    },
-    {
-      id: 2,
       icon: <Key />,
       label: "Account",
       description: "Security notifications, account info",
+    },
+    {
+      id: 2,
+      icon: <Settings2 />,
+      label: "Post",
+      description: "See Posts, Post Setting",
     },
     {
       id: 3,
@@ -72,12 +73,6 @@ function Setting() {
       description: "Message notifications",
     },
     {
-      id: 7,
-      icon: <Keyboard />,
-      label: "Keyboard shortcuts",
-      description: "Quick actions",
-    },
-    {
       id: 8,
       icon: <CircleQuestionMark />,
       label: "Help and feedback",
@@ -86,31 +81,36 @@ function Setting() {
   ];
 
   const handleItemClick = (label) => {
-    if (label == 'Profile') navigate('/profile')
-    if (label == 'Chats') setActiveSection('Chats')
-    if(label == 'Logout'){
+    if (label == "Profile") navigate("/profile");
+    if (label == "Chats") setActiveSection("Chats");
+    if (label == "Logout") {
       try {
-        logout()
+        logout();
       } catch (error) {
-        console.log(error)
+        console.log(error);
       }
     }
   };
 
   const renderContent = () => {
     switch (activeSection) {
-      case 'Chats':
+      case "Chats":
         return (
           <div className="flex flex-col space-y-5 overflow-hidden p-5">
             <div className=" flex items-center gap-5">
-              <button onClick={() => setActiveSection('all')} className=" text-xl p-2 rounded-full hover:bg-base-100">
+              <button
+                onClick={() => setActiveSection("all")}
+                className=" text-xl p-2 rounded-full hover:bg-base-100"
+              >
                 <ArrowLeft />
               </button>
               <p className=" text-xl">{activeSection}</p>
             </div>
             <div className="flex flex-col gap-1">
               <h2 className="text-lg font-semibold">Theme</h2>
-              <p className="text-sm text-base-content/70">Choose a theme for your chat interface</p>
+              <p className="text-sm text-base-content/70">
+                Choose a theme for your chat interface
+              </p>
             </div>
 
             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
@@ -123,7 +123,10 @@ function Setting() {
               `}
                   onClick={() => setTheme(t)}
                 >
-                  <div className="relative h-8 w-full rounded-md overflow-hidden" data-theme={t}>
+                  <div
+                    className="relative h-8 w-full rounded-md overflow-hidden"
+                    data-theme={t}
+                  >
                     <div className="absolute inset-0 grid grid-cols-4 gap-px p-1">
                       <div className="rounded bg-primary"></div>
                       <div className="rounded bg-secondary"></div>
@@ -205,17 +208,19 @@ function Setting() {
               </div>
             </div>
           </div>
-        )
+        );
 
       default:
         break;
     }
-  }
+  };
 
   return (
     <div className="h-full pt-16 max-w-[1600px] grid lg:grid-cols-[400px_1fr] bg-base-100">
       {/* Sidebar */}
-      <div className={`${activeSection == 'all' ? 'flex' : 'hidden lg:flex'} flex-col border-r pr-3 border-base-300 overflow-hidden`}>
+      <div
+        className={`${activeSection == "all" ? "flex" : "hidden lg:flex"} flex-col border-r pr-3 border-base-300 overflow-hidden`}
+      >
         {/* Profile Section */}
         <div
           className="flex items-center gap-3 md:gap-4 mt-5 mx-3 p-3 rounded-lg md:px-6 cursor-pointer hover:bg-base-200 transition-colors active:bg-base-300"
@@ -282,16 +287,18 @@ function Setting() {
         </div>
       </div>
 
-      {activeSection !== 'all' && (<div className="lg:hidden">{renderContent()}</div>)}
+      {activeSection !== "all" && (
+        <div className="lg:hidden">{renderContent()}</div>
+      )}
 
       {/* Main Content - Empty State (Hidden on mobile) */}
       <div className="hidden lg:flex items-center justify-center bg-base-200">
-        {activeSection == 'all' && (<div className="text-center">
-          <Settings className="text-8xl md:text-9xl text-base-content/70 mx-auto mb-6" />
-          <h2 className="text-3xl md:text-4xl font-light">
-            Settings
-          </h2>
-        </div>)}
+        {activeSection == "all" && (
+          <div className="text-center">
+            <Settings className="text-8xl md:text-9xl text-base-content/70 mx-auto mb-6" />
+            <h2 className="text-3xl md:text-4xl font-light">Settings</h2>
+          </div>
+        )}
         {renderContent()}
       </div>
     </div>

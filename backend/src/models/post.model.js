@@ -18,19 +18,6 @@ const postSchema = new mongoose.Schema(
       maxlength: 2000,
     },
 
-    filter: {
-      name: {
-        type: String,
-        default: "Original",
-      },
-      strength: {
-        type: Number,
-        default: 1,
-        min: 0,
-        max: 2,
-      },
-    },
-
     location: {
       name: String,
       type: {
@@ -43,12 +30,22 @@ const postSchema = new mongoose.Schema(
       },
     },
 
+    hideLike: {
+      type: Boolean,
+      default: false,
+    },
+
+    disableShare: {
+      type: Boolean,
+      default: false,
+    },
+
     likesCount: {
       type: Number,
       default: 0,
     },
 
-    commentsCount: {
+    sharesCount: {
       type: Number,
       default: 0,
     },
@@ -62,5 +59,7 @@ const postSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
+
+postSchema.index({ location: "2dsphere", likesCount: -1, createdAt: -1 });
 
 export const Post = mongoose.model("Post", postSchema);

@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 
 .fab {
     @apply absolute bottom-0 -right-2;

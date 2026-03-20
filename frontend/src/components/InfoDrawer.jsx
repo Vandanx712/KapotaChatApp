@@ -1,11 +1,15 @@
 import {
   Check,
+  CircleSlash2,
   Edit,
   Image,
   LucideArrowRightFromLine,
+  MinusCircle,
   SmileIcon,
   Trash2Icon,
+  User2Icon,
   UserPlusIcon,
+  VideoIcon,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -19,14 +23,15 @@ export default function InfoDrawer({ conversation, onClose }) {
   const isGroup = conversation?.isgroup;
   const {
     setDeleteChat,
-    getConversation,
+    clearAllMsg,
     udGroupDetail,
     setOtherUsers,
     otherUsers,
     upGroupMember,
     ExitGroup,
+    message,
   } = useChatStore();
-  const { otherUser, contactDetail, authUser } = useAuthStore();
+  const { authUser } = useAuthStore();
 
   // ESC key close
   useEffect(() => {
@@ -37,15 +42,8 @@ export default function InfoDrawer({ conversation, onClose }) {
     return () => window.removeEventListener("keydown", handleEsc);
   }, [onClose]);
 
-  useEffect(() => {
-    setOtherUsers(conversation.conversationId);
-  }, []);
-
   const handleDeleteChat = () => {
     setDeleteChat(conversation.conversationId);
-    setTimeout(() => {
-      getConversation();
-    }, 1000);
   };
 
   function GroupInfo({ group, onClose }) {
@@ -59,6 +57,10 @@ export default function InfoDrawer({ conversation, onClose }) {
 
     const groupNameRef = useRef();
     const myrole = group?.membersDetail?.[authUser._id]?.role || "member";
+
+    useEffect(() => {
+      setOtherUsers(conversation.conversationId);
+    }, []);
 
     useEffect(() => {
       if (!group?.membersDetail) return;
@@ -162,12 +164,12 @@ export default function InfoDrawer({ conversation, onClose }) {
 
     const handleUpdate = () => {
       upGroupMember({ id: conversation.conversationId, participants });
-      onClose()
+      onClose();
     };
 
     const handleExitGroup = () => {
       ExitGroup(conversation.conversationId);
-      onClose()
+      onClose();
     };
 
     return (
@@ -429,9 +431,10 @@ export default function InfoDrawer({ conversation, onClose }) {
   }
 
   function ContactInfo({ user, onClose }) {
-    useEffect(() => {
-      contactDetail(user.oruserId);
-    }, []);
+    const mediaFiles = message.filter((file) => file.image);
+    const handleClearChat = () => {
+      clearAllMsg(user.conversationId);
+    };
     return (
       <>
         {/* Header */}
@@ -447,52 +450,74 @@ export default function InfoDrawer({ conversation, onClose }) {
           <div className="avatar">
             <div className="w-24 rounded-full ring ring-accent ring-offset-base-100 ring-offset-2">
               <PhotoProvider>
-                <PhotoView src={otherUser?.profilePic.url}>
-                  <img src={otherUser?.profilePic.url} alt="profile" />
+                <PhotoView src={user?.profilePic.url}>
+                  <img src={user?.profilePic.url} alt="profile" />
                 </PhotoView>
               </PhotoProvider>
             </div>
           </div>
 
           <div className="text-center">
-            <h3 className="text-xl font-semibold">{otherUser?.fullname}</h3>
-            <p className="text-sm text-base-content/70">{otherUser?.email}</p>
+            <h3 className="text-xl font-semibold">{user?.name}</h3>
           </div>
-        </div>
 
-        {/* Bio */}
-        <div className="p-4 border-b border-base-200">
-          <p className="text-sm text-base-content/70 mb-1">Bio</p>
-          <p className="text-sm">{otherUser?.bio || "No bio added."}</p>
+          <div className="p-3 space-x-3 flex items-center justify-center">
+            <div className="flex text-sm flex-col items-center">
+              <button className="btn btn-circle btn-ghost">
+                <User2Icon className="size-5" />
+              </button>
+              Profile
+            </div>
+            <div className="flex text-sm flex-col items-center">
+              <button className="btn btn-circle btn-ghost">
+                <VideoIcon className="size-5" />
+              </button>
+              Video Call
+            </div>
+          </div>
         </div>
 
         {/* Posts */}
         <div className="p-4 border-b border-base-200">
-          <p className="font-medium mb-2">Posts</p>
-
-          <div className="grid grid-cols-3 gap-2">
-            {otherUser?.posts?.map((post) => (
-              <PhotoProvider>
-                <PhotoView src={post.image}>
-                  <img
-                    key={post._id}
-                    src={post.image}
-                    alt=""
-                    className="rounded-lg object-cover h-20 w-full"
-                  />
-                </PhotoView>
-              </PhotoProvider>
-            ))}
+          <div className="flex items-center justify-between">
+            <p className="font-medium mb-2">Media images</p>
+            <p>{mediaFiles.length}</p>
           </div>
+
+          {mediaFiles.length > 0 ? (
+            <div className="flex space-x-5">
+              {mediaFiles?.map((file) => (
+                <PhotoProvider>
+                  <PhotoView src={file.image.url}>
+                    <img
+                      src={file.image.url}
+                      alt=""
+                      className="rounded-lg object-cover size-20"
+                    />
+                  </PhotoView>
+                </PhotoProvider>
+              ))}
+            </div>
+          ) : (
+            <button className="btn btn-disabled btn-lg">
+              <CircleSlash2 />
+            </button>
+          )}
         </div>
 
         {/* Delete Chat */}
-        <div className="p-3 mt-auto border-t border-base-300">
+        <div className="p-3 mt-auto">
+          <button
+            className="flex rounded-lg px-7 py-3 text-error gap-3 items-center"
+            onClick={() => handleClearChat()}
+          >
+            <MinusCircle className="size-5" /> Clear Chat
+          </button>
           <button
             onClick={() => handleDeleteChat()}
-            className="flex rounded-lg px-7 py-3 hover:bg-error/30 text-error gap-3 items-center"
+            className="flex rounded-lg px-7 py-3 text-error gap-3 items-center"
           >
-            <Trash2Icon className="size-4" /> Delete Chat
+            <Trash2Icon className="size-5" /> Delete Chat
           </button>
         </div>
       </>

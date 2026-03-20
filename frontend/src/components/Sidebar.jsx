@@ -41,12 +41,7 @@ function Sidebar() {
       id: 1,
       icon: <UsersRoundIcon />,
       label: "New group",
-    },
-    {
-      id: 2,
-      icon: <MessageCirclePlusIcon />,
-      label: "Create Channel",
-    },
+    }
   ];
 
   const existConversationSet = useMemo(() => {

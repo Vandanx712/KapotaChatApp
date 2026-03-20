@@ -144,7 +144,10 @@ export const searchMessages = async(id, params = {})=>{
 }
 
 //post part
-
+export const createPost = async(data)=>{
+  const response = await api.post('/post/',data)
+  return response.data
+}
 
 //location 
 export const getSuggestion = async()=>{
@@ -154,5 +157,10 @@ export const getSuggestion = async()=>{
 
 export const searchLocation = async(query)=>{
   const response = await api.get(`/service/search?query=${query}`)
+  return response.data
+}
+
+export const getPlaceDetail = async(id)=>{
+  const response = await api.get(`/service/detail/${id}`)
   return response.data
 }

@@ -10,7 +10,6 @@ export const getSuggestion = asynchandller(async (req, res) => {
   const url = getGoogleUrl(
     `nearbysearch/json?location=${location.lat},${location.lng}&radius=${radius}`,
   );
-  console.log(url)
   const response = await axios.get(url);
   const resdata = response.data.results
     .filter((p) => p.rating >= 4.2)
@@ -43,8 +42,27 @@ export const searchLocation = asynchandller(async (req, res) => {
   }));
 
   return res.status(200).json({
-    success:true,
-    message:'Fetch search location successfully',
-    results
-  })
+    success: true,
+    message: "Fetch search location successfully",
+    results,
+  });
+});
+
+export const getPlaceDetail = asynchandller(async (req, res) => {
+  const { placeId } = req.params;
+
+  const url = getGoogleUrl(`details/json?place_id=${placeId}`);
+
+  const response = await axios.get(url);
+  const place = response.data.result;
+  return res.status(200).json({
+    success: true,
+    message: "Fetch place detail",
+    detail: {
+      name: place.name,
+      address: place.vicinity,
+      lat: place.geometry.location.lat,
+      lng: place.geometry.location.lng,
+    },
+  });
 });

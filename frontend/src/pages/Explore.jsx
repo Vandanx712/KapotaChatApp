@@ -1,218 +1,238 @@
-﻿import { Compass, Heart, MessageCircle, Search, Users } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { Heart, MapPin, MessageCircle, SendIcon, Users, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
-import { useNavigate } from "react-router-dom";
+import { formatMessageTime } from "../lib/utils";
 
 const EXPLORE_POSTS = [
   {
     id: 1,
-    src: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?q=80&w=900&auto=format&fit=crop",
-    span: "col-span-2 row-span-2",
+    src: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?q=80&w=1200&auto=format&fit=crop",
+    caption: "Golden hour and the city finally slows down.",
+    location: "Park Street, Kolkata",
     likes: "3.2k",
     comments: "180",
+    authorName: "Ava",
+    authorAvatar:
+      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=300&auto=format&fit=crop",
   },
   {
     id: 2,
-    src: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=900&auto=format&fit=crop",
-    span: "col-span-1 row-span-1",
+    src: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop",
+    caption: "Found a quiet ridge with the loudest view.",
+    location: "Darjeeling Hills",
     likes: "1.1k",
     comments: "64",
+    authorName: "Mason",
+    authorAvatar:
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=300&auto=format&fit=crop",
   },
   {
     id: 3,
-    src: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=900&auto=format&fit=crop",
-    span: "col-span-1 row-span-2",
+    src: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=1200&auto=format&fit=crop",
+    caption: "Work table chaos, but in a satisfying way.",
+    location: "Salt Lake Sector V",
     likes: "2.8k",
     comments: "142",
+    authorName: "Noah",
+    authorAvatar:
+      "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=300&auto=format&fit=crop",
   },
   {
     id: 4,
-    src: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=900&auto=format&fit=crop",
-    span: "col-span-1 row-span-1",
+    src: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=1200&auto=format&fit=crop",
+    caption: "A little road, a lot of green, zero urgency.",
+    location: "Munnar Route",
     likes: "980",
     comments: "41",
+    authorName: "Sofia",
+    authorAvatar:
+      "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=300&auto=format&fit=crop",
   },
   {
     id: 5,
-    src: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=900&auto=format&fit=crop",
-    span: "col-span-2 row-span-1",
+    src: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=1200&auto=format&fit=crop",
+    caption: "The kind of sky that makes you put the phone down.",
+    location: "Shillong Viewpoint",
     likes: "1.7k",
     comments: "95",
+    authorName: "Liam",
+    authorAvatar:
+      "https://images.unsplash.com/photo-1504593811423-6dd665756598?q=80&w=300&auto=format&fit=crop",
   },
   {
     id: 6,
-    src: "https://images.unsplash.com/photo-1491553895911-0055eca6402d?q=80&w=900&auto=format&fit=crop",
-    span: "col-span-1 row-span-1",
+    src: "https://images.unsplash.com/photo-1491553895911-0055eca6402d?q=80&w=1200&auto=format&fit=crop",
+    caption: "Street color, sneakers, and way too much energy.",
+    location: "Bandra, Mumbai",
     likes: "780",
     comments: "33",
-  },
-  {
-    id: 7,
-    src: "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?q=80&w=900&auto=format&fit=crop",
-    span: "col-span-1 row-span-2",
-    likes: "2.1k",
-    comments: "128",
-  },
-  {
-    id: 8,
-    src: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=900&auto=format&fit=crop",
-    span: "col-span-1 row-span-1",
-    likes: "620",
-    comments: "24",
-  },
-  {
-    id: 9,
-    src: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=900&auto=format&fit=crop",
-    span: "col-span-2 row-span-2",
-    likes: "3.9k",
-    comments: "220",
+    authorName: "Emma",
+    authorAvatar:
+      "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?q=80&w=300&auto=format&fit=crop",
   },
 ];
 
+const INITIAL_VISIBLE_POSTS = 4;
+const POSTS_PER_BATCH = 2;
+
 function Explore() {
-  const { getSurroundingUsers, users, creteConversation } = useChatStore();
-  const { onlineUsers } = useAuthStore();
+  const { creteConversation } = useChatStore();
+  const { authUser, onlineUsers } = useAuthStore();
   const navigate = useNavigate();
 
+  const feedRef = useRef(null);
+  const loadMoreRef = useRef(null);
+
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_POSTS);
+  const [isNearbyModalOpen, setIsNearbyModalOpen] = useState(false);
+
   useEffect(() => {
-    getSurroundingUsers();
-  }, [getSurroundingUsers]);
+    if (!isNearbyModalOpen) return;
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setIsNearbyModalOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isNearbyModalOpen]);
 
   const onlineUsersSet = useMemo(() => new Set(onlineUsers), [onlineUsers]);
-  const onlineNearby = users.filter((user) => onlineUsersSet.has(user._id));
 
-  const handleChatClick = (id) => {
-    creteConversation(id);
-    navigate("/");
-  };
+  const reelPosts = useMemo(() => {
+    return EXPLORE_POSTS.map((post, index) => {
+      return {
+        ...post,
+        authorAvatar: authUser?.profilePic?.url || post.authorAvatar,
+      };
+    });
+  }, [authUser?.profilePic?.url, onlineUsersSet]);
+
+  useEffect(() => {
+    const root = feedRef.current;
+    const target = loadMoreRef.current;
+
+    if (!root || !target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+
+        setVisibleCount((current) =>
+          Math.min(current + POSTS_PER_BATCH, reelPosts.length),
+        );
+      },
+      {
+        root,
+        rootMargin: "240px 0px",
+        threshold: 0.2,
+      },
+    );
+
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, [reelPosts.length]);
+
+  const visiblePosts = reelPosts.slice(0, visibleCount);
 
   return (
     <div className="min-h-screen bg-base-100 pt-20">
-      <div className="container mx-auto px-4 pb-10">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
-          <main>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h1 className="mt-2 text-2xl font-bold">
-                  Explore nearby posts
-                </h1>
-                <p className="text-base-content/60">
-                  A curated grid inspired by Instagram explore.
-                </p>
-              </div>
-            </div>
+      <div
+        ref={feedRef}
+        className="h-[calc(100vh-5rem)] overflow-y-auto snap-y snap-mandatory no-scrollbar"
+      >
+        {visiblePosts.map((post, index) => (
+          <section
+            key={post.id}
+            className="flex min-h-[calc(100vh-5rem)] snap-start items-start justify-center px-4 py-4 sm:items-center sm:py-6"
+          >
+            <article
+              className="inline-flex max-w-full flex-col"
+              style={{ maxWidth: "min(92vw, 560px)" }}
+            >
+              <div className="mb-3 flex items-center space-x-3">
+                <div className="avatar relative">
+                  <div className="w-10 rounded-full">
+                    <img src={post.authorAvatar} alt={post.authorName} />
+                  </div>
+                  {post.isOnline && (
+                    <span className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-base-100 bg-green-500" />
+                  )}
+                </div>
 
-            <div className="mt-6 grid grid-cols-3 auto-rows-[110px] gap-2 sm:auto-rows-[140px] sm:gap-3 md:auto-rows-[170px] lg:auto-rows-[200px]">
-              {EXPLORE_POSTS.map((post) => (
-                <div
-                  key={post.id}
-                  className={`group relative overflow-hidden rounded-xl bg-base-200 ${post.span}`}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">
+                    {post.authorName}
+                  </p>
+                  <div className="flex items-start gap-1 text-xs text-base-content/60">
+                    <MapPin className="mt-0.5 size-3.5 shrink-0" />
+                    <span className="break-words">{post.location}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary btn-outline"
                 >
-                  <img
-                    src={post.src}
-                    alt="Explore post"
-                    className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition group-hover:opacity-100">
-                    <div className="flex items-center gap-4 text-sm font-semibold text-white">
-                      <div className="flex items-center gap-1 cursor-pointer">
-                        <Heart className="size-4" />
-                        {post.likes}
-                      </div>
-                      <div className="flex items-center gap-1 cursor-pointer">
-                        <MessageCircle className="size-4" />
-                        {post.comments}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </main>
+                  Chat
+                </button>
+              </div>
 
-          <aside className="space-y-4 lg:sticky lg:top-24">
-            <div className="card border border-base-300 bg-base-200/40">
-              <div className="card-body gap-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Users className="size-4 text-primary" />
-                    <h2 className="font-semibold">Surrounding Users</h2>
-                  </div>
-                  <div className="badge badge-primary">
-                    {onlineNearby.length} online
-                  </div>
-                </div>
-                <label className="input input-bordered flex items-center gap-2">
-                  <Search className="size-4" />
-                  <input
-                    type="text"
-                    placeholder="Search posts"
-                    className="w-full bg-transparent"
-                  />
-                </label>
+              <div className="overflow-hidden">
+                <img
+                  src={post.src}
+                  alt={post.caption}
+                  loading={index < 2 ? "eager" : "lazy"}
+                  className="block h-auto w-auto max-h-[calc(100vh-17rem)] max-w-full object-contain sm:max-h-[calc(100vh-15rem)]"
+                  style={{ maxWidth: "min(92vw, 560px)" }}
+                />
+              </div>
 
-                {onlineNearby.length > 0 && (
-                  <div className="flex gap-3 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
-                    {onlineNearby.map((user) => (
-                      <div
-                        key={`online-${user._id}`}
-                        className="flex min-w-[220px] items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-2 lg:min-w-0"
-                      >
-                        <div className="avatar relative">
-                          <div className="w-10 rounded-full bg-base-300">
-                            <img
-                              src={user.profilePic?.url}
-                              alt={user.fullname}
-                            />
-                          </div>
-                          <span className="absolute bottom-0 right-0 size-2 rounded-full bg-green-500" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {user.fullname}
-                          </p>
-                          <p className="text-xs text-base-content/60">Online</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  {users.map((user) => (
-                    <div
-                      key={user._id}
-                      className="flex items-center gap-3 rounded-lg border border-base-300 bg-base-100 p-3"
+              <div className="mt-3 flex items-start justify-between gap-4">
+                <div className="min-w-0 flex flex-col space-y-2">
+                  <div className="flex shrink-0 items-center gap-4">
+                    <button
+                      type="button"
+                      className="text-base-content transition-colors hover:text-primary"
                     >
-                      <div className="avatar relative">
-                        <div className="w-11 rounded-full bg-base-300">
-                          <img src={user.profilePic?.url} alt={user.fullname} />
-                        </div>
-                        {onlineUsersSet.has(user._id) && (
-                          <span className="absolute bottom-0 right-0 size-2 rounded-full bg-green-500" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold">
-                          {user.fullname}
-                        </p>
-                        <p className="truncate text-xs text-base-content/60">
-                          {user.bio || "Available to connect"}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleChatClick(user._id)}
-                        className="btn btn-xs btn-primary btn-outline"
-                      >
-                        Chat
-                      </button>
-                    </div>
-                  ))}
+                      <Heart className="size-5" />
+                      <span className="mt-1 block text-xs">{post.likes}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="text-base-content transition-colors hover:text-primary"
+                    >
+                      <SendIcon className="size-5" />
+                      <span className="mt-1 block text-xs">
+                        {post.comments}
+                      </span>
+                    </button>
+                  </div>
+                  <p className="text-sm leading-6 break-words">
+                    <span className="mr-2 font-semibold">
+                      {post.authorName}
+                    </span>
+                    {post.caption}
+                    <time className="flex gap-2 items-center text-sm opacity-50">
+                      {formatMessageTime(Date.now())}
+                    </time>
+                  </p>
                 </div>
               </div>
-            </div>
-          </aside>
+            </article>
+          </section>
+        ))}
+
+        <div
+          ref={loadMoreRef}
+          className="flex h-10 items-center justify-center text-xs text-base-content/40"
+        >
+          {visibleCount < reelPosts.length ? "Loading more..." : ""}
         </div>
       </div>
     </div>

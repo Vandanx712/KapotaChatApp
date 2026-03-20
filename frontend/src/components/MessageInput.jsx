@@ -20,10 +20,10 @@ function MessageInput() {
       return;
     }
     const reader = new FileReader();
+    reader.readAsDataURL(file);
     reader.onloadend = () => {
       setImagePreview(reader.result);
     };
-    reader.readAsDataURL(file);
   };
 
   const removeimage = () => {
