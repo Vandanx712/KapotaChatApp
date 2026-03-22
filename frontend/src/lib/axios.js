@@ -164,6 +164,11 @@ export const deletePost = async(id)=>{
   return response.data
 }
 
+export const postFeed = async(cursor)=>{
+  const response = await api.get(`/post/feed?cursor=${cursor||""}`)
+  return response.data
+}
+
 //location 
 export const getSuggestion = async()=>{
   const response = await api.get('/service/get/places')

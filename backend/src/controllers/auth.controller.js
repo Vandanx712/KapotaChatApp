@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import { generateToken } from "../lib/tonken.js";
 import { getAvatars } from "../lib/cloudinary.js";
 import { StoragePath } from "../util/filepath.js";
+import { reverseGeocoding } from "./service.controller.js";
 
 export const signup = asynchandller(async (req, res) => {
   const { fullname, email, password, gender,location } = req.body;
@@ -28,6 +29,8 @@ export const signup = asynchandller(async (req, res) => {
   const genderImages = await getAvatars(path);
   const index = Math.floor(Math.random() * genderImages.length);
 
+  const locName = await reverseGeocoding(location)
+
   const newuser = await User.create({
     fullname,
     email,
@@ -35,7 +38,11 @@ export const signup = asynchandller(async (req, res) => {
     profilePic: genderImages[index],
     gender: gender,
     bio: "Hello ladies & gentleman! I am using Kapota",
-    location:location
+    location:{
+      name:locName,
+      lat:location.lat,
+      lng:location.lng
+    }
   });
 
   generateToken(newuser._id, res);

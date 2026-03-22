@@ -6,7 +6,8 @@ import { Post } from "../models/post.model.js";
 
 export const createPost = asynchandller(async (req, res) => {
   const user = req.user;
-  const { image, caption, location, hideLikes, disableShare, isArchived } = req.body;
+  const { image, caption, location, hideLikes, disableShare, isArchived } =
+    req.body;
 
   if (!image) {
     throw new ApiError(401, "Image must be required");
@@ -103,11 +104,21 @@ export const userAllPost = asynchandller(async (req, res) => {
 export const postFeed = asynchandller(async (req, res) => {
   const user = req.user;
   const limit = 10;
-  const page = req.query;
+
+  const { cursor } = req.query;
 
   const coordinates = [user.location.lng, user.location.lat];
-  const nearByPosts = await Post.find({
+
+  let baseQuery = {
     isArchived: false,
+  };
+
+  if (cursor) {
+    baseQuery._id = { $lt: cursor };
+  }
+
+  const nearByPosts = await Post.find({
+    ...baseQuery,
     location: {
       $near: {
         $geometry: {
@@ -118,23 +129,36 @@ export const postFeed = asynchandller(async (req, res) => {
       },
     },
   })
+    .sort({ _id: -1 })
+    .limit(limit)
     .populate("user", "fullname profilePic")
-    .lean()
-    .limit(limit);
+    .lean();
 
   const ids = nearByPosts.map((post) => post._id);
 
-  const posts = await Post.find({
-    _id: { $nin: ids },
-    isArchived: false,
-  })
-    .populate("user", "fullname profilePic")
-    .lean()
-    .limit(limit - ids.length);
+  let remaining = limit - nearByPosts.length;
+
+  let globalPosts = [];
+
+  if (remaining > 0) {
+    globalPosts = await Post.find({
+      ...baseQuery,
+      _id: { $nin: ids },
+    })
+      .sort({ _id: -1 })
+      .limit(remaining)
+      .populate("user", "fullname profilePic")
+      .lean();
+  }
+
+  const finalPosts = [...nearByPosts, ...globalPosts];
+
+  const nextCursor =
+    finalPosts.length > 0 ? finalPosts[finalPosts.length - 1]._id : null;
 
   return res.status(200).json({
     success: true,
-    message: "Fetch post successfully",
-    posts: [...nearByPosts, ...posts],
+    posts: finalPosts,
+    nextCursor,
   });
 });

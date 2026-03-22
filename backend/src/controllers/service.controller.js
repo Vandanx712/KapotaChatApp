@@ -8,7 +8,7 @@ export const getSuggestion = asynchandller(async (req, res) => {
   const radius = process.env.RADIUS;
 
   const url = getGoogleUrl(
-    `nearbysearch/json?location=${location.lat},${location.lng}&radius=${radius}`,
+    `place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${radius}`,
   );
   const response = await axios.get(url);
   const resdata = response.data.results
@@ -33,7 +33,7 @@ export const getSuggestion = asynchandller(async (req, res) => {
 export const searchLocation = asynchandller(async (req, res) => {
   const { query } = req.query;
 
-  const url = getGoogleUrl(`autocomplete/json?input=${query}`);
+  const url = getGoogleUrl(`place/autocomplete/json?input=${query}`);
   const response = await axios.get(url);
 
   const results = response.data.predictions.map((item) => ({
@@ -51,7 +51,7 @@ export const searchLocation = asynchandller(async (req, res) => {
 export const getPlaceDetail = asynchandller(async (req, res) => {
   const { placeId } = req.params;
 
-  const url = getGoogleUrl(`details/json?place_id=${placeId}`);
+  const url = getGoogleUrl(`place/details/json?place_id=${placeId}`);
 
   const response = await axios.get(url);
   const place = response.data.result;
@@ -65,4 +65,26 @@ export const getPlaceDetail = asynchandller(async (req, res) => {
       lng: place.geometry.location.lng,
     },
   });
+});
+
+export const reverseGeocoding = asynchandller(async (location) => {
+  const url = getGoogleUrl(
+    `geocode/json?latlng=${location.lat},${location.lng}`,
+  );
+
+  const response = await axios.get(url);
+  const resdata = response.data.results[0];
+  let area = "";
+  let city = "";
+
+  resdata.address_components.forEach((c) => {
+    if (c.types.includes("sublocality")) {
+      area = c.long_name;
+    }
+    if (c.types.includes("locality")) {
+      city = c.long_name;
+    }
+  });
+
+  return `${area}, ${city}`;
 });

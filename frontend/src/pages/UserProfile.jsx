@@ -190,7 +190,7 @@ function UserProfile() {
                   {user.location?.lat != null && user.location?.lng != null && (
                     <div className="inline-flex items-center gap-2 rounded-full bg-base-200/70 px-4 py-2">
                       <MapPin className="size-4" />
-                      Nearby user
+                      {user.location.name}
                     </div>
                   )}
                   <div className="inline-flex items-center gap-2 rounded-full bg-base-200/70 px-4 py-2">
