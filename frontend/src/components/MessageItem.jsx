@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { formatMessageTime } from "../lib/utils";
 import {
   Check,
@@ -7,6 +7,7 @@ import {
   Edit2,
   EllipsisVerticalIcon,
   LucideInfo,
+  MapPin,
   SmileIcon,
   Trash2Icon,
   X,
@@ -14,6 +15,7 @@ import {
 import { PhotoProvider, PhotoView } from "react-photo-view";
 import "react-photo-view/dist/react-photo-view.css";
 import EmojiPicker from "emoji-picker-react";
+import { useNavigate } from "react-router-dom";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
 import toast from "react-hot-toast";
@@ -29,22 +31,24 @@ const MessageItem = memo(
     const [info, setInfo] = useState(false);
 
     const { socket } = useAuthStore();
-  const { setReactedMsg, messageDelete } = useChatStore();
-  const [openUp, setOpenUp] = useState(false);
-  const [showActions, setShowActions] = useState(false);
-  const dropdownRef = useRef(null);
-  const isHighlighted = highlightId && m?._id === highlightId;
+    const navigate = useNavigate();
+    const { setReactedMsg, messageDelete } = useChatStore();
+    const [openUp, setOpenUp] = useState(false);
+    const [showActions, setShowActions] = useState(false);
+    const dropdownRef = useRef(null);
+    const isHighlighted = highlightId && m?._id === highlightId;
+    const isSharedPost = Boolean(m?.post?._id);
 
-  if (m?.system) {
-    if (m?.deletedFor?.includes(authUser._id)) return null;
-    return (
-      <div className="px-4 flex justify-center m-2">
-        <div className="chat-bubble chat-bubble-neutral text-xs sm:text-sm">
-          {m.text}
+    if (m?.system) {
+      if (m?.deletedFor?.includes(authUser._id)) return null;
+      return (
+        <div className="px-4 flex justify-center m-2">
+          <div className="chat-bubble chat-bubble-neutral text-xs sm:text-sm">
+            {m.text}
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
     const modalRef = useRef(null);
 
@@ -144,8 +148,12 @@ const MessageItem = memo(
       (!selectedConversation.isgroup &&
         m.sender === authUser._id &&
         !m.isSeen &&
-        updatefor) ||
-      (selectedConversation.isgroup && myrole !== "member" && updatefor);
+        updatefor &&
+        !isSharedPost) ||
+      (selectedConversation.isgroup &&
+        myrole !== "member" &&
+        updatefor &&
+        !isSharedPost);
 
     useEffect(() => {
       socket.on("reacted", (msg) => {
@@ -186,6 +194,17 @@ const MessageItem = memo(
       });
       setDeleting(false);
     };
+
+    const handleOpenSharedPost = () => {
+      if (!m?.post?._id) return;
+
+      navigate(`/post/${m.post._id}`, {
+        state: {
+          sharedPost:true,
+        },
+      });
+    };
+
     return (
       <div
         className={`px-4 chat ${isSentByMe ? "chat-end" : "chat-start"} ${m?.deletedFor?.includes(authUser._id) ? "hidden" : ""}`}
@@ -222,7 +241,35 @@ const MessageItem = memo(
               </PhotoView>
             </PhotoProvider>
           )}
-          {m.text && (
+          {isSharedPost && !m.deletedForEveryone && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenSharedPost();
+              }}
+              className="mb-2 overflow-hidden rounded-xl bg-base-100 text-left text-base-content transition hover:opacity-95"
+            >
+              {m.post?.image?.url && (
+                <img
+                  src={m.post.image.url}
+                  alt={m.post.caption || "Shared post"}
+                  className="max-h-64 w-full object-cover"
+                />
+              )}
+
+              <div className="space-y-2 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/55">
+                  {m.text || "Send a post"}
+                </p>
+
+                <p className="text-xs font-medium text-primary">
+                  Tap to open post
+                </p>
+              </div>
+            </button>
+          )}
+          {m.text && (!isSharedPost || m.deletedForEveryone) && (
             <p>
               {m.deletedForEveryone
                 ? authUser._id == m.sender

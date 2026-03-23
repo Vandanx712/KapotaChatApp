@@ -56,7 +56,8 @@ export const signup = asynchandller(async (req, res) => {
       profilePic: newuser.profilePic,
       bio: newuser.bio,
       gender:newuser.gender,
-      location:newuser.location
+      location:newuser.location,
+      createdAt:newuser.createdAt
     },
   });
 });
@@ -84,7 +85,8 @@ export const login = asynchandller(async (req, res) => {
       profilePic: user.profilePic,
       bio: user.bio,
       gender:user.gender,
-      location:newuser.location
+      location:user.location,
+      createdAt:user.createdAt
     },
   });
 });

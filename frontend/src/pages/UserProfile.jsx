@@ -221,24 +221,17 @@ function UserProfile() {
                   const postImage = getPostImage(post);
 
                   return (
-                    <PhotoView key={post._id} src={postImage}>
-                      <button
-                        type="button"
-                        className="group relative aspect-square overflow-hidden rounded-[1.5rem] bg-base-200 text-left"
-                      >
-                        <img
-                          src={postImage}
-                          alt={post.caption || "Post"}
-                          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/0 to-transparent opacity-0 transition duration-300 group-hover:opacity-100" />
-                        <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 transition duration-300 group-hover:opacity-100">
-                          <p className="max-h-10 overflow-hidden text-sm text-white">
-                            {post.caption || "No caption"}
-                          </p>
-                        </div>
-                      </button>
-                    </PhotoView>
+                    <button
+                      type="button"
+                      onClick={()=>navigate(`/post/${post._id}`)}
+                      className="aspect-square overflow-hidden bg-base-200 text-left"
+                    >
+                      <img
+                        src={postImage}
+                        alt={post.caption || "Post"}
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
                   );
                 })}
               </div>

@@ -169,6 +169,16 @@ export const postFeed = async(cursor)=>{
   return response.data
 }
 
+export const getPostDetail = async(id)=>{
+  const response = await api.get(`/post/detail/${id}`)
+  return response.data
+}
+
+export const postLiked = async(id)=>{
+  const response = await api.put(`/post/${id}`)
+  return response.data
+}
+
 //location 
 export const getSuggestion = async()=>{
   const response = await api.get('/service/get/places')

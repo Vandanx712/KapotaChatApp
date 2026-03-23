@@ -177,7 +177,7 @@ function Profile() {
             <p className="text-sm text-zinc-400">
               {isUpdateProfile
                 ? "Uploading..."
-                : "Click the camera icon to update your photo"}
+                : "Click the edit icon to update your photo"}
             </p>
           </div>
 

@@ -1,5 +1,5 @@
 import {
-  Check,
+  ArrowLeft,
   Heart,
   Loader2,
   MapPin,
@@ -7,27 +7,26 @@ import {
   SendIcon,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useChatStore } from "../store/useChatStore";
-import { useAuthStore } from "../store/useAuthStore";
-import { formatMessageTime } from "../lib/utils";
-import { postFeed, postLiked, sendMessage } from "../lib/axios";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { PhotoProvider, PhotoView } from "react-photo-view";
 import toast from "react-hot-toast";
+import "react-photo-view/dist/react-photo-view.css";
+import { getPostDetail, postLiked } from "../lib/axios";
+import { formatMessageTime } from "../lib/utils";
+import { useChatStore } from "../store/useChatStore";
 
-function Explore() {
-  const ref = useRef({});
-  const loadMoreRef = useRef(null);
-  const joinedPostsRef = useRef(new Set());
-
-  const { socket } = useAuthStore();
+function PostDetail() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { id } = useParams();
   const { conversations, getConversation } = useChatStore();
+  const sharedPost = location.state?.sharedPost || null;
 
-  const [posts, setPosts] = useState([]);
+  const [post, setPost] = useState({});
   const [loading, setLoading] = useState(false);
-  const [cursor, setCursor] = useState(null);
-  const [isNearbyModalOpen, setIsNearbyModalOpen] = useState(false);
-  const [visiblePostIds, setVisiblePostIds] = useState(new Set());
+  const [likeLoading, setLikeLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [sharePost, setSharePost] = useState(null);
   const [shareSearch, setShareSearch] = useState("");
   const [selectedConversationIds, setSelectedConversationIds] = useState([]);
@@ -47,102 +46,34 @@ function Explore() {
   }, [conversations, shareSearch]);
 
   useEffect(() => {
-    if (!isNearbyModalOpen) return;
+    let active = true;
 
-    const handleEscape = (event) => {
-      if (event.key === "Escape") {
-        setIsNearbyModalOpen(false);
+    const loadPost = async () => {
+      try {
+        setLoading(true);
+        setLoadError("");
+        const response = await getPostDetail(id);
+        if (!active) return;
+        setPost(response.post);
+      } catch (error) {
+        if (!active) return;
+        const message =
+          error.response?.data?.message || "Failed to load shared post";
+        setLoadError(message);
+        toast.error(message);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
       }
     };
 
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [isNearbyModalOpen]);
+    loadPost();
 
-  useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        loadPosts();
-      }
-    });
-
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, [cursor]);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        setVisiblePostIds((prev) => {
-          const updated = new Set(prev);
-
-          entries.forEach((entry) => {
-            const id = entry.target.dataset.id;
-
-            if (entry.isIntersecting) {
-              updated.add(id);
-            } else {
-              updated.delete(id);
-            }
-          });
-
-          return updated;
-        });
-      },
-      { threshold: 0.5 },
-    );
-
-    Object.values(ref.current).forEach((el) => {
-      if (el) observer.observe(el);
-    });
-
-    return () => observer.disconnect();
-  }, [posts]);
-
-  useEffect(() => {
-    if (!socket) return;
-
-    visiblePostIds.forEach((id) => {
-      if (!joinedPostsRef.current.has(id)) {
-        socket.emit("joinPost", id);
-        joinedPostsRef.current.add(id);
-      }
-    });
-
-    joinedPostsRef.current.forEach((id) => {
-      if (!visiblePostIds.has(id)) {
-        socket.emit("leavePost", id);
-        joinedPostsRef.current.delete(id);
-      }
-    });
-  }, [visiblePostIds, socket]);
-
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleLikeUpdate = ({ postId, likesCountChange }) => {
-      if (!visiblePostIds.has(postId)) return;
-
-      setPosts((prev) =>
-        prev.map((post) =>
-          post._id === postId
-            ? {
-                ...post,
-                isLiked: likesCountChange == -1 ? false : true,
-                likesCount: post.likesCount + likesCountChange,
-              }
-            : post,
-        ),
-      );
+    return () => {
+      active = false;
     };
-
-    socket.on("postLiked", handleLikeUpdate);
-
-    return () => socket.off("postLiked", handleLikeUpdate);
-  }, [socket, visiblePostIds]);
+  }, [id]);
 
   useEffect(() => {
     if (sharePost && conversations.length === 0) {
@@ -150,27 +81,26 @@ function Explore() {
     }
   }, [sharePost, conversations.length, getConversation]);
 
-  const loadPosts = async () => {
-    if (loading) return;
-    setLoading(true);
-    try {
-      const resdata = await postFeed(cursor);
+  const handleLike = async () => {
+    if (!post?._id || likeLoading) return;
 
-      setPosts((prev) => [...prev, ...resdata.posts]);
-      setCursor(resdata.nextCursor);
+    try {
+      setLikeLoading(true);
+      const response = await postLiked(post._id);
+
+      setPost((prev) =>
+        prev
+          ? {
+              ...prev,
+              isLiked: response.liked,
+              likesCount: prev.likesCount + (response.liked ? 1 : -1),
+            }
+          : prev,
+      );
     } catch (error) {
-      console.log(error);
+      toast.error(error.response?.data?.message || "Failed to like post");
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLike = async (id) => {
-    try {
-      await postLiked(id);
-    } catch (error) {
-      console.log(error);
-      toast.error(error.response.data?.message);
+      setLikeLoading(false);
     }
   };
 
@@ -217,33 +147,6 @@ function Explore() {
       ),
     );
 
-    // const successCount = results.filter(
-    //   (result) => result.status === "fulfilled",
-    // ).length;
-    // const failedCount = results.length - successCount;
-
-    // if (successCount > 0) {
-    //   setPosts((prev) =>
-    //     prev.map((post) =>
-    //       post._id === sharePost._id
-    //         ? {
-    //             ...post,
-    //             sharesCount: (post.sharesCount || 0) + successCount,
-    //           }
-    //         : post,
-    //     ),
-    //   );
-    //   toast.success(
-    //     `Post sent to ${successCount} conversation${successCount > 1 ? "s" : ""}`,
-    //   );
-    // }
-
-    // if (failedCount > 0) {
-    //   toast.error(
-    //     `${failedCount} conversation${failedCount > 1 ? "s" : ""} failed`,
-    //   );
-    // }
-
     setSharePost(null);
     setSelectedConversationIds([]);
     setShareSearch("");
@@ -251,110 +154,144 @@ function Explore() {
     setIsSharing(false);
   };
 
+  if (loading && !post) {
+    return (
+      <div className="min-h-screen bg-base-100 pt-20">
+        <div className="flex h-[calc(100vh-5rem)] items-center justify-center">
+          <Loader2 className="size-10 animate-spin text-base-content/50" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!post) {
+    return (
+      <div className="min-h-screen bg-base-100 pt-20">
+        <div className="mx-auto flex h-[calc(100vh-5rem)] max-w-2xl flex-col items-center justify-center px-6 text-center">
+          <h1 className="text-2xl font-semibold">Post unavailable</h1>
+          <p className="mt-3 text-sm leading-6 text-base-content/70">
+            {loadError || "This shared post is no longer available."}
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="btn btn-primary mt-6"
+          >
+            Go back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <PhotoProvider>
       <div className="min-h-screen bg-base-100 pt-20">
-        <div className="h-[calc(100vh-5rem)] overflow-y-auto snap-y snap-mandatory no-scrollbar">
-          {posts.map((post, index) => (
-            <section
-              key={post._id}
-              data-id={post._id}
-              ref={(el) => (ref.current[post._id] = el)}
-              className="flex min-h-[calc(100vh-5rem)] snap-start items-start justify-center px-4 py-4 sm:items-center sm:py-6"
-            >
-              <article
-                className="inline-flex max-w-full flex-col"
-                style={{ maxWidth: "min(92vw, 560px)" }}
+        <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-4xl items-center justify-center px-4 py-6">
+          <article className="w-full max-w-2xl">
+            <div className="mb-4 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="btn btn-circle btn-ghost btn-sm"
               >
-                <div className="mb-3 flex items-center space-x-3">
-                  <div className="avatar relative">
-                    <div className="w-10 rounded-full">
-                      <img
-                        src={post.user?.profilePic?.url}
-                        alt={post.user?.fullname}
-                      />
-                    </div>
-                    {/* {post.isOnline && (
-                      <span className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-base-100 bg-green-500" />
-                    )} */}
-                  </div>
+                <ArrowLeft className="size-5" />
+              </button>
+              <div>
+                <p className="text-lg font-semibold">
+                  {sharedPost ? "Shared Post" : "Post"}
+                </p>
+                <p className="text-sm text-base-content/60">
+                  {sharedPost ? "Opened from chat" : "Opened from profile"}
+                </p>
+              </div>
+            </div>
 
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">
-                      {post.user?.fullname}
-                    </p>
-                    {post.location?.name && (
-                      <div className="flex items-start gap-1 text-xs text-base-content/60">
-                        <MapPin className="mt-0.5 size-3.5 shrink-0" />
-                        <span className="break-words">
-                          {post.location?.name}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="overflow-hidden">
-                  <PhotoView src={post.image?.url}>
+            <div className="rounded-[2rem] border border-base-300 bg-base-100 p-4 shadow-sm sm:p-5">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="avatar">
+                  <div className="w-11 rounded-full">
                     <img
-                      src={post.image?.url}
-                      loading={index < 2 ? "eager" : "lazy"}
-                      className="block h-auto w-auto max-h-[calc(100vh-17rem)] max-w-full object-contain sm:max-h-[calc(100vh-15rem)]"
-                      style={{ maxWidth: "min(92vw, 560px)" }}
+                      src={post.user?.profilePic?.url}
+                      alt={post.user?.fullname}
                     />
-                  </PhotoView>
-                </div>
-
-                <div className="mt-3 flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex flex-col space-y-2">
-                    <div className="flex shrink-0 items-center gap-4">
-                      <button
-                        type="button"
-                        onClick={() => handleLike(post._id)}
-                        className="text-base-content transition-colors hover:text-primary"
-                      >
-                        <Heart
-                          className={`size-5 ${post.isLiked ? "fill-red-700" : "fill-transparent"}`}
-                        />
-                        <span className="mt-1 block text-xs">
-                          {post.hideLike ? "Likes" : post.likesCount}
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleOpenShareModal(post)}
-                        disabled={post.disableShare}
-                        className="text-base-content transition-colors hover:text-primary"
-                      >
-                        <SendIcon className="size-5" />
-                        <span className="mt-1 block text-xs">
-                          {post.disableShare ? "Send" : post.sharesCount}
-                        </span>
-                      </button>
-                    </div>
-                    <p className="text-sm leading-6 break-words">
-                      {post.caption && (
-                        <span className="mr-2 font-bold">
-                          {post.user?.fullname}
-                        </span>
-                      )}
-                      <span className="font-normal">{post.caption}</span>
-                      <time className="flex gap-2 items-center text-sm opacity-50">
-                        {formatMessageTime(post.createdAt)}
-                      </time>
-                    </p>
                   </div>
                 </div>
-              </article>
-            </section>
-          ))}
 
-          <div ref={loadMoreRef} className=" flex justify-center">
-            {loading && <Loader2 className="size-12 wanimate-spin" />}
-          </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">
+                    {post.user?.fullname}
+                  </p>
+                  {post.location?.name && (
+                    <div className="flex items-start gap-1 text-xs text-base-content/60">
+                      <MapPin className="mt-0.5 size-3.5 shrink-0" />
+                      <span className="break-words">{post.location.name}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-[1.5rem] bg-base-200">
+                <PhotoView src={post.image?.url}>
+                  <img
+                    src={post.image?.url}
+                    alt={post.caption || "Shared post"}
+                    className="block max-h-[70vh] w-full object-contain"
+                  />
+                </PhotoView>
+              </div>
+
+              <div className="mt-4 flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex shrink-0 items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => handleLike}
+                      className="text-base-content transition-colors hover:text-primary"
+                    >
+                      <Heart
+                        className={`size-5 ${post.isLiked ? "fill-red-700" : "fill-transparent"}`}
+                      />
+                      <span className="mt-1 block text-xs">
+                        {post.hideLike ? "Likes" : post.likesCount}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenShareModal(post)}
+                      disabled={post.disableShare}
+                      className="text-base-content transition-colors hover:text-primary"
+                    >
+                      <SendIcon className="size-5" />
+                      <span className="mt-1 block text-xs">
+                        {post.disableShare ? "Send" : post.sharesCount}
+                      </span>
+                    </button>
+                  </div>
+                  <p className="text-sm leading-6 break-words">
+                    {post.caption && (
+                      <span className="mr-2 font-bold">
+                        {post.user?.fullname}
+                      </span>
+                    )}
+                    <span>{post.caption}</span>
+                  </p>
+
+                  <time className="block text-sm opacity-50">
+                    {formatMessageTime(post.createdAt)}
+                  </time>
+
+                  {loadError && (
+                    <p className="text-xs text-warning">
+                      Live post refresh failed. Showing available preview data.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </article>
         </div>
-
         {sharePost && (
           <div className="modal modal-open">
             <div className="modal-box max-w-xl">
@@ -521,4 +458,4 @@ function Explore() {
   );
 }
 
-export default Explore;
+export default PostDetail;

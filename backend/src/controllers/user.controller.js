@@ -4,6 +4,7 @@ import { StoragePath } from "../util/filepath.js";
 import { deleteImage, getAvatars, uploadChatPic } from "../lib/cloudinary.js";
 import { User } from "../models/user.model.js";
 import { Post } from "../models/post.model.js";
+import { Like } from "../models/like.model.js";
 
 //getall predefind avatars
 export const getPreAvatars = asynchandller(async (req, res) => {
@@ -90,23 +91,36 @@ export const getallUsers = asynchandller(async (req, res) => {
   });
 });
 
-export const getUserById = asynchandller(async(req,res)=>{
-  const {id} = req.params
+export const getUserById = asynchandller(async (req, res) => {
+  const { id } = req.params;
+  const { _id } = req.user;
 
-  if(!id) throw new ApiError(401,'Missing field')
+  if (!id) throw new ApiError(401, "Missing field");
 
-  const user = await User.findById(id).select('-password').lean()
-  if(!user) throw new ApiError(400,'User not found')
-  const posts = await Post.find({ user: id, isArchived: false })
+  const user = await User.findById(id).select("-password").lean();
+  if (!user) throw new ApiError(400, "User not found");
+  const userposts = await Post.find({ user: user._id, isArchived: false })
     .sort({ createdAt: -1 })
-    .lean()
+    .lean();
+
+  const userpostIds = userposts.map((p) => p._id);
+  const likedPosts = await Like.find({
+    user: _id,
+    post: { $in: userpostIds },
+  }).lean();
+  const likedPostIds = new Set(likedPosts.map((l) => l.post.toString()));
+
+  const finalPosts = userposts.map((post) => ({
+    ...post,
+    isLiked: likedPostIds.has(post._id.toString()),
+  }));
 
   return res.status(200).json({
-    success:true,
-    message:'Fetch detail successfully',
+    success: true,
+    message: "Fetch detail successfully",
     user: {
       ...user,
-      posts,
-    }
-  })
-})
+      posts: finalPosts,
+    },
+  });
+});

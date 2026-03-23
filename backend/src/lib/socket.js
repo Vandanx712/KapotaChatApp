@@ -23,6 +23,14 @@ io.on("connection", async (socket) => {
   if (userId) userSocketMap[userId] = socket.id;
   // io.emit() is used to send events to all connected clients
 
+  socket.on("joinPost", (postId) => {
+    socket.join(postId);
+  });
+
+  socket.on("leavePost", (postId) => {
+    socket.leave(postId);
+  });
+
   io.emit("getonlineusers", Object.keys(userSocketMap));
   if (userId) {
     const conversations = await Conversation.find({
@@ -37,11 +45,11 @@ io.on("connection", async (socket) => {
 
   //message part
   socket.on("istyping", ({ receiverId }) => {
-    io.to(receiverId).emit("istyping", {userId,receiverId});
+    io.to(receiverId).emit("istyping", { userId, receiverId });
   });
 
   socket.on("StopTyping", ({ receiverId }) => {
-    io.to(receiverId).emit("StopTyping", {userId,receiverId});
+    io.to(receiverId).emit("StopTyping", { userId, receiverId });
   });
 
   socket.on("msgseen", async ({ msgId, senderId }) => {

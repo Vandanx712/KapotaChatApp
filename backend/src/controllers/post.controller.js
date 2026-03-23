@@ -3,6 +3,8 @@ import { ApiError } from "../util/apierror.js";
 import { StoragePath } from "../util/filepath.js";
 import { uploadChatPic } from "../lib/cloudinary.js";
 import { Post } from "../models/post.model.js";
+import { Like } from "../models/like.model.js";
+import { io } from "../lib/socket.js";
 
 export const createPost = asynchandller(async (req, res) => {
   const user = req.user;
@@ -111,6 +113,7 @@ export const postFeed = asynchandller(async (req, res) => {
 
   let baseQuery = {
     isArchived: false,
+    user: { $ne: user._id },
   };
 
   if (cursor) {
@@ -151,14 +154,87 @@ export const postFeed = asynchandller(async (req, res) => {
       .lean();
   }
 
-  const finalPosts = [...nearByPosts, ...globalPosts];
+  const posts = [...nearByPosts, ...globalPosts];
+  const finalids = posts.map((p) => p._id);
 
-  const nextCursor =
-    finalPosts.length > 0 ? finalPosts[finalPosts.length - 1]._id : null;
+  const likedPosts = await Like.find({
+    user: user._id,
+    post: { $in: finalids },
+  }).lean();
+  const likedPostIds = new Set(likedPosts.map((l) => l.post.toString()));
+
+  const finalPosts = posts.map((post) => ({
+    ...post,
+    isLiked: likedPostIds.has(post._id.toString()),
+  }));
+
+  const nextCursor = posts.length > 0 ? posts[posts.length - 1]._id : null;
 
   return res.status(200).json({
     success: true,
     posts: finalPosts,
     nextCursor,
+  });
+});
+
+export const postLiked = asynchandller(async (req, res) => {
+  const { id } = req.params;
+  const { _id } = req.user;
+  if (!id) throw new ApiError(401, "Select one post");
+
+  const existing = await Like.findOne({
+    user: _id,
+    post: id,
+  });
+
+  if (existing) {
+    await Like.deleteOne({ _id: existing._id });
+    await Post.findByIdAndUpdate(id, { $inc: { likesCount: -1 } });
+    return res.status(200).json({ liked: false });
+  }
+
+  await Like.create({
+    user: _id,
+    post: id,
+  });
+
+  await Post.findByIdAndUpdate(id, { $inc: { likesCount: 1 } });
+
+  io.to(id).emit("postLiked", {
+    id,
+    likesCountChange: existing ? -1 : 1,
+  });
+
+  return res.status(200).json({
+    liked: true,
+  });
+});
+
+export const getPostDetail = asynchandller(async (req, res) => {
+  const { id } = req.params;
+  const { _id } = req.user;
+
+  if (!id) throw new ApiError(401, "Select one post");
+
+  const post = await Post.findOne({
+    _id: id,
+    isArchived: false,
+  })
+    .populate("user", "fullname profilePic")
+    .lean();
+
+  if (!post) throw new ApiError(404, "Post not found");
+
+  const likedPost = await Like.findOne({
+    user: _id,
+    post: id,
+  }).lean();
+
+  return res.status(200).json({
+    success: true,
+    post: {
+      ...post,
+      isLiked: Boolean(likedPost),
+    },
   });
 });

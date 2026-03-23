@@ -30,6 +30,10 @@ const messageSchema = new mongoose.Schema(
     image: {
       type: mongoose.Schema.Types.Mixed,
     },
+    post: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
     reacted: {
       type: String,
     },

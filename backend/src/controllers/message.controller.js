@@ -1,6 +1,7 @@
 import { deleteImage, uploadChatPic } from "../lib/cloudinary.js";
 import { Conversation } from "../models/conversation.model.js";
 import { Message } from "../models/message.model.js";
+import { Post } from "../models/post.model.js";
 import { ApiError } from "../util/apierror.js";
 import { asynchandller } from "../util/asynchandller.js";
 import { StoragePath } from "../util/filepath.js";
@@ -53,7 +54,7 @@ export const searchMessages = asynchandller(async (req, res) => {
 
 export const sendMessage = asynchandller(async (req, res) => {
   const { id } = req.params;
-  const { text, image } = req.body;
+  const { text, image, postId } = req.body;
   const senderId = req.user._id;
 
   if (!id) throw new ApiError(401, "Select Conversation");
@@ -62,6 +63,7 @@ export const sendMessage = asynchandller(async (req, res) => {
   if (!conversation) throw new ApiError(400, "Conversation not found");
 
   let messageimage;
+  let sharedPost = null;
 
   if (image) {
     const key = StoragePath("", {
@@ -73,11 +75,28 @@ export const sendMessage = asynchandller(async (req, res) => {
     messageimage = await uploadChatPic(key, image);
   }
 
+  if (postId) {
+    const post = await Post.findById(postId).select("image").lean();
+
+    if (!post) throw new ApiError(400, "Post not found");
+    if (post.disableShare)
+      throw new ApiError(400, "This post cannot be shared");
+    if (post.isArchived) throw new ApiError(400, "This post is archived");
+
+    await Post.findByIdAndUpdate(postId, { $inc: { sharesCount: 1 } });
+
+    sharedPost = {
+      _id: post._id,
+      image: post.image,
+    };
+  }
+
   const newMessage = await Message.create({
     conversationId: id,
     sender: senderId,
-    text: text,
+    text: postId ? "Send a post" : text,
     image: messageimage,
+    post: sharedPost,
     seenBy: [senderId],
   });
 

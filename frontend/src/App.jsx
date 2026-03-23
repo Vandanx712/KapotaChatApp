@@ -14,6 +14,7 @@ import Explore from "./pages/Explore";
 import ForgetPassword from "./pages/ForgetPassword";
 import AddPost from "./pages/AddPost";
 import UserProfile from "./pages/UserProfile";
+import PostDetail from "./pages/PostDetail";
 
 function App() {
   const { authUser, checkAuth, isCheckingAuth } = useAuthStore();
@@ -37,6 +38,7 @@ function App() {
         <Route path="/" element={authUser ? <Home /> : <Navigate to='/login' />} />
         <Route path="/addpost" element={authUser ? <AddPost /> : <Navigate to='/login' />} />
         <Route path="/explore" element={authUser ? <Explore /> : <Navigate to='/login' />}/>
+        <Route path="/post/:id" element={authUser ? <PostDetail /> : <Navigate to='/login' />}/>
         <Route path="/setting" element={authUser ? <Setting /> : <Navigate to='/login' />} />
         <Route path="/profile" element={authUser ? <Profile /> : <Navigate to='/login' />} />
         <Route path="/profile/:id" element={authUser ? <UserProfile /> : <Navigate to='/login' />} />
