@@ -12,7 +12,7 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import { useEffect } from "react";
 
-const ChatHeader = ({ onToggleSearch, showSearch }) => {
+const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
   const {
     selectedConversation,
     setUnselectedConversation,
@@ -135,7 +135,7 @@ const ChatHeader = ({ onToggleSearch, showSearch }) => {
           </div>
         </div>
         <div className="flex items-center justify-evenly space-x-5">
-          <button className="">
+          <button onClick={onStartCall} className="">
             <VideoIcon />
           </button>
           {onToggleSearch && (

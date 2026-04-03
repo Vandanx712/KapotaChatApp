@@ -10,6 +10,7 @@ import { Search, X } from "lucide-react";
 import { searchMessages } from "../lib/axios";
 import { formatMessageTime } from "../lib/utils";
 import toast from "react-hot-toast";
+import VideoCallModal from "./VideoCallModal";
 
 function ChatContainer() {
   const {
@@ -24,7 +25,7 @@ function ChatContainer() {
     setDeletedMessage,
     setClearChat,
   } = useChatStore();
-  const { authUser, socket } = useAuthStore();
+  const { authUser, onlineUsers, socket } = useAuthStore();
   const virtuosoRef = useRef(null);
   const searchInputRef = useRef(null);
   const [Typing, setTyping] = useState(false);
@@ -34,6 +35,7 @@ function ChatContainer() {
   const [isSearching, setIsSearching] = useState(false);
   const [highlightedId, setHighlightedId] = useState(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [activeCallConversation, setActiveCallConversation] = useState(null);
 
   useEffect(() => {
     getMessage();
@@ -44,6 +46,7 @@ function ChatContainer() {
     setSearchQuery("");
     setSearchResults([]);
     setHighlightedId(null);
+    setActiveCallConversation(null);
   }, [selectedConversation]);
 
   useEffect(() => {
@@ -86,13 +89,38 @@ function ChatContainer() {
     }
   }, [showSearch]);
 
+  // useEffect(() => {
+  //   const handleIncomingCallPreview = (event) => {
+  //     const previewConversation = event.detail?.conversation || selectedConversation;
+
+  //     if (!previewConversation || previewConversation.isgroup) return;
+
+  //     setIncomingCall({
+  //       conversation: previewConversation,
+  //       callerName: event.detail?.callerName || previewConversation.name,
+  //       callerProfilePic:
+  //         event.detail?.callerProfilePic || previewConversation.profilePic,
+  //       isOnline:
+  //         typeof event.detail?.isOnline === "boolean"
+  //           ? event.detail.isOnline
+  //           : onlineUsers.includes(previewConversation.oruserId),
+  //     });
+  //   };
+
+  //   // This gives us a frontend-only hook now, and later the socket event can reuse the same state update.
+  //   window.addEventListener("kapota:incoming-video-call-preview", handleIncomingCallPreview);
+
+  //   return () => {
+  //     window.removeEventListener("kapota:incoming-video-call-preview", handleIncomingCallPreview);
+  //   };
+  // }, [onlineUsers, selectedConversation]);
+
   const lastmsg = message[message.length - 1];
   useEffect(() => {
     if (!lastmsg || !socket) return;
     if (lastmsg.system) return;
     const hasSeen =
-      Array.isArray(lastmsg?.seenBy) &&
-      lastmsg.seenBy.includes(authUser?._id);
+      Array.isArray(lastmsg?.seenBy) && lastmsg.seenBy.includes(authUser?._id);
     if (lastmsg?.sender !== authUser?._id && !hasSeen) {
       socket.emit("msgseen", {
         msgId: lastmsg._id,
@@ -123,7 +151,7 @@ function ChatContainer() {
     );
     socket.on("delete", (msg) => setDeletedMessage(msg));
     socket.on("clearchat", (conversation) => setClearChat(conversation));
-    socket.on('newmessage',(newMessage)=>onlineToMessage(newMessage))
+    socket.on("newmessage", (newMessage) => onlineToMessage(newMessage));
     return () => {
       offlineToMessage();
       socket.off("msgseen");
@@ -147,6 +175,10 @@ function ChatContainer() {
       selectedConversation.groupdetail?.membersDetail?.[senderId]?.fullname ||
       "Unknown"
     );
+  };
+
+  const handleStartCall = () => {
+    setActiveCallConversation(selectedConversation);
   };
 
   const handleResultClick = (msg) => {
@@ -176,6 +208,7 @@ function ChatContainer() {
     return (
       <div className="flex-1 flex flex-col overflow-auto">
         <ChatHeader
+          onStartCall={handleStartCall}
           onToggleSearch={handleToggleSearch}
           showSearch={showSearch}
         />
@@ -186,7 +219,11 @@ function ChatContainer() {
 
   return (
     <div className="flex-1 bg-base-100 flex flex-col overflow-hidden">
-      <ChatHeader onToggleSearch={handleToggleSearch} showSearch={showSearch} />
+      <ChatHeader
+        onStartCall={handleStartCall}
+        onToggleSearch={handleToggleSearch}
+        showSearch={showSearch}
+      />
       {showSearch && (
         <div className="border-b border-base-300 bg-base-100 p-3">
           <div className="flex items-center gap-2">
@@ -280,6 +317,14 @@ function ChatContainer() {
         />
       </div>
       <MessageInput />
+      {activeCallConversation && (
+        <VideoCallModal
+          authUser={authUser}
+          conversation={activeCallConversation}
+          onlineUsers={onlineUsers}
+          onClose={() => setActiveCallConversation(null)}
+        />
+      )}
     </div>
   );
 }

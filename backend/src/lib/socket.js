@@ -65,6 +65,23 @@ io.on("connection", async (socket) => {
     }
   });
 
+  //call part
+
+  socket.on("call-user", ({ to, from, offer }) => {
+    const receiverSocketId = userSocketMap[to];
+    io.to(receiverSocketId).emit("incoming-call", { from, offer });
+  });
+
+  socket.on("ice-candidate", ({ to, candidate }) => {
+    const receiverSocketId = userSocketMap[to];
+    io.to(receiverSocketId).emit("ice-candidate", { candidate });
+  });
+
+  socket.on("call-accepted", ({ to, answer }) => {
+    const receiverSocketId = userSocketMap[to];
+    io.to(receiverSocketId).emit('call-accepted',{answer})
+  });
+
   socket.on("changeBgimage", ({ conversation, bgImage }) => {
     io.to(conversation.conversationId).emit("changeBgimage", {
       conversationId: conversation.conversationId,
