@@ -15,6 +15,7 @@ import ForgetPassword from "./pages/ForgetPassword";
 import AddPost from "./pages/AddPost";
 import UserProfile from "./pages/UserProfile";
 import PostDetail from "./pages/PostDetail";
+import CallManager from "./components/CallManager";
 
 function App() {
   const { authUser, checkAuth, isCheckingAuth } = useAuthStore();
@@ -43,6 +44,7 @@ function App() {
         <Route path="/profile" element={authUser ? <Profile /> : <Navigate to='/login' />} />
         <Route path="/profile/:id" element={authUser ? <UserProfile /> : <Navigate to='/login' />} />
       </Routes>
+      {authUser && <CallManager />}
       <Toaster position="top-center" reverseOrder={false}/>
     </div>
   );

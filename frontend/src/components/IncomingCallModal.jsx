@@ -1,5 +1,6 @@
 import { Phone, PhoneOff, Video, X } from "lucide-react";
 import { useEffect } from "react";
+import LoadableImage from "./common/LoadableImage";
 
 const getInitials = (name = "") =>
   name
@@ -32,10 +33,12 @@ function IncomingCallModal({
   return (
     <div className="fixed inset-0 z-[95] overflow-hidden bg-neutral text-neutral-content">
       {callerProfilePic?.url && (
-        <img
+        <LoadableImage
           src={callerProfilePic.url}
           alt={callerName}
           className="absolute inset-0 h-full w-full scale-110 object-cover opacity-25 blur-3xl"
+          wrapperClassName="absolute inset-0"
+          imgProps={{ loading: "eager", decoding: "async" }}
         />
       )}
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.25),rgba(0,0,0,0.9))]" />
@@ -63,10 +66,11 @@ function IncomingCallModal({
             <div className="avatar placeholder relative">
               <div className="w-32 rounded-full bg-base-300 text-3xl font-semibold text-white ring ring-white/15 sm:w-40">
                 {callerProfilePic?.url ? (
-                  <img
+                  <LoadableImage
                     src={callerProfilePic.url}
                     alt={callerName}
                     className="h-full w-full object-cover"
+                    imgProps={{ loading: "eager", decoding: "async" }}
                   />
                 ) : (
                   <span>{getInitials(callerName)}</span>

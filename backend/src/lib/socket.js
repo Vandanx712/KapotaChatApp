@@ -13,14 +13,48 @@ const io = new Server(server, {
   },
 });
 
-//used for onlineusers
-const userSocketMap = {};
+// used for online users. one user can have multiple socket connections (multiple tabs/devices).
+const userSocketMap = new Map();
+
+const normalizeId = (value) => {
+  if (!value) return "";
+  return value.toString();
+};
+
+const addUserSocket = (userId, socketId) => {
+  if (!userSocketMap.has(userId)) {
+    userSocketMap.set(userId, new Set());
+  }
+  userSocketMap.get(userId).add(socketId);
+};
+
+const removeUserSocket = (userId, socketId) => {
+  const sockets = userSocketMap.get(userId);
+  if (!sockets) return;
+  sockets.delete(socketId);
+  if (sockets.size === 0) {
+    userSocketMap.delete(userId);
+  }
+};
+
+const getUserSocketIds = (userId) => {
+  const normalized = normalizeId(userId);
+  if (!normalized || !userSocketMap.has(normalized)) return [];
+  return [...userSocketMap.get(normalized)];
+};
+
+const emitToUser = (userId, event, payload) => {
+  const socketIds = getUserSocketIds(userId);
+  socketIds.forEach((socketId) => {
+    io.to(socketId).emit(event, payload);
+  });
+};
 
 io.on("connection", async (socket) => {
   console.log("A user connected", socket.id);
 
-  const userId = socket.handshake.query.userId;
-  if (userId) userSocketMap[userId] = socket.id;
+  const userId = normalizeId(socket.handshake.query.userId);
+  if (userId) addUserSocket(userId, socket.id);
   // io.emit() is used to send events to all connected clients
 
   socket.on("joinPost", (postId) => {
@@ -31,7 +65,7 @@ io.on("connection", async (socket) => {
     socket.leave(postId);
   });
 
-  io.emit("getonlineusers", Object.keys(userSocketMap));
+  io.emit("getonlineusers", [...userSocketMap.keys()]);
   if (userId) {
     const conversations = await Conversation.find({
       "participants.userId": userId,
@@ -54,9 +88,8 @@ io.on("connection", async (socket) => {
 
   socket.on("msgseen", async ({ msgId, senderId }) => {
     const updated = await updateMsgStatus(msgId, userId);
-    const receiverSocketId = userSocketMap[senderId];
-    if (receiverSocketId && updated) {
-      io.to(receiverSocketId).emit("msgseen", {
+    if (updated) {
+      emitToUser(senderId, "msgseen", {
         msgId,
         userId,
         seenBy: updated.seenBy,
@@ -67,19 +100,88 @@ io.on("connection", async (socket) => {
 
   //call part
 
-  socket.on("call-user", ({ to, from, offer }) => {
-    const receiverSocketId = userSocketMap[to];
-    io.to(receiverSocketId).emit("incoming-call", { from, offer });
+  socket.on(
+    "call-user",
+    ({ to, from, offer, conversationId, isGroup, conversation }) => {
+      const fromId = normalizeId(from?._id);
+      if (!fromId || !offer) return;
+
+      const payload = {
+        from,
+        offer,
+        conversationId: normalizeId(conversationId),
+        isGroup: Boolean(isGroup),
+        conversation,
+      };
+
+      if (Array.isArray(to)) {
+        to
+          .map((id) => normalizeId(id))
+          .filter((id) => id && id !== fromId)
+          .forEach((id) => {
+            emitToUser(id, "incoming-call", payload);
+          });
+        return;
+      }
+
+      const targetId = normalizeId(to);
+      if (!targetId || targetId === fromId) return;
+      emitToUser(targetId, "incoming-call", payload);
+    },
+  );
+
+  socket.on("ice-candidate", ({ to, from, candidate, conversationId }) => {
+    if (!candidate) return;
+    const targetId = normalizeId(to);
+    if (!targetId) return;
+    emitToUser(targetId, "ice-candidate", {
+      from: normalizeId(from),
+      candidate,
+      conversationId: normalizeId(conversationId),
+    });
   });
 
-  socket.on("ice-candidate", ({ to, candidate }) => {
-    const receiverSocketId = userSocketMap[to];
-    io.to(receiverSocketId).emit("ice-candidate", { candidate });
+  socket.on("call-accepted", ({ to, from, answer, conversationId }) => {
+    if (!answer) return;
+    const targetId = normalizeId(to);
+    if (!targetId) return;
+    emitToUser(targetId, "call-accepted", {
+      from: normalizeId(from),
+      answer,
+      conversationId: normalizeId(conversationId),
+    });
   });
 
-  socket.on("call-accepted", ({ to, answer }) => {
-    const receiverSocketId = userSocketMap[to];
-    io.to(receiverSocketId).emit('call-accepted',{answer})
+  socket.on("call-declined", ({ to, from, conversationId }) => {
+    const targetId = normalizeId(to);
+    if (!targetId) return;
+    emitToUser(targetId, "call-declined", {
+      from: normalizeId(from),
+      conversationId: normalizeId(conversationId),
+    });
+  });
+
+  socket.on("call-ended", ({ to, from, conversationId, isGroup }) => {
+    const payload = {
+      from: normalizeId(from),
+      conversationId: normalizeId(conversationId),
+      isGroup: Boolean(isGroup),
+    };
+    if (Array.isArray(to)) {
+      to
+        .map((id) => normalizeId(id))
+        .filter(Boolean)
+        .forEach((id) => emitToUser(id, "call-ended", payload));
+      return;
+    }
+    const targetId = normalizeId(to);
+    if (targetId) {
+      emitToUser(targetId, "call-ended", payload);
+      return;
+    }
+    if (conversationId) {
+      socket.to(conversationId).emit("call-ended", payload);
+    }
   });
 
   socket.on("changeBgimage", ({ conversation, bgImage }) => {
@@ -91,13 +193,14 @@ io.on("connection", async (socket) => {
 
   socket.on("disconnect", () => {
     console.log("A user disconnected", socket.id);
-    delete userSocketMap[userId];
-    io.emit("getonlineusers", Object.keys(userSocketMap));
+    if (userId) removeUserSocket(userId, socket.id);
+    io.emit("getonlineusers", [...userSocketMap.keys()]);
   });
 });
 
 export function getReceiverSocketId(userId) {
-  return userSocketMap[userId];
+  const socketIds = getUserSocketIds(userId);
+  return socketIds[0] || null;
 }
 
 export { io, app, server };

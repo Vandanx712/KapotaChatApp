@@ -10,7 +10,8 @@ import { Search, X } from "lucide-react";
 import { searchMessages } from "../lib/axios";
 import { formatMessageTime } from "../lib/utils";
 import toast from "react-hot-toast";
-import VideoCallModal from "./VideoCallModal";
+import { useCallStore } from "../store/useCallStore";
+import SectionLoader from "./common/SectionLoader";
 
 function ChatContainer() {
   const {
@@ -25,7 +26,7 @@ function ChatContainer() {
     setDeletedMessage,
     setClearChat,
   } = useChatStore();
-  const { authUser, onlineUsers, socket } = useAuthStore();
+  const { authUser, socket } = useAuthStore();
   const virtuosoRef = useRef(null);
   const searchInputRef = useRef(null);
   const [Typing, setTyping] = useState(false);
@@ -35,7 +36,7 @@ function ChatContainer() {
   const [isSearching, setIsSearching] = useState(false);
   const [highlightedId, setHighlightedId] = useState(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const [activeCallConversation, setActiveCallConversation] = useState(null);
+  const { startOutgoingCall } = useCallStore();
 
   useEffect(() => {
     getMessage();
@@ -46,7 +47,6 @@ function ChatContainer() {
     setSearchQuery("");
     setSearchResults([]);
     setHighlightedId(null);
-    setActiveCallConversation(null);
   }, [selectedConversation]);
 
   useEffect(() => {
@@ -178,7 +178,8 @@ function ChatContainer() {
   };
 
   const handleStartCall = () => {
-    setActiveCallConversation(selectedConversation);
+    if (!selectedConversation) return;
+    startOutgoingCall(selectedConversation);
   };
 
   const handleResultClick = (msg) => {
@@ -256,37 +257,41 @@ function ChatContainer() {
             </button>
           </div>
           <div className="mt-2 max-h-52 overflow-y-auto">
-            {isSearching && (
-              <div className="px-1 py-2 text-xs text-base-content/60">
-                Searching...
-              </div>
-            )}
-            {!isSearching &&
-              searchQuery.trim().length > 0 &&
-              searchResults.length === 0 && (
-                <div className="px-1 py-2 text-xs text-base-content/60">
-                  No results found
-                </div>
-              )}
-            {searchResults.map((msg) => (
-              <button
-                key={msg._id}
-                onClick={() => handleResultClick(msg)}
-                className="w-full text-left p-2 rounded-lg hover:bg-base-200 transition-colors"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-sm font-medium truncate">
-                    {resolveSenderName(msg.sender)}
-                  </div>
-                  <div className="text-xs text-base-content/60">
-                    {formatMessageTime(msg.createdAt)}
-                  </div>
-                </div>
-                <div className="text-xs text-base-content/70 truncate">
-                  {msg.text || "Image"}
-                </div>
-              </button>
-            ))}
+            <SectionLoader
+              loading={isSearching}
+              label="Searching messages..."
+              minHeight={84}
+              className="border-none bg-transparent"
+            >
+              <>
+                {!isSearching &&
+                  searchQuery.trim().length > 0 &&
+                  searchResults.length === 0 && (
+                    <div className="px-1 py-2 text-xs text-base-content/60">
+                      No results found
+                    </div>
+                  )}
+                {searchResults.map((msg) => (
+                  <button
+                    key={msg._id}
+                    onClick={() => handleResultClick(msg)}
+                    className="w-full rounded-lg p-2 text-left transition-colors hover:bg-base-200"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="truncate text-sm font-medium">
+                        {resolveSenderName(msg.sender)}
+                      </div>
+                      <div className="text-xs text-base-content/60">
+                        {formatMessageTime(msg.createdAt)}
+                      </div>
+                    </div>
+                    <div className="truncate text-xs text-base-content/70">
+                      {msg.text || "Image"}
+                    </div>
+                  </button>
+                ))}
+              </>
+            </SectionLoader>
           </div>
         </div>
       )}
@@ -317,14 +322,6 @@ function ChatContainer() {
         />
       </div>
       <MessageInput />
-      {activeCallConversation && (
-        <VideoCallModal
-          authUser={authUser}
-          conversation={activeCallConversation}
-          onlineUsers={onlineUsers}
-          onClose={() => setActiveCallConversation(null)}
-        />
-      )}
     </div>
   );
 }

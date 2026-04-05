@@ -11,6 +11,7 @@ import {
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import { useEffect } from "react";
+import LoadableImage from "./common/LoadableImage";
 
 const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
   const {
@@ -107,12 +108,20 @@ const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
           </button>
           <div className="avatar">
             <div className="size-10 rounded-full ">
-              <img
+              <LoadableImage
                 src={
                   selectedConversation.isgroup
                     ? selectedConversation.groupdetail?.groupIcon.url
                     : selectedConversation?.profilePic?.url
                 }
+                alt={
+                  selectedConversation.isgroup
+                    ? selectedConversation.groupdetail.groupname
+                    : selectedConversation.name
+                }
+                className="rounded-full object-cover"
+                wrapperClassName="size-10 rounded-full"
+                imgProps={{ loading: "eager", decoding: "async" }}
               />
             </div>
           </div>

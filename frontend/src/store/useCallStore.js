@@ -2,20 +2,44 @@ import { create } from "zustand";
 
 export const useCallStore = create((set) => ({
   incomingCall: null,
-  callAccepted: false,
-  callEnded: false,
+  activeCall: null,
 
-  setIncomingCall: (data) => set({ incomingCall: data }),
+  setIncomingCall: (incomingCall) => set({ incomingCall }),
 
-  acceptCall: () =>
+  clearIncomingCall: () =>
     set({
-      callAccepted: true,
+      incomingCall: null,
+    }),
+
+  startOutgoingCall: (conversation) =>
+    set({
+      activeCall: {
+        mode: "outgoing",
+        conversation,
+        incomingSignal: null,
+      },
+      incomingCall: null,
+    }),
+
+  acceptIncomingCall: (conversationOverride = null) =>
+    set((state) => {
+      if (!state.incomingCall) return state;
+      return {
+        activeCall: {
+          mode: "incoming",
+          conversation: conversationOverride || state.incomingCall.conversation,
+          incomingSignal: {
+            from: state.incomingCall.from,
+            offer: state.incomingCall.offer,
+          },
+        },
+        incomingCall: null,
+      };
     }),
 
   endCall: () =>
     set({
-      callEnded: true,
-      callAccepted: false,
+      activeCall: null,
       incomingCall: null,
     }),
 }));

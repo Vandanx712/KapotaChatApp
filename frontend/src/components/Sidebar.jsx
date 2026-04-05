@@ -13,6 +13,8 @@ import { PhotoProvider, PhotoView } from "react-photo-view";
 import "react-photo-view/dist/react-photo-view.css";
 import CreateGroup from "./CreateGroup";
 import { getAllUsers } from "../lib/axios";
+import LoadableImage from "./common/LoadableImage";
+import SectionLoader from "./common/SectionLoader";
 
 function Sidebar() {
   const {
@@ -35,6 +37,7 @@ function Sidebar() {
   const [open, setOpen] = useState("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [isUsersLoading, setIsUsersLoading] = useState(false);
 
   const menuItems = [
     {
@@ -53,10 +56,13 @@ function Sidebar() {
   useEffect(() => {
     const loadusers = async () => {
       try {
+        setIsUsersLoading(true);
         const resdata = await getAllUsers();
         setUsers(resdata.users);
       } catch (error) {
         console.log(error);
+      } finally {
+        setIsUsersLoading(false);
       }
     };
     loadusers();
@@ -183,22 +189,29 @@ function Sidebar() {
                   >
                     <div className="relative min-w-12">
                       <PhotoProvider>
-                        <PhotoView
-                          src={
-                            conversation.isgroup
-                              ? conversation.groupdetail?.groupIcon.url
-                              : conversation?.profilePic?.url
-                          }
-                        >
-                          <img
-                            src={
-                              conversation.isgroup
-                                ? conversation.groupdetail?.groupIcon.url
-                                : conversation?.profilePic?.url
-                            }
-                            className="size-12 object-cover rounded-full"
-                          />
-                        </PhotoView>
+                        {(() => {
+                          const imageSrc = conversation.isgroup
+                            ? conversation.groupdetail?.groupIcon.url
+                            : conversation?.profilePic?.url;
+
+                          return (
+                            <PhotoView src={imageSrc}>
+                              <div className="size-12 rounded-full">
+                                <LoadableImage
+                                  src={imageSrc}
+                                  alt={
+                                    conversation.isgroup
+                                      ? conversation.groupdetail.groupname
+                                      : conversation.name
+                                  }
+                                  className="size-12 rounded-full object-cover"
+                                  wrapperClassName="size-12 rounded-full"
+                                  imgProps={{ loading: "lazy", decoding: "async" }}
+                                />
+                              </div>
+                            </PhotoView>
+                          );
+                        })()}
                       </PhotoProvider>
                       {!conversation.isgroup
                         ? onlineUsersSet.has(conversation.oruserId) && (
@@ -285,42 +298,57 @@ function Sidebar() {
                     <Users />
                     Start Chat with users
                   </div>
-                  {filteredUsers.map((user) => (
-                    <div
-                      onClick={() => setSelectedChat(user._id)}
-                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition hover:bg-base-200`}
-                    >
-                      <div className="avatar relative">
-                        <div className="w-12  rounded-full bg-base-300">
-                          <img src={user.profilePic.url} />
-                        </div>
-                        {onlineUsers.includes(user._id) && (
-                          <span
-                            className="absolute bottom-0 right-0 size-3 bg-green-500 
-                    rounded-full"
-                          />
-                        )}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="text-base md:text-lg font-medium truncate">
-                          {user.fullname}
-                        </div>
-                        <div className="text-sm text-base-content/70 truncate">
-                          {user.bio}
-                        </div>
-                      </div>
-
-                      {!existConversationSet.has(user._id) && (
-                        <button
-                          onClick={() => handleChatClick(user._id)}
-                          className="btn btn-sm btn-primary btn-outline"
+                  <SectionLoader
+                    loading={isUsersLoading}
+                    label="Loading users..."
+                    minHeight={180}
+                  >
+                    <>
+                      {filteredUsers.map((user) => (
+                        <div
+                          key={user._id}
+                          onClick={() => setSelectedChat(user._id)}
+                          className="flex items-center gap-3 rounded-lg p-3 transition hover:bg-base-200"
                         >
-                          Chat
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                          <div className="avatar relative">
+                            <div className="w-12 rounded-full bg-base-300">
+                              <LoadableImage
+                                src={user.profilePic.url}
+                                alt={user.fullname}
+                                className="rounded-full object-cover"
+                                wrapperClassName="size-12 rounded-full"
+                                imgProps={{ loading: "lazy", decoding: "async" }}
+                              />
+                            </div>
+                            {onlineUsers.includes(user._id) && (
+                              <span
+                                className="absolute bottom-0 right-0 size-3 bg-green-500 
+                    rounded-full"
+                              />
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-base font-medium md:text-lg">
+                              {user.fullname}
+                            </div>
+                            <div className="truncate text-sm text-base-content/70">
+                              {user.bio}
+                            </div>
+                          </div>
+
+                          {!existConversationSet.has(user._id) && (
+                            <button
+                              onClick={() => handleChatClick(user._id)}
+                              className="btn btn-sm btn-primary btn-outline"
+                            >
+                              Chat
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </>
+                  </SectionLoader>
                 </div>
               </div>
             )}
