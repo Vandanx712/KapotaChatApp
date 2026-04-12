@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useEffectEvent, useMemo, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton";
 import {
@@ -15,6 +15,7 @@ import CreateGroup from "./CreateGroup";
 import { getAllUsers } from "../lib/axios";
 import LoadableImage from "./common/LoadableImage";
 import SectionLoader from "./common/SectionLoader";
+import { mergeUniqueById } from "../lib/utils";
 
 function Sidebar() {
   const {
@@ -38,6 +39,9 @@ function Sidebar() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isUsersLoading, setIsUsersLoading] = useState(false);
+  const [isMoreUsersLoading, setIsMoreUsersLoading] = useState(false);
+  const [usersCursor, setUsersCursor] = useState(null);
+  const [hasMoreUsers, setHasMoreUsers] = useState(false);
 
   const menuItems = [
     {
@@ -53,21 +57,40 @@ function Sidebar() {
     );
   }, [conversations]);
 
-  useEffect(() => {
-    const loadusers = async () => {
-      try {
+  const loadusers = useEffectEvent(async ({ reset = false, cursor = null } = {}) => {
+    try {
+      if (reset) {
         setIsUsersLoading(true);
-        const resdata = await getAllUsers();
-        setUsers(resdata.users);
-      } catch (error) {
-        console.log(error);
-      } finally {
-        setIsUsersLoading(false);
+      } else {
+        setIsMoreUsersLoading(true);
       }
-    };
-    loadusers();
+
+      const resdata = await getAllUsers({
+        cursor,
+        limit: 30,
+      });
+
+      const nextUsers = resdata.users || [];
+      setUsers((prev) => (reset ? nextUsers : mergeUniqueById(prev, nextUsers)));
+      setUsersCursor(resdata.nextCursor ?? null);
+      setHasMoreUsers(Boolean(resdata.hasMore));
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setIsUsersLoading(false);
+      setIsMoreUsersLoading(false);
+    }
+  });
+
+  useEffect(() => {
+    if (!newChat) return;
+
+    setUsers([]);
+    setUsersCursor(null);
+    setHasMoreUsers(false);
     setDebouncedSearch("");
     setSearch("");
+    loadusers({ reset: true });
   }, [newChat]);
 
   useEffect(() => {
@@ -132,9 +155,11 @@ function Sidebar() {
   });
 
   const setSelectedChat = (id) => {
-    setSelectedConversation(
-      conversations.find((con) => con.oruserId == id && !con.isgroup),
+    const existingConversation = conversations.find(
+      (con) => con.oruserId == id && !con.isgroup,
     );
+    if (!existingConversation) return;
+    setSelectedConversation(existingConversation);
     setNewChat((prev) => !prev);
   };
 
@@ -347,6 +372,22 @@ function Sidebar() {
                           )}
                         </div>
                       ))}
+                      {hasMoreUsers && (
+                        <div className="flex justify-center px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              loadusers({ cursor: usersCursor, reset: false })
+                            }
+                            disabled={isMoreUsersLoading}
+                            className="btn btn-sm btn-outline"
+                          >
+                            {isMoreUsersLoading
+                              ? "Loading..."
+                              : "Load more users"}
+                          </button>
+                        </div>
+                      )}
                     </>
                   </SectionLoader>
                 </div>

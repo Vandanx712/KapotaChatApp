@@ -5,6 +5,13 @@ const api = axios.create({
   withCredentials: true,
 });
 
+const buildParams = (params = {}) =>
+  Object.fromEntries(
+    Object.entries(params).filter(
+      ([, value]) => value !== undefined && value !== null && value !== "",
+    ),
+  );
+
 //All auth apis
 
 export const register = async(data)=>{
@@ -51,13 +58,17 @@ export const updateProfile = async(data)=>{
 
 // explore part
 
-export const getSurroundUsers = async()=>{
-  const response = await api.get('/conversation/getusers')
+export const getSurroundUsers = async(params = {})=>{
+  const response = await api.get('/conversation/getusers', {
+    params: buildParams(params),
+  })
   return response.data
 }
 
-export const getAllUsers = async()=>{
-  const response = await api.get('/user/getusers')
+export const getAllUsers = async(params = {})=>{
+  const response = await api.get('/user/getusers', {
+    params: buildParams(params),
+  })
   return response.data
 }
 
@@ -78,8 +89,10 @@ export const createGroup = async(data)=>{
   return response.data
 }
 
-export const getOtherUsers = async(id)=>{
-  const response = await api.get(`/conversation/otherusers/${id}`)
+export const getOtherUsers = async(id, params = {})=>{
+  const response = await api.get(`/conversation/otherusers/${id}`, {
+    params: buildParams(params),
+  })
   return response.data
 }
 
@@ -98,8 +111,10 @@ export const updateConBgimage = async(data)=>{
   return response.data
 }
 
-export const contactDetail = async(id)=>{
-  const response = await api.get(`/user/${id}`)
+export const contactDetail = async(id, params = {})=>{
+  const response = await api.get(`/user/${id}`, {
+    params: buildParams(params),
+  })
   return response.data
 }
 
@@ -115,8 +130,10 @@ export const exitGroup = async(id)=>{
 
 // message part
 
-export const getMessages = async(id)=>{
-  const response = await api.get(`/message/${id}`)
+export const getMessages = async(id, params = {})=>{
+  const response = await api.get(`/message/${id}`, {
+    params: buildParams(params),
+  })
   return response.data
 }
 
@@ -149,8 +166,10 @@ export const createPost = async(data)=>{
   return response.data
 }
 
-export const getMyPosts = async()=>{
-  const response = await api.get('/post/myposts')
+export const getMyPosts = async(params = {})=>{
+  const response = await api.get('/post/myposts', {
+    params: buildParams(params),
+  })
   return response.data
 }
 
@@ -164,8 +183,10 @@ export const deletePost = async(id)=>{
   return response.data
 }
 
-export const postFeed = async(cursor)=>{
-  const response = await api.get(`/post/feed?cursor=${cursor||""}`)
+export const postFeed = async(params = {})=>{
+  const response = await api.get('/post/feed', {
+    params: buildParams(params),
+  })
   return response.data
 }
 

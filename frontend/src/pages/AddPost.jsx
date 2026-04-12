@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ImagePlus,
+  Loader2,
   MapPin,
   Search,
   Settings2,
@@ -20,6 +21,8 @@ import {
   searchLocation,
 } from "../lib/axios";
 import toast from "react-hot-toast";
+import SectionLoader from "../components/common/SectionLoader";
+import BusyOverlay from "../components/common/BusyOverlay";
 
 function AddPost() {
   const { authUser } = useAuthStore();
@@ -36,6 +39,7 @@ function AddPost() {
   const [placeDetailData, setPlaceDetailData] = useState(null);
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [isSearchingLocations, setIsSearchingLocations] = useState(false);
+  const [isUploadingPost, setIsUploadingPost] = useState(false);
   const [hideLikes, setHideLikes] = useState(false);
   const [disableShare, setDisableShare] = useState(false);
   const [isArchived, setIsArchived] = useState(false);
@@ -223,6 +227,7 @@ function AddPost() {
     if (!imagePreview) return toast.error("Image must be required");
     const locationSource = placeDetailData ?? selectedLocation;
     try {
+      setIsUploadingPost(true);
       const blob = await getCroppedImage();
       const reader = new FileReader();
       reader.readAsDataURL(blob);
@@ -247,10 +252,17 @@ function AddPost() {
           navigate("/");
         } catch (error) {
           (console.log(error), toast.error(error.response?.data?.message));
+        } finally {
+          setIsUploadingPost(false);
         }
+      };
+      reader.onerror = () => {
+        setIsUploadingPost(false);
+        toast.error("Could not prepare post image");
       };
     } catch (error) {
       console.log(error);
+      setIsUploadingPost(false);
     }
   };
 
@@ -259,7 +271,12 @@ function AddPost() {
   };
 
   return (
-    <div className="min-h-screen bg-base-100 pt-20">
+    <div className="relative min-h-screen bg-base-100 pt-20">
+      <BusyOverlay
+        show={isUploadingPost}
+        fixed
+        label="Uploading post..."
+      />
       <div className="container mx-auto px-4 pb-10">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -268,8 +285,19 @@ function AddPost() {
               Build your post step by step.
             </p>
           </div>
-          <button onClick={() => handleSave()} className="btn btn-primary">
-            Share Post
+          <button
+            onClick={() => handleSave()}
+            disabled={isUploadingPost}
+            className="btn btn-primary"
+          >
+            {isUploadingPost ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Sharing...
+              </>
+            ) : (
+              "Share Post"
+            )}
           </button>
         </div>
 
@@ -507,88 +535,91 @@ function AddPost() {
                     <span>{locations.length}</span>
                   </div>
                   <div className="max-h-56 overflow-y-auto overscroll-contain">
-                    {isSearchingLocations ? (
-                      <div className="px-3 py-3 text-sm text-base-content/50">
-                        Searching locations...
-                      </div>
-                    ) : locations.length === 0 ? (
-                      <div className="px-3 py-3 text-sm text-base-content/50">
-                        {locationQuery.trim()
-                          ? "No search results found."
-                          : "No nearby location suggestions available."}
-                      </div>
-                    ) : (
-                      <ul className="divide-y divide-base-300">
-                        {locations.map((suggestion, index) => {
-                          const types = Array.isArray(suggestion?.types)
-                            ? suggestion?.types
-                            : [];
+                    <SectionLoader
+                      loading={isSearchingLocations}
+                      label="Searching locations..."
+                      minHeight={120}
+                      className="rounded-none border-none bg-transparent"
+                    >
+                      {locations.length === 0 ? (
+                        <div className="px-3 py-3 text-sm text-base-content/50">
+                          {locationQuery.trim()
+                            ? "No search results found."
+                            : "No nearby location suggestions available."}
+                        </div>
+                      ) : (
+                        <ul className="divide-y divide-base-300">
+                          {locations.map((suggestion, index) => {
+                            const types = Array.isArray(suggestion?.types)
+                              ? suggestion?.types
+                              : [];
 
-                          if (!suggestion) return null;
+                            if (!suggestion) return null;
 
-                          return (
-                            <li
-                              key={`${suggestion.placeId || suggestion.name || "location"}-${index}`}
-                            >
-                              <div
-                                className={`w-full px-3 py-2 text-left ${selectedLocation ? "" : "hover:bg-base-200/70"}`}
+                            return (
+                              <li
+                                key={`${suggestion.placeId || suggestion.name || "location"}-${index}`}
                               >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <div className="text-sm font-medium">
-                                      {suggestion?.name || "Unknown place"}
-                                    </div>
-                                    {suggestion?.address && (
-                                      <div className="text-xs text-base-content/60">
-                                        {suggestion?.address}
+                                <div
+                                  className={`w-full px-3 py-2 text-left ${selectedLocation ? "" : "hover:bg-base-200/70"}`}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <div className="text-sm font-medium">
+                                        {suggestion?.name || "Unknown place"}
                                       </div>
+                                      {suggestion?.address && (
+                                        <div className="text-xs text-base-content/60">
+                                          {suggestion?.address}
+                                        </div>
+                                      )}
+                                    </div>
+                                    {selectedLocation ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          clearSelectedLocation();
+                                        }}
+                                        className="text-base-content/50 transition-colors hover:text-error"
+                                      >
+                                        <X className="size-4" />
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          skipAutoSearchRef.current = true;
+                                          setPlaceDetailData(null);
+                                          setSelectedLocation(suggestion);
+                                          setLocationQuery(suggestion.name || "");
+                                          setSearchSuggestions([]);
+                                        }}
+                                        className="text-xs font-medium text-primary transition-colors hover:text-primary/70"
+                                      >
+                                        Select
+                                      </button>
                                     )}
                                   </div>
-                                  {selectedLocation ? (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        clearSelectedLocation();
-                                      }}
-                                      className="text-base-content/50 transition-colors hover:text-error"
-                                    >
-                                      <X className="size-4" />
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        skipAutoSearchRef.current = true;
-                                        setPlaceDetailData(null);
-                                        setSelectedLocation(suggestion);
-                                        setLocationQuery(suggestion.name || "");
-                                        setSearchSuggestions([]);
-                                      }}
-                                      className="text-xs font-medium text-primary transition-colors hover:text-primary/70"
-                                    >
-                                      Select
-                                    </button>
+                                  {types.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-1">
+                                      {types.slice(0, 4).map((type) => (
+                                        <span
+                                          key={`${type}-${index}`}
+                                          className="badge badge-ghost badge-xs"
+                                        >
+                                          {type.replace(/_/g, " ")}
+                                        </span>
+                                      ))}
+                                    </div>
                                   )}
                                 </div>
-                                {types.length > 0 && (
-                                  <div className="mt-2 flex flex-wrap gap-1">
-                                    {types.slice(0, 4).map((type) => (
-                                      <span
-                                        key={`${type}-${index}`}
-                                        className="badge badge-ghost badge-xs"
-                                      >
-                                        {type.replace(/_/g, " ")}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </SectionLoader>
                   </div>
                 </div>
               </div>

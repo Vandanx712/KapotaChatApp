@@ -12,7 +12,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { PhotoProvider, PhotoView } from "react-photo-view";
 import toast from "react-hot-toast";
 import "react-photo-view/dist/react-photo-view.css";
-import { getPostDetail, postLiked } from "../lib/axios";
+import { getPostDetail, postLiked, sendMessage } from "../lib/axios";
 import { formatMessageTime } from "../lib/utils";
 import { useChatStore } from "../store/useChatStore";
 
@@ -246,7 +246,7 @@ function PostDetail() {
                   <div className="flex shrink-0 items-center gap-4">
                     <button
                       type="button"
-                      onClick={() => handleLike}
+                      onClick={handleLike}
                       className="text-base-content transition-colors hover:text-primary"
                     >
                       <Heart

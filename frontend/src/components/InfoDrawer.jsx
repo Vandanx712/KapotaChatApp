@@ -21,6 +21,8 @@ import { PhotoProvider, PhotoView } from "react-photo-view";
 import "react-photo-view/dist/react-photo-view.css";
 import EmojiPicker from "emoji-picker-react";
 import { useNavigate } from "react-router-dom";
+import SectionLoader from "./common/SectionLoader";
+import LoadableImage from "./common/LoadableImage";
 
 const cardClass = "p-5 ";
 
@@ -68,10 +70,12 @@ function MediaSlider({ mediaFiles }) {
           <PhotoProvider>
             {mediaFiles.map((file) => (
               <PhotoView src={file.image.url}>
-                <img
+                <LoadableImage
                   src={file.image.url}
                   alt=""
                   className="rounded-lg object-cover size-20 shrink-0 cursor-pointer"
+                  wrapperClassName="size-20 shrink-0 rounded-lg"
+                  imgProps={{ loading: "lazy", decoding: "async" }}
                 />
               </PhotoView>
             ))}
@@ -102,13 +106,14 @@ function SectionTitle({ title, subtitle, action }) {
   );
 }
 
-function ActionTile({ icon: Icon, label, onClick }) {
+function ActionTile({ icon, label, onClick }) {
+  const IconComponent = icon;
   return (
     <button
       onClick={onClick}
       className="flex bg-error/5 space-x-3 rounded-2xl px-10 py-3 transition text-warning hover:bg-error/15"
     >
-      <Icon className="size-5" />
+      <IconComponent className="size-5" />
       <span className="min-w-0 text-sm font-medium">{label}</span>
     </button>
   );
@@ -122,7 +127,11 @@ export default function InfoDrawer({ conversation, onClose }) {
     clearAllMsg,
     udGroupDetail,
     setOtherUsers,
+    loadMoreOtherUsers,
     otherUsers,
+    isOtherUsersLoading,
+    isMoreOtherUsersLoading,
+    hasMoreOtherUsers,
     upGroupMember,
     ExitGroup,
     message,
@@ -132,7 +141,7 @@ export default function InfoDrawer({ conversation, onClose }) {
   useEffect(() => {
     if (!conversation.isgroup) return;
     setOtherUsers(conversation.conversationId);
-  }, []);
+  }, [conversation.conversationId, conversation.isgroup, setOtherUsers]);
 
   useEffect(() => {
     const handleEsc = (e) => {
@@ -286,9 +295,12 @@ export default function InfoDrawer({ conversation, onClose }) {
                 <div className="w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
                   <PhotoProvider>
                     <PhotoView src={groupicon || group?.groupIcon.url}>
-                      <img
+                      <LoadableImage
                         src={groupicon || group?.groupIcon.url}
                         alt="group"
+                        className="object-cover"
+                        wrapperClassName="w-20 h-20"
+                        imgProps={{ loading: "eager", decoding: "async" }}
                       />
                     </PhotoView>
                   </PhotoProvider>
@@ -400,13 +412,16 @@ export default function InfoDrawer({ conversation, onClose }) {
                                 tempData[member.userId]?.profilePic.url
                               }
                             >
-                              <img
+                              <LoadableImage
                                 src={
                                   group?.membersDetail[member.userId]
                                     ?.profilePic.url ||
                                   tempData[member.userId]?.profilePic.url
                                 }
                                 alt=""
+                                className="object-cover"
+                                wrapperClassName="w-10 h-10 rounded-full"
+                                imgProps={{ loading: "lazy", decoding: "async" }}
                               />
                             </PhotoView>
                           </PhotoProvider>
@@ -495,29 +510,59 @@ export default function InfoDrawer({ conversation, onClose }) {
               </div>
             )}
             <div className="max-h-52 overflow-y-auto">
-              {otherUsers.map((user) => (
-                <div
-                  onClick={() => {
-                    if (!members.find((m) => m._id === user._id)) {
-                      setMembers((prev) => [...prev, user]);
-                    }
-                  }}
-                  key={user._id}
-                  className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition hover:bg-base-200"
-                >
-                  <div className="avatar relative">
-                    <div className="w-10 rounded-full bg-base-300">
-                      <img src={user.profilePic.url} />
-                    </div>
-                  </div>
+              <SectionLoader
+                loading={isOtherUsersLoading}
+                label="Loading users..."
+                minHeight={160}
+              >
+                <>
+                  {otherUsers.map((user) => (
+                    <div
+                      onClick={() => {
+                        if (!members.find((m) => m._id === user._id)) {
+                          setMembers((prev) => [...prev, user]);
+                        }
+                      }}
+                      key={user._id}
+                      className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition hover:bg-base-200"
+                    >
+                      <div className="avatar relative">
+                        <div className="w-10 rounded-full bg-base-300">
+                          <LoadableImage
+                            src={user.profilePic.url}
+                            alt={user.fullname}
+                            className="rounded-full object-cover"
+                            wrapperClassName="w-10 h-10 rounded-full"
+                            imgProps={{ loading: "lazy", decoding: "async" }}
+                          />
+                        </div>
+                      </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="text-base md:text-lg font-medium truncate">
-                      {user.fullname}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-base md:text-lg font-medium truncate">
+                          {user.fullname}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              ))}
+                  ))}
+                  {hasMoreOtherUsers && (
+                    <div className="flex justify-center px-2 py-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          loadMoreOtherUsers(conversation.conversationId)
+                        }
+                        disabled={isMoreOtherUsersLoading}
+                        className="btn btn-sm btn-outline"
+                      >
+                        {isMoreOtherUsersLoading
+                          ? "Loading..."
+                          : "Load more users"}
+                      </button>
+                    </div>
+                  )}
+                </>
+              </SectionLoader>
             </div>
             <div className="flex m-5 items-center justify-center">
               <button
@@ -581,7 +626,13 @@ export default function InfoDrawer({ conversation, onClose }) {
                 <div className="w-24 rounded-full ring ring-accent ring-offset-base-100 ring-offset-2">
                   <PhotoProvider>
                     <PhotoView src={user?.profilePic.url}>
-                      <img src={user?.profilePic.url} alt="profile" />
+                      <LoadableImage
+                        src={user?.profilePic.url}
+                        alt="profile"
+                        className="object-cover"
+                        wrapperClassName="w-24 h-24 rounded-full"
+                        imgProps={{ loading: "eager", decoding: "async" }}
+                      />
                     </PhotoView>
                   </PhotoProvider>
                 </div>

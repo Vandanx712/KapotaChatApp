@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import {
   Archive,
   ArrowLeft,
@@ -26,6 +26,7 @@ import {
   getMyPosts,
   updatePostSettings,
 } from "../lib/axios";
+import { mergeUniqueById } from "../lib/utils";
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
 
@@ -122,8 +123,17 @@ function Setting() {
   const [activeSection, setActiveSection] = useState("all");
   const [myPosts, setMyPosts] = useState([]);
   const [postLoading, setPostLoading] = useState(false);
+  const [isMorePostsLoading, setIsMorePostsLoading] = useState(false);
   const [updatingPostId, setUpdatingPostId] = useState("");
   const [postToDelete, setPostToDelete] = useState(null);
+  const [postCursor, setPostCursor] = useState(null);
+  const [hasMorePosts, setHasMorePosts] = useState(false);
+  const [postSummary, setPostSummary] = useState({
+    total: 0,
+    archived: 0,
+    hiddenLikes: 0,
+    shareDisabled: 0,
+  });
   const { theme, setTheme } = useThemeStore();
   const { authUser, logout } = useAuthStore();
   const navigate = useNavigate();
@@ -135,29 +145,53 @@ function Setting() {
 
   const postOverview = useMemo(
     () => ({
-      total: myPosts.length,
-      archived: myPosts.filter((post) => post.isArchived).length,
-      hiddenLikes: myPosts.filter((post) => post.hideLike).length,
-      shareDisabled: myPosts.filter((post) => post.disableShare).length,
+      total: postSummary.total,
+      archived: postSummary.archived,
+      hiddenLikes: postSummary.hiddenLikes,
+      shareDisabled: postSummary.shareDisabled,
     }),
-    [myPosts],
+    [postSummary],
   );
 
-  const loadMyPosts = async () => {
+  const loadMyPosts = useEffectEvent(async ({ reset = false, cursor = null } = {}) => {
     try {
-      setPostLoading(true);
-      const response = await getMyPosts();
-      setMyPosts(response.posts || []);
+      if (reset) {
+        setPostLoading(true);
+      } else {
+        setIsMorePostsLoading(true);
+      }
+
+      const response = await getMyPosts({
+        cursor,
+        limit: 12,
+      });
+
+      const nextPosts = response.posts || [];
+      setMyPosts((prev) => (reset ? nextPosts : mergeUniqueById(prev, nextPosts)));
+      setPostCursor(response.nextCursor ?? null);
+      setHasMorePosts(Boolean(response.hasMore));
+      setPostSummary(
+        response.summary || {
+          total: 0,
+          archived: 0,
+          hiddenLikes: 0,
+          shareDisabled: 0,
+        },
+      );
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to load posts");
     } finally {
       setPostLoading(false);
+      setIsMorePostsLoading(false);
     }
-  };
+  });
 
   useEffect(() => {
     if (activeSection === "Post") {
-      loadMyPosts();
+      setMyPosts([]);
+      setPostCursor(null);
+      setHasMorePosts(false);
+      loadMyPosts({ reset: true });
     }
   }, [activeSection]);
 
@@ -181,11 +215,30 @@ function Setting() {
 
   const handlePostSettingChange = async (postId, field, checked) => {
     const previousPosts = [...myPosts];
+    const previousSummary = { ...postSummary };
+    const previousPost = myPosts.find((post) => post._id === postId);
     const updatedPosts = myPosts.map((post) =>
       post._id === postId ? { ...post, [field]: checked } : post,
     );
 
     setMyPosts(updatedPosts);
+    if (previousPost && previousPost[field] !== checked) {
+      setPostSummary((prev) => ({
+        ...prev,
+        archived:
+          field === "isArchived"
+            ? prev.archived + (checked ? 1 : -1)
+            : prev.archived,
+        hiddenLikes:
+          field === "hideLike"
+            ? prev.hiddenLikes + (checked ? 1 : -1)
+            : prev.hiddenLikes,
+        shareDisabled:
+          field === "disableShare"
+            ? prev.shareDisabled + (checked ? 1 : -1)
+            : prev.shareDisabled,
+      }));
+    }
     setUpdatingPostId(postId);
 
     const changedPost = updatedPosts.find((post) => post._id === postId);
@@ -200,6 +253,7 @@ function Setting() {
       toast.success(response.message);
     } catch (error) {
       setMyPosts(previousPosts);
+      setPostSummary(previousSummary);
       toast.error(error.response?.data?.message || "Failed to update post");
     } finally {
       setUpdatingPostId("");
@@ -213,6 +267,21 @@ function Setting() {
       setUpdatingPostId(postToDelete._id);
       const response = await deletePost(postToDelete._id);
       setMyPosts((prev) => prev.filter((post) => post._id !== postToDelete._id));
+      setPostSummary((prev) => ({
+        total: Math.max(prev.total - 1, 0),
+        archived: Math.max(
+          prev.archived - (postToDelete.isArchived ? 1 : 0),
+          0,
+        ),
+        hiddenLikes: Math.max(
+          prev.hiddenLikes - (postToDelete.hideLike ? 1 : 0),
+          0,
+        ),
+        shareDisabled: Math.max(
+          prev.shareDisabled - (postToDelete.disableShare ? 1 : 0),
+          0,
+        ),
+      }));
       setPostToDelete(null);
       toast.success(response.message);
     } catch (error) {
@@ -448,193 +517,209 @@ function Setting() {
             </div>
           </div>
         ) : (
-          <div className="grid gap-5 xl:grid-cols-2">
-            {myPosts.map((post) => (
-              <div
-                key={post._id}
-                className="card border border-base-300 bg-base-100 shadow-sm"
-              >
-                <div className="card-body gap-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h2 className="card-title text-lg">{authUser.fullname}</h2>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-base-content/70">
-                        <span className="badge badge-ghost gap-1">
-                          <MapPin className="size-3.5" />
-                          {post.location?.name || "No location"}
-                        </span>
+          <>
+            <div className="grid gap-5 xl:grid-cols-2">
+              {myPosts.map((post) => (
+                <div
+                  key={post._id}
+                  className="card border border-base-300 bg-base-100 shadow-sm"
+                >
+                  <div className="card-body gap-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h2 className="card-title text-lg">{authUser.fullname}</h2>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-base-content/70">
+                          <span className="badge badge-ghost gap-1">
+                            <MapPin className="size-3.5" />
+                            {post.location?.name || "No location"}
+                          </span>
+                          <span className="badge badge-outline">
+                            {new Date(post.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="dropdown dropdown-end">
+                        <button
+                          type="button"
+                          tabIndex={0}
+                          className="btn btn-circle btn-ghost btn-sm"
+                        >
+                          <EllipsisVerticalIcon className="size-5" />
+                        </button>
+
+                        <div
+                          tabIndex={0}
+                          className="dropdown-content z-[1] mt-3 w-72 rounded-box border border-base-300 bg-base-100 p-3 shadow-xl"
+                        >
+                          <div className="mb-3 flex items-center justify-between">
+                            <p className="text-sm font-semibold">Post settings</p>
+                            {updatingPostId === post._id && (
+                              <span className="loading loading-spinner loading-xs"></span>
+                            )}
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="flex cursor-pointer items-center justify-between rounded-box bg-base-200/70 px-3 py-3">
+                              <div>
+                                <p className="text-sm font-medium">Hide like</p>
+                                <p className="text-xs text-base-content/60">
+                                  Hide like count on this post
+                                </p>
+                              </div>
+                              <input
+                                type="checkbox"
+                                className="toggle toggle-primary toggle-sm"
+                                checked={post.hideLike}
+                                disabled={updatingPostId === post._id}
+                                onChange={(e) =>
+                                  handlePostSettingChange(
+                                    post._id,
+                                    "hideLike",
+                                    e.target.checked,
+                                  )
+                                }
+                              />
+                            </label>
+
+                            <label className="flex cursor-pointer items-center justify-between rounded-box bg-base-200/70 px-3 py-3">
+                              <div>
+                                <p className="text-sm font-medium">Disable shared</p>
+                                <p className="text-xs text-base-content/60">
+                                  Stop other users from sharing this post
+                                </p>
+                              </div>
+                              <input
+                                type="checkbox"
+                                className="toggle toggle-primary toggle-sm"
+                                checked={post.disableShare}
+                                disabled={updatingPostId === post._id}
+                                onChange={(e) =>
+                                  handlePostSettingChange(
+                                    post._id,
+                                    "disableShare",
+                                    e.target.checked,
+                                  )
+                                }
+                              />
+                            </label>
+
+                            <label className="flex cursor-pointer items-center justify-between rounded-box bg-base-200/70 px-3 py-3">
+                              <div>
+                                <p className="text-sm font-medium">isArchived</p>
+                                <p className="text-xs text-base-content/60">
+                                  Keep the post but hide it from explore feed
+                                </p>
+                              </div>
+                              <input
+                                type="checkbox"
+                                className="toggle toggle-primary toggle-sm"
+                                checked={post.isArchived}
+                                disabled={updatingPostId === post._id}
+                                onChange={(e) =>
+                                  handlePostSettingChange(
+                                    post._id,
+                                    "isArchived",
+                                    e.target.checked,
+                                  )
+                                }
+                              />
+                            </label>
+
+                            <button
+                              type="button"
+                              onClick={() => setPostToDelete(post)}
+                              className="btn btn-error btn-outline btn-sm mt-2 w-full"
+                              disabled={updatingPostId === post._id}
+                            >
+                              <Trash2 className="size-4" />
+                              Delete post
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="overflow-hidden rounded-[1.75rem] bg-base-200">
+                      <img
+                        src={post.image?.url}
+                        alt={post.caption || "Post image"}
+                        className="max-h-[28rem] w-full object-contain"
+                        loading="lazy"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">
+                        Caption
+                      </p>
+                      <p className="text-sm leading-6 text-base-content/80">
+                        {post.caption || "No caption added for this post."}
+                      </p>
+                    </div>
+
+                    <div className="stats stats-horizontal w-full border border-base-300 bg-base-100 shadow-none">
+                      <div className="stat px-4 py-3">
+                        <div className="stat-figure text-error">
+                          <Heart className="size-5" />
+                        </div>
+                        <div className="stat-title">Like</div>
+                        <div className="stat-value text-lg">
+                          {post.likesCount ?? 0}
+                        </div>
+                      </div>
+
+                      <div className="stat px-4 py-3">
+                        <div className="stat-figure text-primary">
+                          <Share2 className="size-5" />
+                        </div>
+                        <div className="stat-title">Shared</div>
+                        <div className="stat-value text-lg">
+                          {post.sharesCount ?? 0}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {post.hideLike && (
+                        <span className="badge badge-outline">Hide like on</span>
+                      )}
+                      {post.disableShare && (
                         <span className="badge badge-outline">
-                          {new Date(post.createdAt).toLocaleDateString()}
+                          Shared disabled
                         </span>
-                      </div>
+                      )}
+                      {post.isArchived && (
+                        <span className="badge badge-neutral gap-1">
+                          <Archive className="size-3.5" />
+                          Archived
+                        </span>
+                      )}
+                      {!post.hideLike && !post.disableShare && !post.isArchived && (
+                        <span className="badge badge-success badge-outline">
+                          Active post
+                        </span>
+                      )}
                     </div>
-
-                    <div className="dropdown dropdown-end">
-                      <button
-                        type="button"
-                        tabIndex={0}
-                        className="btn btn-circle btn-ghost btn-sm"
-                      >
-                        <EllipsisVerticalIcon className="size-5" />
-                      </button>
-
-                      <div
-                        tabIndex={0}
-                        className="dropdown-content z-[1] mt-3 w-72 rounded-box border border-base-300 bg-base-100 p-3 shadow-xl"
-                      >
-                        <div className="mb-3 flex items-center justify-between">
-                          <p className="text-sm font-semibold">Post settings</p>
-                          {updatingPostId === post._id && (
-                            <span className="loading loading-spinner loading-xs"></span>
-                          )}
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="flex cursor-pointer items-center justify-between rounded-box bg-base-200/70 px-3 py-3">
-                            <div>
-                              <p className="text-sm font-medium">Hide like</p>
-                              <p className="text-xs text-base-content/60">
-                                Hide like count on this post
-                              </p>
-                            </div>
-                            <input
-                              type="checkbox"
-                              className="toggle toggle-primary toggle-sm"
-                              checked={post.hideLike}
-                              disabled={updatingPostId === post._id}
-                              onChange={(e) =>
-                                handlePostSettingChange(
-                                  post._id,
-                                  "hideLike",
-                                  e.target.checked,
-                                )
-                              }
-                            />
-                          </label>
-
-                          <label className="flex cursor-pointer items-center justify-between rounded-box bg-base-200/70 px-3 py-3">
-                            <div>
-                              <p className="text-sm font-medium">Disable shared</p>
-                              <p className="text-xs text-base-content/60">
-                                Stop other users from sharing this post
-                              </p>
-                            </div>
-                            <input
-                              type="checkbox"
-                              className="toggle toggle-primary toggle-sm"
-                              checked={post.disableShare}
-                              disabled={updatingPostId === post._id}
-                              onChange={(e) =>
-                                handlePostSettingChange(
-                                  post._id,
-                                  "disableShare",
-                                  e.target.checked,
-                                )
-                              }
-                            />
-                          </label>
-
-                          <label className="flex cursor-pointer items-center justify-between rounded-box bg-base-200/70 px-3 py-3">
-                            <div>
-                              <p className="text-sm font-medium">isArchived</p>
-                              <p className="text-xs text-base-content/60">
-                                Keep the post but hide it from explore feed
-                              </p>
-                            </div>
-                            <input
-                              type="checkbox"
-                              className="toggle toggle-primary toggle-sm"
-                              checked={post.isArchived}
-                              disabled={updatingPostId === post._id}
-                              onChange={(e) =>
-                                handlePostSettingChange(
-                                  post._id,
-                                  "isArchived",
-                                  e.target.checked,
-                                )
-                              }
-                            />
-                          </label>
-
-                          <button
-                            type="button"
-                            onClick={() => setPostToDelete(post)}
-                            className="btn btn-error btn-outline btn-sm mt-2 w-full"
-                            disabled={updatingPostId === post._id}
-                          >
-                            <Trash2 className="size-4" />
-                            Delete post
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="overflow-hidden rounded-[1.75rem] bg-base-200">
-                    <img
-                      src={post.image?.url}
-                      alt={post.caption || "Post image"}
-                      className="max-h-[28rem] w-full object-contain"
-                      loading="lazy"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">
-                      Caption
-                    </p>
-                    <p className="text-sm leading-6 text-base-content/80">
-                      {post.caption || "No caption added for this post."}
-                    </p>
-                  </div>
-
-                  <div className="stats stats-horizontal w-full border border-base-300 bg-base-100 shadow-none">
-                    <div className="stat px-4 py-3">
-                      <div className="stat-figure text-error">
-                        <Heart className="size-5" />
-                      </div>
-                      <div className="stat-title">Like</div>
-                      <div className="stat-value text-lg">
-                        {post.likesCount ?? 0}
-                      </div>
-                    </div>
-
-                    <div className="stat px-4 py-3">
-                      <div className="stat-figure text-primary">
-                        <Share2 className="size-5" />
-                      </div>
-                      <div className="stat-title">Shared</div>
-                      <div className="stat-value text-lg">
-                        {post.sharesCount ?? 0}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {post.hideLike && (
-                      <span className="badge badge-outline">Hide like on</span>
-                    )}
-                    {post.disableShare && (
-                      <span className="badge badge-outline">
-                        Shared disabled
-                      </span>
-                    )}
-                    {post.isArchived && (
-                      <span className="badge badge-neutral gap-1">
-                        <Archive className="size-3.5" />
-                        Archived
-                      </span>
-                    )}
-                    {!post.hideLike && !post.disableShare && !post.isArchived && (
-                      <span className="badge badge-success badge-outline">
-                        Active post
-                      </span>
-                    )}
                   </div>
                 </div>
+              ))}
+            </div>
+            {hasMorePosts && (
+              <div className="mt-6 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() =>
+                    loadMyPosts({ cursor: postCursor, reset: false })
+                  }
+                  disabled={isMorePostsLoading}
+                  className="btn btn-outline"
+                >
+                  {isMorePostsLoading ? "Loading..." : "Load more posts"}
+                </button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </SectionShell>

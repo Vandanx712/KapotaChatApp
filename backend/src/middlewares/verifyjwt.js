@@ -9,11 +9,11 @@ export const verifyjwt = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (!decoded) throw new ApiError(401, "Unauthorized request");
-    const user = await User.findById(decoded.userId).select("-password");
+    const user = await User.findById(decoded.userId).select("-password").lean();
     if (!user) throw new ApiError(404, "User not found");
     req.user = user;
     next();
   } catch (error) {
-    next(error)
+    next(error);
   }
 };

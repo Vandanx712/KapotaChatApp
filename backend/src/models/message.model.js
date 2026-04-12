@@ -50,6 +50,7 @@ const messageSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-messageSchema.index({ conversationId: 1 });
+messageSchema.index({ conversationId: 1, _id: -1 });
+messageSchema.index({ conversationId: 1, text: "text" }, { weights: { text: 10 } });
 
 export const Message = mongoose.model("Message", messageSchema);
