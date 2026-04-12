@@ -15,12 +15,22 @@ import toast from "react-hot-toast";
 import { PhotoProvider, PhotoView } from "react-photo-view";
 import "react-photo-view/dist/react-photo-view.css";
 import EmojiPicker from "emoji-picker-react";
+import BusyOverlay from "../components/common/BusyOverlay";
+import LoadableImage from "../components/common/LoadableImage";
+import SectionLoader from "../components/common/SectionLoader";
 
 function Profile() {
-  const { authUser, isUpdateProfile, updateProfile, updateDetails } =
-    useAuthStore();
+  const {
+    authUser,
+    isUpdateProfile,
+    isProfilePhotoUploading,
+    isProfileDetailsUpdating,
+    updateProfile,
+    updateDetails,
+  } = useAuthStore();
   const [selectedImg, setSelectedImg] = useState(null);
   const [avatars, setAvatars] = useState([]);
+  const [isAvatarListLoading, setIsAvatarListLoading] = useState(false);
   const [showPicker, setShowPicker] = useState("");
   const [profile, setProfile] = useState({
     fullname: authUser.fullname,
@@ -36,16 +46,20 @@ function Profile() {
   const loadavatars = async () => {
     if (avatars.length > 0) return;
     try {
+      setIsAvatarListLoading(true);
       const resdata = await getAvatars({ gender: authUser.gender });
       setAvatars(resdata.avatars);
     } catch (error) {
       console.log(error);
+    } finally {
+      setIsAvatarListLoading(false);
     }
   };
 
   const handleProfilePic = async (e) => {
     e.preventDefault();
     const file = e.target.files[0];
+    if (!file) return;
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = async () => {
@@ -82,7 +96,11 @@ function Profile() {
   return (
     <div className="h-screen pt-20">
       <div className="max-w-2xl mx-auto p-4 py-8">
-        <div className="bg-base-300 rounded-xl p-6 space-y-8">
+        <div className="relative bg-base-300 rounded-xl p-6 space-y-8">
+          <BusyOverlay
+            show={isProfileDetailsUpdating}
+            label="Updating profile..."
+          />
           <div className="text-center">
             <h1 className="text-2xl font-semibold ">Profile</h1>
             <p className="mt-2">Your profile information</p>
@@ -92,10 +110,17 @@ function Profile() {
 
           <div className="flex flex-col items-center gap-4">
             <div className="relative">
-              <img
+              <BusyOverlay
+                show={isProfilePhotoUploading}
+                label="Uploading photo..."
+                className="rounded-full"
+              />
+              <LoadableImage
                 src={selectedImg || authUser?.profilePic.url}
                 alt="Profile"
-                className="size-32 rounded-full object-cover border-4 "
+                className="size-32 rounded-full object-cover border-4"
+                wrapperClassName="size-32 rounded-full"
+                imgProps={{ loading: "eager", decoding: "async" }}
               />
               <div className="fab">
                 <div
@@ -149,35 +174,47 @@ function Profile() {
                       <label className="text-sm font-medium text-muted-foreground px-1">
                         Choose an avatar
                       </label>
-                      <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar px-1">
-                        {avatars.map((avatar) => (
-                          <button
-                            key={avatar.url}
-                            type="button"
-                            onClick={() => handleProfileAvatar(avatar)}
-                            className={`flex-shrink-0 w-14 h-14 rounded-xl transition-all ${
-                              authUser.profilePic.url === avatar.url
-                                ? "mt-1 ring-2 ring-primary ring-offset-2 ring-offset-card"
-                                : "opacity-60 hover:opacity-100"
-                            }`}
-                          >
-                            <img
-                              src={avatar.url}
-                              alt="Avatar option"
-                              className="w-full h-full rounded-xl"
-                            />
-                          </button>
-                        ))}
-                      </div>
+                      <SectionLoader
+                        loading={isAvatarListLoading}
+                        label="Loading avatars..."
+                        minHeight={96}
+                        className="border-none bg-transparent"
+                      >
+                        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar px-1">
+                          {avatars.map((avatar) => (
+                            <button
+                              key={avatar.url}
+                              type="button"
+                              onClick={() => handleProfileAvatar(avatar)}
+                              disabled={isProfilePhotoUploading}
+                              className={`flex-shrink-0 w-14 h-14 rounded-xl transition-all ${
+                                authUser.profilePic.url === avatar.url
+                                  ? "mt-1 ring-2 ring-primary ring-offset-2 ring-offset-card"
+                                  : "opacity-60 hover:opacity-100"
+                              }`}
+                            >
+                              <LoadableImage
+                                src={avatar.url}
+                                alt="Avatar option"
+                                className="w-full h-full rounded-xl object-cover"
+                                wrapperClassName="w-14 h-14 rounded-xl"
+                                imgProps={{ loading: "lazy", decoding: "async" }}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </SectionLoader>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
             <p className="text-sm text-zinc-400">
-              {isUpdateProfile
+              {isProfilePhotoUploading
                 ? "Uploading..."
-                : "Click the edit icon to update your photo"}
+                : isProfileDetailsUpdating
+                  ? "Saving profile details..."
+                  : "Click the edit icon to update your photo"}
             </p>
           </div>
 
@@ -202,7 +239,7 @@ function Profile() {
                     className="size-5 cursor-pointer"
                     size={20}
                   />
-                 <button disabled={authUser.fullname==profile.fullname}>
+                 <button disabled={authUser.fullname==profile.fullname || isUpdateProfile}>
                     <Pen
                       onClick={handleProfileUpdate}
                       className="size-5 cursor-pointer"
@@ -232,7 +269,7 @@ function Profile() {
                     className="size-5 cursor-pointer"
                     size={20}
                   />
-                  <button disabled={authUser.bio==profile.bio}>
+                  <button disabled={authUser.bio==profile.bio || isUpdateProfile}>
                     <Pen
                       onClick={handleProfileUpdate}
                       className="size-5 cursor-pointer"

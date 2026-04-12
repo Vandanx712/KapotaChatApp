@@ -2,16 +2,21 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Loader2,
   Image,
   Search,
   SmileIcon,
   X,
 } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useEffectEvent, useState } from "react";
 import { createGroup, getAllUsers } from "../lib/axios";
 import { useAuthStore } from "../store/useAuthStore";
 import toast from "react-hot-toast";
 import EmojiPicker from "emoji-picker-react";
+import SectionLoader from "./common/SectionLoader";
+import LoadableImage from "./common/LoadableImage";
+import BusyOverlay from "./common/BusyOverlay";
+import { mergeUniqueById } from "../lib/utils";
 
 function CreateGroup({ onClose }) {
   const { authUser } = useAuthStore();
@@ -29,17 +34,39 @@ function CreateGroup({ onClose }) {
   const [showPicker, setShowPicker] = useState("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [isUsersLoading, setIsUsersLoading] = useState(false);
+  const [isMoreUsersLoading, setIsMoreUsersLoading] = useState(false);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [usersCursor, setUsersCursor] = useState(null);
+  const [hasMoreUsers, setHasMoreUsers] = useState(false);
+
+  const loadusers = useEffectEvent(async ({ reset = false, cursor = null } = {}) => {
+    try {
+      if (reset) {
+        setIsUsersLoading(true);
+      } else {
+        setIsMoreUsersLoading(true);
+      }
+
+      const resdata = await getAllUsers({
+        cursor,
+        limit: 30,
+      });
+
+      const nextUsers = resdata.users || [];
+      setUsers((prev) => (reset ? nextUsers : mergeUniqueById(prev, nextUsers)));
+      setUsersCursor(resdata.nextCursor ?? null);
+      setHasMoreUsers(Boolean(resdata.hasMore));
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setIsUsersLoading(false);
+      setIsMoreUsersLoading(false);
+    }
+  });
 
   useEffect(() => {
-    const loadusers = async () => {
-      try {
-        const resdata = await getAllUsers();
-        setUsers(resdata.users);
-      } catch (error) {
-        console.log(error);
-      }
-    };
-    loadusers();
+    loadusers({ reset: true });
   }, []);
 
   useEffect(() => {
@@ -80,6 +107,7 @@ function CreateGroup({ onClose }) {
     const mistake = participants.filter((par) => !par.userId || !par.role);
     if (mistake.length > 0) return toast.error("Some miss in member");
     try {
+      setIsCreatingGroup(true);
       const resdata = await createGroup({
         groupname: groupname.trim(),
         groupIcon: groupicon,
@@ -90,11 +118,17 @@ function CreateGroup({ onClose }) {
     } catch (error) {
       console.log(error);
       toast.error();
+    } finally {
+      setIsCreatingGroup(false);
     }
   };
 
   return (
-    <div className="flex flex-col">
+    <div className="relative flex flex-col">
+      <BusyOverlay
+        show={isCreatingGroup}
+        label="Creating group..."
+      />
       <div className={`${groupForm ? "hidden" : "flex flex-col h-full"}`}>
         <div className="shrink-0 flex items-center gap-5 p-4 border-b border-base-300">
           <ArrowLeft onClick={onClose} className="size-5 cursor-pointer" />
@@ -130,36 +164,64 @@ function CreateGroup({ onClose }) {
         )}
 
         <div className="flex-1 max-h-56 overflow-y-auto p-4 space-y-2">
-          {filteredUsers.map((user) => (
-            <div
-              key={user._id}
-              onClick={() => {
-                if (!members.find((m) => m._id === user._id)) {
-                  setMembers((prev) => [...prev, user]);
-                  setParticipants((prev) => [
-                    ...prev,
-                    { userId: user._id, role: "member" },
-                  ]);
-                }
-              }}
-              className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition hover:bg-base-200"
-            >
-              <div className="avatar">
-                <div className="w-12 rounded-full bg-base-300">
-                  <img src={user?.profilePic.url} />
-                </div>
-              </div>
+          <SectionLoader
+            loading={isUsersLoading}
+            label="Loading users..."
+            minHeight={180}
+          >
+            <>
+              {filteredUsers.map((user) => (
+                <div
+                  key={user._id}
+                  onClick={() => {
+                    if (!members.find((m) => m._id === user._id)) {
+                      setMembers((prev) => [...prev, user]);
+                      setParticipants((prev) => [
+                        ...prev,
+                        { userId: user._id, role: "member" },
+                      ]);
+                    }
+                  }}
+                  className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition hover:bg-base-200"
+                >
+                  <div className="avatar">
+                    <div className="w-12 rounded-full bg-base-300">
+                      <LoadableImage
+                        src={user?.profilePic.url}
+                        alt={user.fullname}
+                        className="rounded-full object-cover"
+                        wrapperClassName="size-12 rounded-full"
+                        imgProps={{ loading: "lazy", decoding: "async" }}
+                      />
+                    </div>
+                  </div>
 
-              <div className="flex-1 min-w-0">
-                <div className="text-base font-medium truncate">
-                  {user.fullname}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-base font-medium truncate">
+                      {user.fullname}
+                    </div>
+                    <div className="text-sm text-base-content/70 truncate">
+                      {user.bio}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-sm text-base-content/70 truncate">
-                  {user.bio}
+              ))}
+              {hasMoreUsers && (
+                <div className="flex justify-center px-2 py-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      loadusers({ cursor: usersCursor, reset: false })
+                    }
+                    disabled={isMoreUsersLoading}
+                    className="btn btn-sm btn-outline"
+                  >
+                    {isMoreUsersLoading ? "Loading..." : "Load more users"}
+                  </button>
                 </div>
-              </div>
-            </div>
-          ))}
+              )}
+            </>
+          </SectionLoader>
         </div>
 
         {/* Footer */}
@@ -214,9 +276,12 @@ function CreateGroup({ onClose }) {
               </>
 
               {groupicon && (
-                <img
+                <LoadableImage
                   src={groupicon}
+                  alt="Group"
                   className="size-24 object-cover rounded-full"
+                  wrapperClassName="size-24 rounded-full"
+                  imgProps={{ loading: "eager", decoding: "async" }}
                 />
               )}
             </div>
@@ -238,7 +303,7 @@ function CreateGroup({ onClose }) {
           <div>
             <p className="font-medium mb-2">Group members</p>
             <div className="space-y-2 max-h-24 overflow-y-auto">
-              {members.map((par, index) => (
+              {members.map((par) => (
                 <div
                   key={par._id}
                   className="p-2 flex items-center justify-between gap-2 rounded-lg bg-base-300"
@@ -277,9 +342,9 @@ function CreateGroup({ onClose }) {
           <button
             onClick={handleSave}
             className="btn btn-primary btn-circle"
-            disabled={members.length === 0}
+            disabled={members.length === 0 || isCreatingGroup}
           >
-            <Check />
+            {isCreatingGroup ? <Loader2 className="size-4 animate-spin" /> : <Check />}
           </button>
         </div>
       </div>

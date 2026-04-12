@@ -7,6 +7,9 @@ import { deleteImage, uploadChatPic } from "../lib/cloudinary.js";
 import { StoragePath } from "../util/filepath.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 
+const DEFAULT_USERS_LIMIT = 30;
+const MAX_USERS_LIMIT = 100;
+
 const getConversationRoomId = (conversation) => {
   const id = conversation?.conversationId || conversation?._id;
   return id ? id.toString() : "";
@@ -26,7 +29,7 @@ const createSystemMessages = async (conversationId, texts) => {
 const emitSystemMessages = async (messages, conversation, type) => {
   if (!messages.length || !conversation) return;
   messages.forEach((newMessage) => {
-   io.to(conversation._id.toString()).emit("newmessage", newMessage);
+    io.to(conversation._id.toString()).emit("newmessage", newMessage);
   });
 
   if (!conversation.groupname) return;
@@ -43,7 +46,9 @@ const emitRefresh = (type, conversation) => {
 const joinUsersToRoom = async (userIds, room, isgroup) => {
   const uniqueIds = Array.from(new Set(userIds.map((id) => id.toString())));
   const roomId = getConversationRoomId(room);
-  const groupPayload = isgroup ? await buildGroupConversationPayload(room) : null;
+  const groupPayload = isgroup
+    ? await buildGroupConversationPayload(room)
+    : null;
   uniqueIds.forEach((userId) => {
     const socketId = getReceiverSocketId(userId);
     if (!socketId) return;
@@ -73,21 +78,36 @@ const getUserDetail = async (id) => {
 };
 
 const getMemberDetail = async (conversation) => {
-  const groupdetail = {};
-  groupdetail.groupname = conversation.groupname;
-  groupdetail.groupIcon = conversation.groupIcon;
-  const membersDetail = {};
-  for (const member of conversation.participants) {
-    const memberdetail = await getUserDetail(member.userId);
-    if (!membersDetail[member.userId]) {
-      membersDetail[member.userId.toString()] = {
-        fullname: memberdetail.fullname,
-        role: member.role,
-        profilePic: memberdetail.profilePic,
+  const groupdetail = {
+    groupname: conversation.groupname,
+    groupIcon: conversation.groupIcon,
+    membersDetail: {},
+  };
+
+  for (const p of conversation.participants) {
+    const isPopulated =
+      p.userId && typeof p.userId === "object" && p.userId.fullname;
+
+    let userData;
+    let userIdString;
+
+    if (isPopulated) {
+      userData = p.userId;
+      userIdString = p.userId._id.toString();
+    } else {
+      userIdString = p.userId.toString();
+      userData = await getUserDetail(p.userId);
+    }
+
+    if (userData) {
+      groupdetail.membersDetail[userIdString] = {
+        fullname: userData.fullname,
+        role: p.role,
+        profilePic: userData.profilePic,
       };
     }
   }
-  groupdetail.membersDetail = membersDetail;
+
   return groupdetail;
 };
 
@@ -115,43 +135,58 @@ export const getConversation = asynchandller(async (req, res) => {
   })
     .select("participants groupname bgImage groupIcon lastMessage")
     .populate("lastMessage", "text image sender deletedFor deletedForEveryone")
+    .populate({
+      path: "participants.userId",
+      select: "_id fullname profilePic",
+    })
     .sort({ updatedAt: -1 })
     .lean();
 
+  if (!conversations.length) {
+    return res.status(200).json({ success: true, filtered: [] });
+  }
+
+  const conversationIds = conversations.map((c) => c._id);
+  const unseenCounts = await Message.aggregate([
+    {
+      $match: {
+        conversationId: { $in: conversationIds },
+        sender: { $ne: _id },
+        deletedFor: { $ne: _id },
+        deletedForEveryone: { $ne: true },
+        system: { $ne: true },
+        seenBy: { $ne: _id },
+      },
+    },
+    {
+      $group: {
+        _id: "$conversationId",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const unseenMap = unseenCounts.reduce((acc, curr) => {
+    acc[curr._id.toString()] = curr.count;
+    return acc;
+  }, {});
+
   const filtered = await Promise.all(
     conversations.map(async (con) => {
-      let groupdetail = {};
-
-      if (con.groupname) {
-        groupdetail = await getMemberDetail(con);
-      }
+      const groupdetail = con.groupname ? await getMemberDetail(con) : {};
 
       const otheruser = con.participants.find(
-        (par) => par.userId.toString() != _id.toString(),
+        (par) => par.userId._id.toString() != _id.toString(),
       );
-
-      let user;
-      if (!con.groupname) user = await getUserDetail(otheruser.userId);
-
-      const [unseen] = await Promise.all([
-        Message.countDocuments({
-          conversationId: con._id,
-          sender: { $ne: _id },
-          deletedFor: { $ne: _id },
-          deletedForEveryone: { $ne: true },
-          system: { $ne: true },
-          seenBy: { $ne: _id },
-        }),
-      ]);
 
       return {
         conversationId: con._id,
-        oruserId: user?._id ?? "",
-        name: user?.fullname ?? "",
-        profilePic: user?.profilePic ?? "",
+        oruserId: otheruser?.userId?._id ?? "",
+        name: otheruser?.userId?.fullname ?? "",
+        profilePic: otheruser?.userId?.profilePic ?? "",
         isgroup: con.groupname ? true : false,
         groupdetail,
-        unseenMsg: unseen,
+        unseenMsg: unseenMap[con._id.toString()] || 0,
         bgImage: con.bgImage,
         lastmessage: con.lastMessage ? con.lastMessage : "",
       };
@@ -212,11 +247,7 @@ export const createConversation = asynchandller(async (req, res) => {
 
   const currentSocketId = getReceiverSocketId(_id.toString());
   if (currentSocketId) {
-    io.to(currentSocketId).emit(
-      "refresh",
-      "NEW_CONVERSATION",
-      forCurrentUser,
-    );
+    io.to(currentSocketId).emit("refresh", "NEW_CONVERSATION", forCurrentUser);
   }
 
   const otherSocketId = getReceiverSocketId(oruserId.toString());
@@ -305,9 +336,12 @@ export const setBgimage = asynchandller(async (req, res) => {
 //get surrounding users
 export const getSurrUsers = asynchandller(async (req, res) => {
   const { _id } = req.user;
-  const users = await User.find({ _id: { $ne: _id } })
-    .select("-password -email")
-    .lean();
+  const { cursor, limit } = req.query;
+
+  const safeLimit = Math.min(
+    Math.max(parseInt(limit, 10) || DEFAULT_USERS_LIMIT, 1),
+    MAX_USERS_LIMIT,
+  );
 
   const conversations = await Conversation.find({
     "participants.userId": { $eq: _id },
@@ -315,19 +349,41 @@ export const getSurrUsers = asynchandller(async (req, res) => {
     .select("participants")
     .lean();
 
-  const filtered = users.filter((user) => {
-    const exist = conversations.find((con) =>
-      con.participants.find(
-        (par) => par.userId.toString() === user._id.toString(),
-      ),
-    );
-    return !exist;
-  });
+  const userIdSet = new Set([_id.toString()]);
+
+  for (const conversation of conversations) {
+    for (const participant of conversation.participants) {
+      userIdSet.add(participant.userId.toString());
+    }
+  }
+
+  const userIds = Array.from(userIdSet);
+
+  const query = {
+    _id: { $nin: userIds },
+  };
+
+  if (cursor) {
+    query._id.$lt = cursor;
+  }
+
+  const docs = await User.find(query)
+    .select("-password -email")
+    .sort({ _id: -1 })
+    .limit(safeLimit + 1)
+    .lean();
+
+  const hasMore = docs.length > safeLimit;
+  const users = hasMore ? docs.slice(0, safeLimit) : docs;
+  const nextCursor = hasMore ? users[users.length - 1]._id : null;
 
   return res.status(200).json({
     success: true,
     message: "Fetch all users successfully",
-    filtered,
+    users,
+    filtered: users,
+    nextCursor,
+    hasMore,
   });
 });
 
@@ -437,26 +493,47 @@ export const updateGroupDetail = asynchandller(async (req, res) => {
 export const getOtherUsers = asynchandller(async (req, res) => {
   const { id } = req.params;
   const { _id } = req.user;
+  const { cursor, limit } = req.query;
   if (!id) throw new ApiError(401, "Select group conversation");
+
+  const safeLimit = Math.min(
+    Math.max(parseInt(limit, 10) || DEFAULT_USERS_LIMIT, 1),
+    MAX_USERS_LIMIT,
+  );
 
   const conversation = await Conversation.findById(id).lean();
   if (!conversation) throw new ApiError(400, "Conversation not found");
 
-  const users = await User.find({ _id: { $ne: _id } })
+  const userIds = [
+    ...conversation.participants.map((user) => user.userId.toString()),
+    _id.toString(),
+  ];
+
+  const query = {
+    _id: { $nin: userIds },
+  };
+
+  if (cursor) {
+    query._id.$lt = cursor;
+  }
+
+  const docs = await User.find(query)
     .select("-password -email")
+    .sort({ _id: -1 })
+    .limit(safeLimit + 1)
     .lean();
 
-  const filtered = users.filter((user) => {
-    const exist = conversation.participants.find(
-      (par) => par.userId.toString() == user._id.toString(),
-    );
-    return !exist;
-  });
+  const hasMore = docs.length > safeLimit;
+  const users = hasMore ? docs.slice(0, safeLimit) : docs;
+  const nextCursor = hasMore ? users[users.length - 1]._id : null;
 
   return res.status(200).json({
     success: true,
     message: "Fetch all users successfully",
-    filtered,
+    users,
+    filtered: users,
+    nextCursor,
+    hasMore,
   });
 });
 

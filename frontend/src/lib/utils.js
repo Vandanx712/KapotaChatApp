@@ -15,3 +15,17 @@ export function formatMessageTime(data) {
     });
   }
 }
+
+export function mergeUniqueById(current = [], incoming = []) {
+  const seen = new Set();
+  const merged = [];
+
+  [...current, ...incoming].forEach((item) => {
+    const id = item?._id?.toString?.() ?? item?._id;
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    merged.push(item);
+  });
+
+  return merged;
+}

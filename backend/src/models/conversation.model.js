@@ -35,6 +35,6 @@ const conversationSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-conversationSchema.index({ participants: 1 });
+conversationSchema.index({ "participants.userId": 1, updatedAt: -1 });
 
 export const Conversation = mongoose.model("Conversation", conversationSchema);

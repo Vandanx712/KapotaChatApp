@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { contactDetail } from "../lib/axios";
 import toast from "react-hot-toast";
@@ -13,6 +13,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { useChatStore } from "../store/useChatStore";
+import { mergeUniqueById } from "../lib/utils";
 
 function UserProfile() {
   const navigate = useNavigate();
@@ -23,25 +24,55 @@ function UserProfile() {
   const [user, setUser] = useState(null);
   const [posts, setPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMorePosts, setIsLoadingMorePosts] = useState(false);
   const [isStartingChat, setIsStartingChat] = useState(false);
+  const [postsCursor, setPostsCursor] = useState(null);
+  const [hasMorePosts, setHasMorePosts] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
   }, [id]);
 
-  const loadUserProfile = async () => {
+  const loadUserProfile = useEffectEvent(async () => {
     if (!id) return;
 
     setIsLoading(true);
     try {
-      const resdata = await contactDetail(id);
+      const resdata = await contactDetail(id, { limit: 12 });
       setUser(resdata.user || null);
       setPosts(resdata.user?.posts || []);
+      setPostsCursor(resdata.nextCursor ?? null);
+      setHasMorePosts(Boolean(resdata.hasMore));
     } catch (error) {
       console.log(error);
       toast.error(error.response?.data?.message || "Failed to load profile");
     } finally {
       setIsLoading(false);
+    }
+  });
+
+  const loadMorePosts = async () => {
+    if (!id || !postsCursor || !hasMorePosts || isLoadingMorePosts) return;
+
+    setIsLoadingMorePosts(true);
+    try {
+      const resdata = await contactDetail(id, {
+        cursor: postsCursor,
+        limit: 12,
+      });
+
+      setUser((prev) => ({
+        ...(prev || {}),
+        ...(resdata.user || {}),
+      }));
+      setPosts((prev) => mergeUniqueById(prev, resdata.user?.posts || []));
+      setPostsCursor(resdata.nextCursor ?? null);
+      setHasMorePosts(Boolean(resdata.hasMore));
+    } catch (error) {
+      console.log(error);
+      toast.error(error.response?.data?.message || "Failed to load more posts");
+    } finally {
+      setIsLoadingMorePosts(false);
     }
   };
 
@@ -172,7 +203,9 @@ function UserProfile() {
 
                   <div className="grid grid-cols-2 gap-3 text-center sm:min-w-[250px]">
                     <div className="rounded-2xl bg-base-200/70 px-4 py-4">
-                      <p className="text-xl font-semibold">{posts.length}</p>
+                      <p className="text-xl font-semibold">
+                        {user.postsCount ?? posts.length}
+                      </p>
                       <p className="text-xs uppercase tracking-[0.18em] text-base-content/55">
                         Posts
                       </p>
@@ -195,7 +228,7 @@ function UserProfile() {
                   )}
                   <div className="inline-flex items-center gap-2 rounded-full bg-base-200/70 px-4 py-2">
                     <Grid3X3 className="size-4" />
-                    {posts.length} shared moments
+                    {user.postsCount ?? posts.length} shared moments
                   </div>
                 </div>
               </div>
@@ -216,25 +249,40 @@ function UserProfile() {
             </div>
 
             {posts.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {posts.map((post) => {
-                  const postImage = getPostImage(post);
+              <>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {posts.map((post) => {
+                    const postImage = getPostImage(post);
 
-                  return (
+                    return (
+                      <button
+                        key={post._id}
+                        type="button"
+                        onClick={() => navigate(`/post/${post._id}`)}
+                        className="aspect-square overflow-hidden bg-base-200 text-left"
+                      >
+                        <img
+                          src={postImage}
+                          alt={post.caption || "Post"}
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+                {hasMorePosts && (
+                  <div className="mt-5 flex justify-center">
                     <button
                       type="button"
-                      onClick={()=>navigate(`/post/${post._id}`)}
-                      className="aspect-square overflow-hidden bg-base-200 text-left"
+                      onClick={loadMorePosts}
+                      disabled={isLoadingMorePosts}
+                      className="btn btn-outline"
                     >
-                      <img
-                        src={postImage}
-                        alt={post.caption || "Post"}
-                        className="h-full w-full object-cover"
-                      />
+                      {isLoadingMorePosts ? "Loading..." : "Load more posts"}
                     </button>
-                  );
-                })}
-              </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="rounded-[2rem] border border-dashed border-base-300 bg-base-200/40 px-6 py-12 text-center">
                 <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-base-100">

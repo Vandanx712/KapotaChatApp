@@ -7,19 +7,46 @@ import { asynchandller } from "../util/asynchandller.js";
 import { StoragePath } from "../util/filepath.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 
-const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const DEFAULT_MESSAGE_LIMIT = 30;
+const MAX_MESSAGE_LIMIT = 100;
 
 export const getMessages = asynchandller(async (req, res) => {
   const { id } = req.params;
+  const { cursor, limit } = req.query;
+  const { _id } = req.user;
 
   if (!id) throw new ApiError(401, "Select Conversation");
 
-  const messages = await Message.find({ conversationId: id }).lean();
+  const safeLimit = Math.min(
+    Math.max(parseInt(limit, 10) || DEFAULT_MESSAGE_LIMIT, 1),
+    MAX_MESSAGE_LIMIT,
+  );
+
+  const query = {
+    conversationId: id,
+    deletedFor: { $ne: _id },
+  };
+
+  if (cursor) {
+    query._id = { $lt: cursor };
+  }
+
+  const docs = await Message.find(query)
+    .sort({ _id: -1 })
+    .limit(safeLimit + 1)
+    .lean();
+
+  const hasMore = docs.length > safeLimit;
+  const page = hasMore ? docs.slice(0, safeLimit) : docs;
+  const messages = page.reverse();
+  const nextCursor = hasMore ? page[page.length - 1]._id : null;
 
   return res.status(200).json({
     success: true,
     message: "Fetch all messages successfully",
     messages,
+    nextCursor,
+    hasMore,
   });
 });
 
@@ -32,16 +59,17 @@ export const searchMessages = asynchandller(async (req, res) => {
   if (!q || q.trim().length === 0) throw new ApiError(401, "Missing field");
 
   const safeLimit = Math.min(parseInt(limit, 10) || 20, 50);
-  const regex = new RegExp(escapeRegex(q.trim()), "i");
-
-  const messages = await Message.find({
-    conversationId: id,
-    deletedForEveryone: { $ne: true },
-    deletedFor: { $ne: _id },
-    text: regex,
-  })
+  const messages = await Message.find(
+    {
+      conversationId: id,
+      deletedForEveryone: { $ne: true },
+      deletedFor: { $ne: _id },
+      $text: { $search: q },
+    },
+    { score: { $meta: "textScore" } },
+  )
     .select("_id text sender createdAt")
-    .sort({ createdAt: -1 })
+    .sort({ score: { $meta: "textScore" } })
     .limit(safeLimit)
     .lean();
 
@@ -244,12 +272,8 @@ export const clearChat = asynchandller(async (req, res) => {
   const conversation = await Conversation.findById(id).select("_id").lean();
   if (!conversation) throw new ApiError(400, "Conversation not found");
 
-  const messages = await Message.find({ conversationId: id })
-    .select("_id")
-    .lean();
-  const mids = messages.map((m) => m._id);
   await Message.updateMany(
-    { _id: { $in: mids } },
+    { conversationId: id },
     { $addToSet: { deletedFor: _id } },
   );
 

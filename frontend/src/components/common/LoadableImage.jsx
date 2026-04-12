@@ -41,7 +41,7 @@ function LoadableImage({
           setFailedSrc(src);
           setLoadedSrc(src);
         }}
-        className={`h-full w-full ${className} ${isLoaded ? "opacity-100" : "opacity-0"} transition-opacity duration-200`}
+        className={`${className} ${isLoaded ? "opacity-100" : "opacity-0"} transition-opacity duration-200`}
         {...imgProps}
       />
     </div>

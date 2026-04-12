@@ -16,18 +16,32 @@ import {
   updateMembers,
   updateMessage,
 } from "../lib/axios";
+import { mergeUniqueById } from "../lib/utils";
 import { useAuthStore } from "./useAuthStore";
+
+const MESSAGE_PAGE_LIMIT = 30;
+const USER_PAGE_LIMIT = 30;
 
 export const useChatStore = create((set, get) => ({
   message: [],
+  messageCursor: null,
+  hasMoreMessages: false,
   users: [],
+  surroundingUsersCursor: null,
+  hasMoreSurroundingUsers: false,
   otherUsers: [],
+  otherUsersCursor: null,
+  hasMoreOtherUsers: false,
   conversations: [],
   selectedUser: null,
   selectedConversation: null,
   isUsersLoading: false,
+  isMoreSurroundingUsersLoading: false,
   isConversationLoading: false,
   isMessageLoading: false,
+  isMoreMessagesLoading: false,
+  isOtherUsersLoading: false,
+  isMoreOtherUsersLoading: false,
   showInfo: false,
 
   getConversation: async () => {
@@ -43,11 +57,22 @@ export const useChatStore = create((set, get) => ({
   },
 
   getMessage: async () => {
-    set({ isMessageLoading: true });
     const { selectedConversation } = get();
+    if (!selectedConversation?.conversationId) return;
+
+    set({
+      isMessageLoading: true,
+      isMoreMessagesLoading: false,
+      message: [],
+      messageCursor: null,
+      hasMoreMessages: false,
+    });
+
     const authUser = useAuthStore.getState().authUser;
     try {
-      const resdata = await getMessages(selectedConversation.conversationId);
+      const resdata = await getMessages(selectedConversation.conversationId, {
+        limit: MESSAGE_PAGE_LIMIT,
+      });
       const updatedMessages = resdata.messages.map((msg) => {
         if (msg.system) return msg;
         const hasSeen =
@@ -60,7 +85,11 @@ export const useChatStore = create((set, get) => ({
         }
         return msg;
       });
-      set({ message: updatedMessages });
+      set({
+        message: updatedMessages,
+        messageCursor: resdata.nextCursor ?? null,
+        hasMoreMessages: Boolean(resdata.hasMore),
+      });
       resdata.messages.forEach((msg) => {
         if (msg.system) return;
         const hasSeen =
@@ -80,8 +109,67 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  loadOlderMessages: async () => {
+    const { selectedConversation, messageCursor, hasMoreMessages, isMoreMessagesLoading } =
+      get();
+    if (
+      !selectedConversation?.conversationId ||
+      !messageCursor ||
+      !hasMoreMessages ||
+      isMoreMessagesLoading
+    ) {
+      return;
+    }
+
+    set({ isMoreMessagesLoading: true });
+    const authUser = useAuthStore.getState().authUser;
+
+    try {
+      const resdata = await getMessages(selectedConversation.conversationId, {
+        cursor: messageCursor,
+        limit: MESSAGE_PAGE_LIMIT,
+      });
+
+      const updatedMessages = resdata.messages.map((msg) => {
+        if (msg.system) return msg;
+        const hasSeen =
+          Array.isArray(msg.seenBy) && msg.seenBy.includes(authUser._id);
+        if (msg.sender !== authUser._id && !hasSeen) {
+          return {
+            ...msg,
+            seenBy: Array.from(new Set([...(msg.seenBy || []), authUser._id])),
+          };
+        }
+        return msg;
+      });
+
+      set((state) => ({
+        message: mergeUniqueById(updatedMessages, state.message),
+        messageCursor: resdata.nextCursor ?? null,
+        hasMoreMessages: Boolean(resdata.hasMore),
+      }));
+
+      resdata.messages.forEach((msg) => {
+        if (msg.system) return;
+        const hasSeen =
+          Array.isArray(msg.seenBy) && msg.seenBy.includes(authUser._id);
+        if (msg.sender !== authUser._id && !hasSeen) {
+          const socket = useAuthStore.getState().socket;
+          socket.emit("msgseen", {
+            msgId: msg._id,
+            senderId: msg.sender,
+          });
+        }
+      });
+    } catch (error) {
+      toast.error(error.response?.data?.message);
+    } finally {
+      set({ isMoreMessagesLoading: false });
+    }
+  },
+
   sendMessage: async (messageData) => {
-    const { selectedConversation, message } = get();
+    const { selectedConversation } = get();
     try {
       const resdata = await sendMessage(
         selectedConversation.conversationId,
@@ -197,10 +285,61 @@ export const useChatStore = create((set, get) => ({
 
   getSurroundingUsers: async () => {
     try {
-      const resdata = await getSurroundUsers();
-      set({ users: resdata.filtered });
+      set({
+        isUsersLoading: true,
+        isMoreSurroundingUsersLoading: false,
+        users: [],
+        surroundingUsersCursor: null,
+        hasMoreSurroundingUsers: false,
+      });
+
+      const resdata = await getSurroundUsers({ limit: USER_PAGE_LIMIT });
+      set({
+        users: resdata.users || resdata.filtered || [],
+        surroundingUsersCursor: resdata.nextCursor ?? null,
+        hasMoreSurroundingUsers: Boolean(resdata.hasMore),
+      });
     } catch (error) {
       console.log(error);
+    } finally {
+      set({ isUsersLoading: false });
+    }
+  },
+
+  loadMoreSurroundingUsers: async () => {
+    const {
+      surroundingUsersCursor,
+      hasMoreSurroundingUsers,
+      isUsersLoading,
+      isMoreSurroundingUsersLoading,
+    } = get();
+
+    if (
+      !surroundingUsersCursor ||
+      !hasMoreSurroundingUsers ||
+      isUsersLoading ||
+      isMoreSurroundingUsersLoading
+    ) {
+      return;
+    }
+
+    set({ isMoreSurroundingUsersLoading: true });
+
+    try {
+      const resdata = await getSurroundUsers({
+        cursor: surroundingUsersCursor,
+        limit: USER_PAGE_LIMIT,
+      });
+
+      set((state) => ({
+        users: mergeUniqueById(state.users, resdata.users || resdata.filtered || []),
+        surroundingUsersCursor: resdata.nextCursor ?? null,
+        hasMoreSurroundingUsers: Boolean(resdata.hasMore),
+      }));
+    } catch (error) {
+      console.log(error);
+    } finally {
+      set({ isMoreSurroundingUsersLoading: false });
     }
   },
 
@@ -373,6 +512,8 @@ export const useChatStore = create((set, get) => ({
         } else return con;
       }),
       message: [],
+      messageCursor: null,
+      hasMoreMessages: false,
     }));
   },
 
@@ -433,12 +574,67 @@ export const useChatStore = create((set, get) => ({
   },
 
   setOtherUsers: async (id) => {
+    set({
+      isOtherUsersLoading: true,
+      isMoreOtherUsersLoading: false,
+      otherUsers: [],
+      otherUsersCursor: null,
+      hasMoreOtherUsers: false,
+    });
     try {
-      const resdata = await getOtherUsers(id);
-      set({ otherUsers: resdata.filtered });
+      const resdata = await getOtherUsers(id, { limit: USER_PAGE_LIMIT });
+      set({
+        otherUsers: resdata.users || resdata.filtered || [],
+        otherUsersCursor: resdata.nextCursor ?? null,
+        hasMoreOtherUsers: Boolean(resdata.hasMore),
+      });
     } catch (error) {
       console.log(error);
       toast.error(error.response?.data?.message);
+    } finally {
+      set({ isOtherUsersLoading: false });
+    }
+  },
+
+  loadMoreOtherUsers: async (id) => {
+    const {
+      otherUsersCursor,
+      hasMoreOtherUsers,
+      isOtherUsersLoading,
+      isMoreOtherUsersLoading,
+    } = get();
+
+    if (
+      !id ||
+      !otherUsersCursor ||
+      !hasMoreOtherUsers ||
+      isOtherUsersLoading ||
+      isMoreOtherUsersLoading
+    ) {
+      return;
+    }
+
+    set({ isMoreOtherUsersLoading: true });
+
+    try {
+      const resdata = await getOtherUsers(id, {
+        cursor: otherUsersCursor,
+        limit: USER_PAGE_LIMIT,
+      });
+
+      set((state) => ({
+        otherUsers: mergeUniqueById(
+          state.otherUsers,
+          resdata.users || resdata.filtered || [],
+        ),
+        otherUsersCursor: resdata.nextCursor ?? null,
+        hasMoreOtherUsers: Boolean(resdata.hasMore),
+      }));
+    } catch (error) {
+      console.log(error);
+      toast.error(error.response?.data?.message);
+    } finally {
+      set({ isMoreOtherUsersLoading: false });
     }
   },
 

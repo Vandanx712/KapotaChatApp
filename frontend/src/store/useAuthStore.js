@@ -20,6 +20,9 @@ export const useAuthStore = create((set, get) => ({
   isSigningUp: false,
   isLoggingIng: false,
   isUpdateProfile: false,
+  isProfilePhotoUploading: false,
+  isProfileDetailsUpdating: false,
+  isContactLoading: false,
   isCheckingAuth: true,
   onlineUsers: [],
   socket: null,
@@ -86,7 +89,7 @@ export const useAuthStore = create((set, get) => ({
   },
 
   updateProfile: async (data) => {
-    set({ isUpdateProfile: true });
+    set({ isUpdateProfile: true, isProfilePhotoUploading: true });
     try {
       const resdata = await updatePic(data);
       toast.success(resdata.message);
@@ -97,12 +100,12 @@ export const useAuthStore = create((set, get) => ({
       toast.error(error.response?.dats?.message);
       console.log(error);
     } finally {
-      set({ isUpdateProfile: false });
+      set({ isUpdateProfile: false, isProfilePhotoUploading: false });
     }
   },
 
   updateDetails: async (data) => {
-    set({ isUpdateProfile: true });
+    set({ isUpdateProfile: true, isProfileDetailsUpdating: true });
     try {
       const resdata = await updateProfile(data);
       set({ authUser: resdata.user });
@@ -111,17 +114,20 @@ export const useAuthStore = create((set, get) => ({
       toast.error(error.response?.dats?.message);
       console.log(error);
     } finally {
-      set({ isUpdateProfile: false });
+      set({ isUpdateProfile: false, isProfileDetailsUpdating: false });
     }
   }, 
 
   contactDetail:async(id)=>{
+    set({ isContactLoading: true });
     try {
       const resdata = await contactDetail(id)
       set({otherUser:resdata.user})
     } catch (error) {
       console.log(error)
       toast.error(error.response?.data.message)
+    } finally {
+      set({ isContactLoading: false });
     }
   },
 

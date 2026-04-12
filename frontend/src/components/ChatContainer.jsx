@@ -6,7 +6,7 @@ import MessageSkeleton from "../components/skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
 import MessageItem from "./MessageItem";
 import { Virtuoso } from "react-virtuoso";
-import { Search, X } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
 import { searchMessages } from "../lib/axios";
 import { formatMessageTime } from "../lib/utils";
 import toast from "react-hot-toast";
@@ -17,7 +17,10 @@ function ChatContainer() {
   const {
     message,
     getMessage,
+    loadOlderMessages,
+    hasMoreMessages,
     isMessageLoading,
+    isMoreMessagesLoading,
     selectedConversation,
     onlineToMessage,
     offlineToMessage,
@@ -302,6 +305,7 @@ function ChatContainer() {
         className={`flex-1 min-h-0 ${selectedConversation.bgImage ? `bg-cover bg-center bg-no-repeat` : ""}`}
       >
         <Virtuoso
+          key={selectedConversation.conversationId}
           ref={virtuosoRef}
           style={{ height: "100%" }}
           data={virtuosoData}
@@ -310,6 +314,28 @@ function ChatContainer() {
           atBottomThreshold={120}
           atBottomStateChange={setIsAtBottom}
           followOutput={isAtBottom ? "smooth" : false}
+          components={{
+            Header: () =>
+              hasMoreMessages || isMoreMessagesLoading ? (
+                <div className="flex justify-center px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={loadOlderMessages}
+                    disabled={isMoreMessagesLoading}
+                    className="btn btn-sm btn-ghost"
+                  >
+                    {isMoreMessagesLoading ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Loading older messages
+                      </>
+                    ) : (
+                      "Load older messages"
+                    )}
+                  </button>
+                </div>
+              ) : null,
+          }}
           itemContent={(index, m) => (
             <MessageItem
               key={m?._id}

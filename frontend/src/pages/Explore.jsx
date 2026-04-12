@@ -7,10 +7,10 @@ import {
   SendIcon,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
-import { formatMessageTime } from "../lib/utils";
+import { formatMessageTime, mergeUniqueById } from "../lib/utils";
 import { postFeed, postLiked, sendMessage } from "../lib/axios";
 import { PhotoProvider, PhotoView } from "react-photo-view";
 import toast from "react-hot-toast";
@@ -26,6 +26,7 @@ function Explore() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [cursor, setCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
   const [isNearbyModalOpen, setIsNearbyModalOpen] = useState(false);
   const [visiblePostIds, setVisiblePostIds] = useState(new Set());
   const [sharePost, setSharePost] = useState(null);
@@ -60,8 +61,10 @@ function Explore() {
   }, [isNearbyModalOpen]);
 
   useEffect(() => {
+    if (!hasMore) return;
+
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
+      if (entries[0].isIntersecting && !loading) {
         loadPosts();
       }
     });
@@ -71,7 +74,7 @@ function Explore() {
     }
 
     return () => observer.disconnect();
-  }, [cursor]);
+  }, [cursor, hasMore, loading]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -150,20 +153,21 @@ function Explore() {
     }
   }, [sharePost, conversations.length, getConversation]);
 
-  const loadPosts = async () => {
-    if (loading) return;
+  const loadPosts = useEffectEvent(async () => {
+    if (loading || !hasMore) return;
     setLoading(true);
     try {
-      const resdata = await postFeed(cursor);
+      const resdata = await postFeed({ cursor, limit: 10 });
 
-      setPosts((prev) => [...prev, ...resdata.posts]);
-      setCursor(resdata.nextCursor);
+      setPosts((prev) => mergeUniqueById(prev, resdata.posts || []));
+      setCursor(resdata.nextCursor ?? null);
+      setHasMore(Boolean(resdata.hasMore));
     } catch (error) {
       console.log(error);
     } finally {
       setLoading(false);
     }
-  };
+  });
 
   const handleLike = async (id) => {
     try {
@@ -352,6 +356,11 @@ function Explore() {
 
           <div ref={loadMoreRef} className=" flex justify-center">
             {loading && <Loader2 className="size-12 wanimate-spin" />}
+            {!loading && !hasMore && posts.length > 0 && (
+              <p className="py-6 text-sm text-base-content/60">
+                You&apos;ve reached the end of the feed.
+              </p>
+            )}
           </div>
         </div>
 

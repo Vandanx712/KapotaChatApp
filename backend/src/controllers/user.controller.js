@@ -6,6 +6,11 @@ import { User } from "../models/user.model.js";
 import { Post } from "../models/post.model.js";
 import { Like } from "../models/like.model.js";
 
+const DEFAULT_USERS_LIMIT = 30;
+const DEFAULT_PROFILE_POST_LIMIT = 12;
+const MAX_USERS_LIMIT = 100;
+const MAX_PROFILE_POST_LIMIT = 50;
+
 //getall predefind avatars
 export const getPreAvatars = asynchandller(async (req, res) => {
   const { gender } = req.body;
@@ -80,28 +85,75 @@ export const updateProfile = asynchandller(async (req, res) => {
 
 export const getallUsers = asynchandller(async (req, res) => {
   const { _id } = req.user;
-  const users = await User.find({ _id: { $ne: _id } })
+  const { cursor, limit } = req.query;
+
+  const safeLimit = Math.min(
+    Math.max(parseInt(limit, 10) || DEFAULT_USERS_LIMIT, 1),
+    MAX_USERS_LIMIT,
+  );
+
+  const query = {
+    _id: {
+      $ne: _id,
+    },
+  };
+
+  if (cursor) {
+    query._id.$lt = cursor;
+  }
+
+  const docs = await User.find(query)
     .select("-password -email")
+    .sort({ _id: -1 })
+    .limit(safeLimit + 1)
     .lean();
+
+  const hasMore = docs.length > safeLimit;
+  const users = hasMore ? docs.slice(0, safeLimit) : docs;
+  const nextCursor = hasMore ? users[users.length - 1]._id : null;
 
   return res.status(200).json({
     success: true,
     message: "Fetch all users successfully",
     users,
+    filtered: users,
+    nextCursor,
+    hasMore,
   });
 });
 
 export const getUserById = asynchandller(async (req, res) => {
   const { id } = req.params;
   const { _id } = req.user;
+  const { cursor, limit } = req.query;
 
   if (!id) throw new ApiError(401, "Missing field");
 
+  const safeLimit = Math.min(
+    Math.max(parseInt(limit, 10) || DEFAULT_PROFILE_POST_LIMIT, 1),
+    MAX_PROFILE_POST_LIMIT,
+  );
+
   const user = await User.findById(id).select("-password").lean();
   if (!user) throw new ApiError(400, "User not found");
-  const userposts = await Post.find({ user: user._id, isArchived: false })
-    .sort({ createdAt: -1 })
+
+  const postQuery = {
+    user: user._id,
+    isArchived: false,
+  };
+
+  if (cursor) {
+    postQuery._id = { $lt: cursor };
+  }
+
+  const postDocs = await Post.find(postQuery)
+    .sort({ _id: -1 })
+    .limit(safeLimit + 1)
     .lean();
+
+  const hasMore = postDocs.length > safeLimit;
+  const userposts = hasMore ? postDocs.slice(0, safeLimit) : postDocs;
+  const nextCursor = hasMore ? userposts[userposts.length - 1]._id : null;
 
   const userpostIds = userposts.map((p) => p._id);
   const likedPosts = await Like.find({
@@ -115,12 +167,20 @@ export const getUserById = asynchandller(async (req, res) => {
     isLiked: likedPostIds.has(post._id.toString()),
   }));
 
+  const totalPosts = await Post.countDocuments({
+    user: user._id,
+    isArchived: false,
+  });
+
   return res.status(200).json({
     success: true,
     message: "Fetch detail successfully",
     user: {
       ...user,
+      postsCount: totalPosts,
       posts: finalPosts,
     },
+    nextCursor,
+    hasMore,
   });
 });
