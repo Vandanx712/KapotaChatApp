@@ -39,7 +39,11 @@ export const getMessages = asynchandller(async (req, res) => {
   const hasMore = docs.length > safeLimit;
   const page = hasMore ? docs.slice(0, safeLimit) : docs;
   const messages = page.reverse();
+<<<<<<< HEAD
+  const nextCursor = hasMore ? messages[0]._id : null;
+=======
   const nextCursor = hasMore ? page[page.length - 1]._id : null;
+>>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
 
   return res.status(200).json({
     success: true,
@@ -47,6 +51,42 @@ export const getMessages = asynchandller(async (req, res) => {
     messages,
     nextCursor,
     hasMore,
+<<<<<<< HEAD
+  });
+});
+
+export const getMessageImgs = asynchandller(async (req, res) => {
+  const { id } = req.params;
+  const { cursor, limit } = req.query;
+  const { _id } = req.user;
+
+  if (!id) throw new ApiError(401, "Select Conversation");
+
+  const query = {
+    conversationId: id,
+    deletedFor: { $ne: _id },
+    "image.url": { $exists: true },
+  };
+
+  if (cursor) {
+    query._id = { $lt: cursor };
+  }
+
+  const docs = await Message.find(query).sort({ _id: -1 }).limit(6).lean();
+
+  const hasMore = docs.length > 5;
+  const page = hasMore ? docs.slice(0, 5) : docs;
+  const messages = page.reverse();
+  const nextCursor = hasMore ? messages[0]._id : null;
+
+  return res.status(200).json({
+    success: true,
+    message: "Fetch all image messages successfully",
+    messages,
+    nextCursor,
+    hasMore,
+=======
+>>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
   });
 });
 

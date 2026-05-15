@@ -134,6 +134,16 @@ export const getMessages = async(id, params = {})=>{
   const response = await api.get(`/message/${id}`, {
     params: buildParams(params),
   })
+<<<<<<< HEAD
+  return response.data
+}
+
+export const getMessageImgs = async(id,params={})=>{
+  const response = await api.get(`/message/media/${id}`,{
+    params:buildParams(params)
+  })
+=======
+>>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
   return response.data
 }
 
