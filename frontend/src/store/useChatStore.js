@@ -7,6 +7,7 @@ import {
   deleteMessage,
   exitGroup,
   getConversations,
+  getMessageImgs,
   getMessages,
   getOtherUsers,
   getSurroundUsers,
@@ -24,7 +25,15 @@ const USER_PAGE_LIMIT = 30;
 
 export const useChatStore = create((set, get) => ({
   message: [],
+<<<<<<< HEAD
+  mediaImgs: [],
+  mediaImgCursor: null,
+  hasMoremediaImgs: null,
   messageCursor: null,
+  isMediaImgLoading: null,
+=======
+  messageCursor: null,
+>>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
   hasMoreMessages: false,
   users: [],
   surroundingUsersCursor: null,
@@ -109,9 +118,65 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+<<<<<<< HEAD
+  getImgMessages: async () => {
+    const {
+      selectedConversation,
+      mediaImgCursor,
+      hasMoremediaImgs,
+      isMediaImgLoading,
+    } = get();
+
+    if (!selectedConversation?.conversationId || isMediaImgLoading) return;
+
+    if (mediaImgCursor === null && hasMoremediaImgs === false) return;
+
+    set({ isMediaImgLoading: true });
+    const authUser = useAuthStore.getState().authUser;
+
+    try {
+      const resdata = await getMessageImgs(
+        selectedConversation.conversationId,
+        {
+          cursor: mediaImgCursor,
+          limit: 5,
+        },
+      );
+
+      const imageUrls = resdata.messages.map((msg) => msg.image);
+
+      set((state) => ({
+        mediaImgs: [...imageUrls, ...state.mediaImgs],
+        mediaImgCursor: resdata.nextCursor ?? null,
+        hasMoremediaImgs: Boolean(resdata.hasMore),
+      }));
+    } catch (error) {
+      toast.error(error.response?.data?.message);
+    } finally {
+      set({ isMediaImgLoading: false });
+    }
+  },
+
+  resetImgMessages: () =>
+    set({
+      mediaImgs: [],
+      mediaImgCursor: null,
+      hasMoremediaImgs: null,
+      isMediaImgLoading: false,
+    }),
+
+  loadOlderMessages: async () => {
+    const {
+      selectedConversation,
+      messageCursor,
+      hasMoreMessages,
+      isMoreMessagesLoading,
+    } = get();
+=======
   loadOlderMessages: async () => {
     const { selectedConversation, messageCursor, hasMoreMessages, isMoreMessagesLoading } =
       get();
+>>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
     if (
       !selectedConversation?.conversationId ||
       !messageCursor ||
@@ -144,7 +209,11 @@ export const useChatStore = create((set, get) => ({
       });
 
       set((state) => ({
+<<<<<<< HEAD
+        message: [...updatedMessages, ...state.message],
+=======
         message: mergeUniqueById(updatedMessages, state.message),
+>>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
         messageCursor: resdata.nextCursor ?? null,
         hasMoreMessages: Boolean(resdata.hasMore),
       }));
@@ -332,7 +401,14 @@ export const useChatStore = create((set, get) => ({
       });
 
       set((state) => ({
+<<<<<<< HEAD
+        users: mergeUniqueById(
+          state.users,
+          resdata.users || resdata.filtered || [],
+        ),
+=======
         users: mergeUniqueById(state.users, resdata.users || resdata.filtered || []),
+>>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
         surroundingUsersCursor: resdata.nextCursor ?? null,
         hasMoreSurroundingUsers: Boolean(resdata.hasMore),
       }));

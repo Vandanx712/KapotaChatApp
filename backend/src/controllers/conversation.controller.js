@@ -6,6 +6,10 @@ import { ApiError } from "../util/apierror.js";
 import { deleteImage, uploadChatPic } from "../lib/cloudinary.js";
 import { StoragePath } from "../util/filepath.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
+import { jobsQueue } from "../lib/worker.js";
+
+const DEFAULT_USERS_LIMIT = 30;
+const MAX_USERS_LIMIT = 100;
 
 const DEFAULT_USERS_LIMIT = 30;
 const MAX_USERS_LIMIT = 100;
@@ -279,22 +283,17 @@ export const deleteConversation = asynchandller(async (req, res) => {
     conversationId: conversation._id,
   }).lean();
 
-  for (const message of messages) {
-    if (message.image) {
-      await deleteImage(message.image?.key);
-    }
+  const keys = [];
+
+  if (conversation.bgImage) {
+    keys.push(conversation.bgImage.key);
+  }
+  if (conversation.groupIcon) {
+    keys.push(conversation.groupIcon.key);
   }
 
   await Message.deleteMany({ conversationId: conversation._id });
-  if (conversation.bgImage) {
-    await deleteImage(conversation.bgImage.key);
-  }
-  if (conversation.groupIcon) {
-    await deleteImage(conversation.groupIcon.key);
-  }
-  const participantIds = conversation.participants.map((p) =>
-    p.userId.toString(),
-  );
+  await jobsQueue.add("delete-msg-Img", { keys, messages });
 
   emitRefresh("DELETE_CONVERSATION", conversation);
 
