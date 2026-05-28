@@ -31,6 +31,7 @@ function ChatContainer() {
   } = useChatStore();
   const { authUser, socket } = useAuthStore();
   const virtuosoRef = useRef(null);
+  const didInitialScrollRef = useRef(false);
   const searchInputRef = useRef(null);
   const [Typing, setTyping] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -133,13 +134,22 @@ function ChatContainer() {
   }, [lastmsg?._id, lastmsg?.sender, authUser?._id, socket, lastmsg?.seenBy]);
 
   useEffect(() => {
-    if (!virtuosoRef.current || !isAtBottom || message.length === 0) return;
-    virtuosoRef.current.scrollToIndex({
-      index: message.length - 1,
-      align: "end",
-      behavior: "smooth",
+    if (!message.length || didInitialScrollRef.current) return;
+
+    didInitialScrollRef.current = true;
+
+    requestAnimationFrame(() => {
+      virtuosoRef.current?.scrollToIndex({
+        index: message.length - 1,
+        align: "end",
+        behavior: "auto",
+      });
     });
-  }, [message.length, isAtBottom]);
+  }, [message.length]);
+
+  useEffect(() => {
+    didInitialScrollRef.current = false;
+  }, [selectedConversation.conversationId]);
 
   useEffect(() => {
     socket.on("msgseen", (payload) => {
@@ -309,11 +319,19 @@ function ChatContainer() {
           ref={virtuosoRef}
           style={{ height: "100%" }}
           data={virtuosoData}
-          initialTopMostItemIndex={Math.max(message.length - 1, 0)}
-          alignToBottom
+          computeItemKey={(index, item) => item._id}
           atBottomThreshold={120}
           atBottomStateChange={setIsAtBottom}
+<<<<<<< HEAD
+          followOutput="smooth"
+          firstItemIndex={100000 - message.length}
+          initialTopMostItemIndex={message.length > 0 ? message.length - 1 : 0}
+=======
           followOutput={isAtBottom ? "smooth" : false}
+<<<<<<< HEAD
+=======
+>>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
+>>>>>>> aee32a26c10e2c6e2a2d7cc35e8c7e0620636a9c
           components={{
             Header: () =>
               hasMoreMessages || isMoreMessagesLoading ? (
@@ -338,7 +356,6 @@ function ChatContainer() {
           }}
           itemContent={(index, m) => (
             <MessageItem
-              key={m?._id}
               m={m}
               authUser={authUser}
               selectedConversation={selectedConversation}

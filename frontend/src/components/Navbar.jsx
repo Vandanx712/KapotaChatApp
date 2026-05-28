@@ -41,8 +41,8 @@ const Navbar = () => {
                   <LoadableImage
                     src={authUser.profilePic?.url}
                     alt={authUser.fullname || "Profile"}
-                    className="rounded-full border border-base-200 object-cover"
-                    wrapperClassName="size-10 rounded-full"
+                    className="rounded-full size-10 border border-base-200 object-cover"
+                    wrapperClassName=" rounded-full"
                     fallback={
                       <div className="flex h-full w-full items-center justify-center rounded-full border border-base-200 bg-base-300 text-base-content/70">
                         <User className="size-5" />

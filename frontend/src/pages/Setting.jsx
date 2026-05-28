@@ -48,34 +48,34 @@ const settingsItems = [
   },
   {
     id: 2,
-    icon: Settings2,
+    icon: Settings2,  
     label: "Post",
     description: "See posts, post setting",
   },
-  {
-    id: 3,
-    icon: Lock,
-    label: "Privacy",
-    description: "Blocked contacts, disappearing messages",
-  },
+  // {
+  //   id: 3,
+  //   icon: Lock,
+  //   label: "Privacy",
+  //   description: "Blocked contacts, disappearing messages",
+  // },
   {
     id: 4,
     icon: MessageCircle,
     label: "Chats",
     description: "Theme, wallpaper, chat settings",
   },
-  {
-    id: 5,
-    icon: Video,
-    label: "Video & voice",
-    description: "Camera, microphone & speakers",
-  },
-  {
-    id: 6,
-    icon: Bell,
-    label: "Notifications",
-    description: "Message notifications",
-  },
+  // {
+  //   id: 5,
+  //   icon: Video,
+  //   label: "Video & voice",
+  //   description: "Camera, microphone & speakers",
+  // },
+  // {
+  //   id: 6,
+  //   icon: Bell,
+  //   label: "Notifications",
+  //   description: "Message notifications",
+  // },
   {
     id: 8,
     icon: CircleQuestionMark,

@@ -26,7 +26,7 @@ import LoadableImage from "./common/LoadableImage";
 
 const cardClass = "p-5 ";
 
-function MediaSlider({ mediaFiles }) {
+function MediaSlider({ mediaFiles, getImgMessages }) {
   const sliderRef = useRef(null);
 
   const handleScroll = (direction) => {
@@ -47,7 +47,10 @@ function MediaSlider({ mediaFiles }) {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => handleScroll(-1)}
+              onClick={() => {
+                handleScroll(-1);
+                getImgMessages();
+              }}
               className="flex h-9 w-9 items-center justify-center rounded-full border border-base-200 bg-base-100 text-base-content/70 transition hover:border-base-300 hover:text-base-content"
             >
               <ChevronLeft className="size-4" />
@@ -69,6 +72,18 @@ function MediaSlider({ mediaFiles }) {
         >
           <PhotoProvider>
             {mediaFiles.map((file) => (
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+              <PhotoView src={file?.url}>
+                <img
+                  src={file?.url}
+                  alt=""
+                  className="rounded-lg object-cover size-20 shrink-0 cursor-pointer"
+                  loading="lazy"
+                  decoding="async"
+=======
+>>>>>>> aee32a26c10e2c6e2a2d7cc35e8c7e0620636a9c
               <PhotoView src={file.image.url}>
                 <LoadableImage
                   src={file.image.url}
@@ -76,6 +91,10 @@ function MediaSlider({ mediaFiles }) {
                   className="rounded-lg object-cover size-20 shrink-0 cursor-pointer"
                   wrapperClassName="size-20 shrink-0 rounded-lg"
                   imgProps={{ loading: "lazy", decoding: "async" }}
+<<<<<<< HEAD
+=======
+>>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
+>>>>>>> aee32a26c10e2c6e2a2d7cc35e8c7e0620636a9c
                 />
               </PhotoView>
             ))}
@@ -135,8 +154,13 @@ export default function InfoDrawer({ conversation, onClose }) {
     upGroupMember,
     ExitGroup,
     message,
+    mediaImgs,
+    getImgMessages,
+    resetImgMessages,
   } = useChatStore();
   const { authUser } = useAuthStore();
+
+  const mediaFiles = mediaImgs;
 
   useEffect(() => {
     if (!conversation.isgroup) return;
@@ -155,7 +179,10 @@ export default function InfoDrawer({ conversation, onClose }) {
     setDeleteChat(conversation.conversationId);
   };
 
-  const mediaFiles = message.filter((file) => file?.image?.url);
+  useEffect(() => {
+    resetImgMessages();
+    getImgMessages();
+  }, [conversation.conversationId]);
 
   function GroupInfo({ group, onClose }) {
     const [groupForm, setGroupForm] = useState(false);
@@ -374,7 +401,10 @@ export default function InfoDrawer({ conversation, onClose }) {
               )}
             </div>
 
-            <MediaSlider mediaFiles={mediaFiles} />
+            <MediaSlider
+              mediaFiles={mediaFiles}
+              getImgMessages={getImgMessages}
+            />
 
             <section className={cardClass}>
               <SectionTitle
@@ -421,7 +451,18 @@ export default function InfoDrawer({ conversation, onClose }) {
                                 alt=""
                                 className="object-cover"
                                 wrapperClassName="w-10 h-10 rounded-full"
+<<<<<<< HEAD
                                 imgProps={{ loading: "lazy", decoding: "async" }}
+=======
+<<<<<<< HEAD
+                                imgProps={{
+                                  loading: "lazy",
+                                  decoding: "async",
+                                }}
+=======
+                                imgProps={{ loading: "lazy", decoding: "async" }}
+>>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
+>>>>>>> aee32a26c10e2c6e2a2d7cc35e8c7e0620636a9c
                               />
                             </PhotoView>
                           </PhotoProvider>
