@@ -72,7 +72,6 @@ function MediaSlider({ mediaFiles, getImgMessages }) {
         >
           <PhotoProvider>
             {mediaFiles.map((file) => (
-<<<<<<< HEAD
               <PhotoView src={file?.url}>
                 <img
                   src={file?.url}
@@ -80,15 +79,6 @@ function MediaSlider({ mediaFiles, getImgMessages }) {
                   className="rounded-lg object-cover size-20 shrink-0 cursor-pointer"
                   loading="lazy"
                   decoding="async"
-=======
-              <PhotoView src={file.image.url}>
-                <LoadableImage
-                  src={file.image.url}
-                  alt=""
-                  className="rounded-lg object-cover size-20 shrink-0 cursor-pointer"
-                  wrapperClassName="size-20 shrink-0 rounded-lg"
-                  imgProps={{ loading: "lazy", decoding: "async" }}
->>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
                 />
               </PhotoView>
             ))}
@@ -445,14 +435,10 @@ export default function InfoDrawer({ conversation, onClose }) {
                                 alt=""
                                 className="object-cover"
                                 wrapperClassName="w-10 h-10 rounded-full"
-<<<<<<< HEAD
                                 imgProps={{
                                   loading: "lazy",
                                   decoding: "async",
                                 }}
-=======
-                                imgProps={{ loading: "lazy", decoding: "async" }}
->>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
                               />
                             </PhotoView>
                           </PhotoProvider>

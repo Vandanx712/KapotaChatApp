@@ -14,8 +14,13 @@ const buildParams = (params = {}) =>
 
 //All auth apis
 
-export const register = async(data)=>{
-  const response = await api.post('/auth/signup',data)
+export const requestSignupOtp = async(data)=>{
+  const response = await api.post('/auth/signup/request-otp',data)
+  return response.data
+}
+
+export const verifySignupOtp = async(data)=>{
+  const response = await api.post('/auth/signup/verify',data)
   return response.data
 }
 
@@ -34,8 +39,28 @@ export const checkUser = async()=>{
   return response.data
 }
 
-export const forgetPassword = async(data)=>{
-  const response = await api.post('/auth/forget-password',data)
+export const requestForgotPasswordOtp = async(data)=>{
+  const response = await api.post('/auth/forgot-password/request-otp',data)
+  return response.data
+}
+
+export const verifyForgotPasswordOtp = async(data)=>{
+  const response = await api.post('/auth/forgot-password/verify',data)
+  return response.data
+}
+
+export const getActiveSessions = async()=>{
+  const response = await api.get('/auth/sessions')
+  return response.data
+}
+
+export const logoutOneSession = async(id)=>{
+  const response = await api.delete(`/auth/sessions/${id}`)
+  return response.data
+}
+
+export const logoutOtherSessions = async()=>{
+  const response = await api.delete('/auth/sessions/others')
   return response.data
 }
 
@@ -53,6 +78,13 @@ export const updatePic = async(data)=>{
 
 export const updateProfile = async(data)=>{
   const response = await api.put('/user/updateprofile',data)
+  return response.data
+}
+
+export const deleteAccount = async(data)=>{
+  const response = await api.delete('/user/delete-account', {
+    data,
+  })
   return response.data
 }
 
@@ -134,7 +166,6 @@ export const getMessages = async(id, params = {})=>{
   const response = await api.get(`/message/${id}`, {
     params: buildParams(params),
   })
-<<<<<<< HEAD
   return response.data
 }
 
@@ -142,8 +173,6 @@ export const getMessageImgs = async(id,params={})=>{
   const response = await api.get(`/message/media/${id}`,{
     params:buildParams(params)
   })
-=======
->>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
   return response.data
 }
 

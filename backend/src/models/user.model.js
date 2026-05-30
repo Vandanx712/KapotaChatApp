@@ -23,6 +23,15 @@ const userSchema = new mongoose.Schema(
     },
     loginlimits: {
       type: Number,
+      default: 3,
+    },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerifiedAt: {
+      type: Date,
+      default: null,
     },
     location: {
       name: { type: String },

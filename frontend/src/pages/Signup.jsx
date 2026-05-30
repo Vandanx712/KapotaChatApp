@@ -16,6 +16,8 @@ import toast from "react-hot-toast";
 
 function Signup() {
   const [showPassword, setShowPassword] = useState(false);
+  const [isOtpStep, setIsOtpStep] = useState(false);
+  const [otp, setOtp] = useState("");
   const [formData, setFormData] = useState({
     fullname: "",
     email: "",
@@ -23,7 +25,7 @@ function Signup() {
     gender: "",
     location: {},
   });
-  const { signup, isSigningUp } = useAuthStore();
+  const { requestSignupOtp, verifySignupOtp, isSigningUp } = useAuthStore();
 
   const getcoordinates = () => {
     if (!navigator.geolocation) {
@@ -40,6 +42,7 @@ function Signup() {
             lat: position.coords.latitude,
           },
         }));
+        toast.success("Location added. Submit again to continue.");
       },
       (err) => {
         toast.error(err.message);
@@ -61,14 +64,33 @@ function Signup() {
       return toast.error("Invalid email format");
     if (formData.password.length < 6)
       return toast.error("Password at least 6 characters");
-    if (!formData.location.lat && !formData.location.lag) getcoordinates();
+    if (formData.location.lat == null || formData.location.lng == null) {
+      getcoordinates();
+      return toast.error("Allow location and submit again");
+    }
 
     return true;
   };
-  const handleSubmit = (e) => {
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const success = validateForm();
-    if (success == true) signup(formData);
+    if (success !== true) return;
+
+    if (isOtpStep) {
+      if (!otp.trim()) return toast.error("OTP is required");
+      await verifySignupOtp({ ...formData, otp: otp.trim() });
+      return;
+    }
+
+    const otpSent = await requestSignupOtp(formData);
+    if (otpSent) setIsOtpStep(true);
+  };
+
+  const handleResendOtp = async () => {
+    const success = validateForm();
+    if (success !== true) return;
+    await requestSignupOtp(formData);
   };
 
   return (
@@ -83,120 +105,181 @@ function Signup() {
               >
                 <MessageSquare className="size-6 text-primary" />
               </div>
-              <h1 className="text-2xl font-bold mt-2">Create Account</h1>
+              <h1 className="text-2xl font-bold mt-2">
+                {isOtpStep ? "Verify Email" : "Create Account"}
+              </h1>
               <p className="text-base-content/60">
-                Get started with your free account
+                {isOtpStep
+                  ? "Enter the code sent to your email"
+                  : "Get started with your free account"}
               </p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text font-medium">Full Name</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="size-5 text-base-content/40" />
+            {!isOtpStep ? (
+              <>
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">Full Name</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="size-5 text-base-content/40" />
+                    </div>
+                    <input
+                      type="text"
+                      className="input input-bordered w-full pl-10"
+                      placeholder="John Doe"
+                      value={formData.fullname}
+                      onChange={(e) =>
+                        setFormData({ ...formData, fullname: e.target.value })
+                      }
+                    />
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  className={`input input-bordered w-full pl-10`}
-                  placeholder="John Doe"
-                  value={formData.fullname}
-                  onChange={(e) =>
-                    setFormData({ ...formData, fullname: e.target.value })
-                  }
-                />
-              </div>
-            </div>
 
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text font-medium">Email</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="size-5 text-base-content/40" />
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">Email</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Mail className="size-5 text-base-content/40" />
+                    </div>
+                    <input
+                      type="email"
+                      className="input input-bordered w-full pl-10"
+                      placeholder="you@example.com"
+                      value={formData.email}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
+                    />
+                  </div>
                 </div>
-                <input
-                  type="email"
-                  className={`input input-bordered w-full pl-10`}
-                  placeholder="you@example.com"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                />
-              </div>
-            </div>
 
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text font-medium">Password</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="size-5 text-base-content/40" />
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">Password</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Lock className="size-5 text-base-content/40" />
+                    </div>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      className="input input-bordered w-full pl-10"
+                      placeholder="password"
+                      value={formData.password}
+                      onChange={(e) =>
+                        setFormData({ ...formData, password: e.target.value })
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="size-5 text-base-content/40" />
+                      ) : (
+                        <Eye className="size-5 text-base-content/40" />
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  className={`input input-bordered w-full pl-10`}
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                />
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">Gender</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <UserCheck className="size-5 text-base-content/40" />
+                    </div>
+                    <select
+                      onChange={(e) =>
+                        setFormData({ ...formData, gender: e.target.value })
+                      }
+                      value={formData.gender}
+                      className="select select-secondary w-full pl-10"
+                    >
+                      <option value="">Select gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                    </select>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-5">
+                <div className="rounded-2xl border border-base-300 bg-base-100 p-4">
+                  <p className="text-sm font-medium">Verification code</p>
+                  <p className="mt-1 text-sm leading-6 text-base-content/65">
+                    We sent a 6-digit code to {formData.email}.
+                  </p>
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">OTP Code</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Mail className="size-5 text-base-content/40" />
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      className="input input-bordered w-full pl-10 tracking-[0.4em]"
+                      placeholder="123456"
+                      value={otp}
+                      onChange={(e) =>
+                        setOtp(e.target.value.replace(/\D/g, ""))
+                      }
+                    />
+                  </div>
+                </div>
+
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                  onClick={() => setShowPassword(!showPassword)}
+                  className="btn btn-ghost btn-sm w-full"
+                  disabled={isSigningUp}
+                  onClick={handleResendOtp}
                 >
-                  {showPassword ? (
-                    <EyeOff className="size-5 text-base-content/40" />
-                  ) : (
-                    <Eye className="size-5 text-base-content/40" />
-                  )}
+                  Resend code
                 </button>
               </div>
-            </div>
+            )}
 
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text font-medium">Gender</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <UserCheck className="size-5 text-base-content/40" />
-                </div>
-                <select
-                  onChange={(e) =>
-                    setFormData({ ...formData, gender: e.target.value })
-                  }
-                  value={formData.gender}
-                  className="select select-secondary  w-full pl-10"
-                >
-                  <option value="">Select gender</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                </select>
-              </div>
-            </div>
             <button
               type="submit"
               className="btn btn-primary w-full"
               disabled={isSigningUp}
             >
               {isSigningUp ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                </>
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : isOtpStep ? (
+                "Verify and create account"
               ) : (
                 "Create Account"
               )}
             </button>
+
+            {isOtpStep && (
+              <button
+                type="button"
+                className="btn btn-link w-full"
+                disabled={isSigningUp}
+                onClick={() => setIsOtpStep(false)}
+              >
+                Edit signup details
+              </button>
+            )}
           </form>
+
           <div className="text-center">
             <p className="text-base-content/60">
               Already have an account?{" "}

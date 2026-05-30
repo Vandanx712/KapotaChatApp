@@ -1,15 +1,20 @@
 import { Server } from "socket.io";
 import express from "express";
 import http from "http";
+import jwt from "jsonwebtoken";
 import { updateMsgStatus } from "../controllers/message.controller.js";
 import { Conversation } from "../models/conversation.model.js";
+import { Session } from "../models/session.model.js";
+import dotenv from 'dotenv'
 
 const app = express();
 const server = http.createServer(app);
+dotenv.config()
 
 const io = new Server(server, {
   cors: {
     origin: [process.env.FRONTEND_URL],
+    credentials: true,
   },
 });
 
@@ -50,12 +55,48 @@ const emitToUser = (userId, event, payload) => {
   });
 };
 
+const getCookieValue = (cookieHeader = "", name) => {
+  return cookieHeader
+    .split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(`${name}=`))
+    ?.split("=")
+    ?.slice(1)
+    ?.join("=");
+};
+
+io.use(async (socket, next) => {
+  try {
+    const token = getCookieValue(socket.handshake.headers.cookie, "token");
+
+    if (!token) return next(new Error("Unauthorized socket"));
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const session = await Session.findOne({
+      _id: decoded.sessionId,
+      user: decoded.userId,
+      expireAt: { $gt: new Date() },
+    });
+
+    if (!session) return next(new Error("Session expired"));
+
+    socket.userId = decoded.userId.toString();
+    socket.sessionId = decoded.sessionId.toString();
+    next();
+  } catch (error) {
+    next(new Error("Unauthorized socket"));
+  }
+});
+
 io.on("connection", async (socket) => {
   console.log("A user connected", socket.id);
 
-  const userId = normalizeId(socket.handshake.query.userId);
+  const userId = normalizeId(socket.userId);
+  const sessionId = normalizeId(socket.sessionId);
   if (userId) addUserSocket(userId, socket.id);
-  // io.emit() is used to send events to all connected clients
+
+  socket.join(sessionId);
 
   socket.on("joinPost", (postId) => {
     socket.join(postId);
@@ -115,8 +156,7 @@ io.on("connection", async (socket) => {
       };
 
       if (Array.isArray(to)) {
-        to
-          .map((id) => normalizeId(id))
+        to.map((id) => normalizeId(id))
           .filter((id) => id && id !== fromId)
           .forEach((id) => {
             emitToUser(id, "incoming-call", payload);
@@ -168,8 +208,7 @@ io.on("connection", async (socket) => {
       isGroup: Boolean(isGroup),
     };
     if (Array.isArray(to)) {
-      to
-        .map((id) => normalizeId(id))
+      to.map((id) => normalizeId(id))
         .filter(Boolean)
         .forEach((id) => emitToUser(id, "call-ended", payload));
       return;

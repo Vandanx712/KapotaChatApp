@@ -11,9 +11,6 @@ import { jobsQueue } from "../lib/worker.js";
 const DEFAULT_USERS_LIMIT = 30;
 const MAX_USERS_LIMIT = 100;
 
-const DEFAULT_USERS_LIMIT = 30;
-const MAX_USERS_LIMIT = 100;
-
 const getConversationRoomId = (conversation) => {
   const id = conversation?.conversationId || conversation?._id;
   return id ? id.toString() : "";

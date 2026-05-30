@@ -39,11 +39,7 @@ export const getMessages = asynchandller(async (req, res) => {
   const hasMore = docs.length > safeLimit;
   const page = hasMore ? docs.slice(0, safeLimit) : docs;
   const messages = page.reverse();
-<<<<<<< HEAD
   const nextCursor = hasMore ? messages[0]._id : null;
-=======
-  const nextCursor = hasMore ? page[page.length - 1]._id : null;
->>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
 
   return res.status(200).json({
     success: true,
@@ -51,7 +47,6 @@ export const getMessages = asynchandller(async (req, res) => {
     messages,
     nextCursor,
     hasMore,
-<<<<<<< HEAD
   });
 });
 
@@ -85,8 +80,6 @@ export const getMessageImgs = asynchandller(async (req, res) => {
     messages,
     nextCursor,
     hasMore,
-=======
->>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
   });
 });
 

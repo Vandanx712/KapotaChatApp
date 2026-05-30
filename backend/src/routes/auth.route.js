@@ -1,13 +1,33 @@
 import { Router } from "express";
-import { checkAuth, forgetPassword, login, logout, signup } from "../controllers/auth.controller.js";
-import {verifyjwt} from '../middlewares/verifyjwt.js'
+import {
+  checkAuth,
+  getActivesessions,
+  login,
+  logout,
+  logoutOne,
+  logoutOthers,
+  requestForgotPasswordOtp,
+  requestSignupOtp,
+  verifyForgotPasswordOtp,
+  verifySignupOtp,
+} from "../controllers/auth.controller.js";
+import { verifyjwt } from "../middlewares/verifyjwt.js";
 
-const authRouter = Router()
+const authRouter = Router();
 
-authRouter.route('/signup').post(signup)
-authRouter.route('/login').post(login)
-authRouter.route('/logout').post(logout)
-authRouter.route('/check').get(verifyjwt,checkAuth)
-authRouter.route('/forget-password').post(forgetPassword)   
+authRouter.route("/signup/request-otp").post(requestSignupOtp);
+authRouter.route("/signup/verify").post(verifySignupOtp);
+authRouter.route("/login").post(login);
+authRouter.route("/logout").post(verifyjwt, logout);
+authRouter.route("/check").get(verifyjwt, checkAuth);
 
-export default authRouter
+//forgot-password part
+authRouter.route("/forgot-password/request-otp").post(requestForgotPasswordOtp);
+authRouter.route("/forgot-password/verify").post(verifyForgotPasswordOtp);
+
+//session part
+authRouter.route("/sessions").get(verifyjwt, getActivesessions);
+authRouter.route("/sessions/others").delete(verifyjwt, logoutOthers);
+authRouter.route("/sessions/:id").delete(verifyjwt, logoutOne);
+
+export default authRouter;

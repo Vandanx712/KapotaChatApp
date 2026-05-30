@@ -4,28 +4,29 @@ import {
   ArrowLeft,
   ArrowRight,
   Bell,
+  Clock3,
   CircleQuestionMark,
   EllipsisVerticalIcon,
   Heart,
   Key,
+  Laptop2,
   Lock,
+  LogOut,
   MapPin,
   MessageCircle,
+  RefreshCw,
   Send,
   Settings,
   Settings2,
   Share2,
+  ShieldCheck,
   Trash2,
   Video,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { THEMES } from "../constants";
-import {
-  deletePost,
-  getMyPosts,
-  updatePostSettings,
-} from "../lib/axios";
+import { deletePost, getMyPosts, updatePostSettings } from "../lib/axios";
 import { mergeUniqueById } from "../lib/utils";
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
@@ -39,6 +40,24 @@ const previewMessages = [
   },
 ];
 
+const SUPPORT_EMAIL = "support@kapota.app";
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || "v1.0.0";
+const HELP_TOPICS = [
+  {
+    title: "Account and profile",
+    description: "Profile photo, bio, password help, and account controls.",
+  },
+  {
+    title: "Chats and groups",
+    description: "Theme, media, group actions, and conversation settings.",
+  },
+  {
+    title: "Posts and sharing",
+    description:
+      "Explore feed, post settings, likes, shares, and archive help.",
+  },
+];
+
 const settingsItems = [
   {
     id: 1,
@@ -48,7 +67,7 @@ const settingsItems = [
   },
   {
     id: 2,
-    icon: Settings2,  
+    icon: Settings2,
     label: "Post",
     description: "See posts, post setting",
   },
@@ -134,8 +153,24 @@ function Setting() {
     hiddenLikes: 0,
     shareDisabled: 0,
   });
+  const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] =
+    useState(false);
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState("");
   const { theme, setTheme } = useThemeStore();
-  const { authUser, logout } = useAuthStore();
+  const {
+    activeSessions,
+    canManageDevices,
+    authUser,
+    deleteAccount,
+    fetchActiveSessions,
+    isDeletingAccount,
+    isLoggingOutOthers,
+    isSessionsLoading,
+    logout,
+    logoutOneSession,
+    logoutOtherSessions,
+    sessionActionId,
+  } = useAuthStore();
   const navigate = useNavigate();
 
   const activeItem = useMemo(
@@ -153,38 +188,53 @@ function Setting() {
     [postSummary],
   );
 
-  const loadMyPosts = useEffectEvent(async ({ reset = false, cursor = null } = {}) => {
-    try {
-      if (reset) {
-        setPostLoading(true);
-      } else {
-        setIsMorePostsLoading(true);
+  const otherSessionsCount = useMemo(
+    () => activeSessions.filter((session) => !session.isCurrent).length,
+    [activeSessions],
+  );
+
+  const loadMyPosts = useEffectEvent(
+    async ({ reset = false, cursor = null } = {}) => {
+      try {
+        if (reset) {
+          setPostLoading(true);
+        } else {
+          setIsMorePostsLoading(true);
+        }
+
+        const response = await getMyPosts({
+          cursor,
+          limit: 12,
+        });
+
+        const nextPosts = response.posts || [];
+        setMyPosts((prev) =>
+          reset ? nextPosts : mergeUniqueById(prev, nextPosts),
+        );
+        setPostCursor(response.nextCursor ?? null);
+        setHasMorePosts(Boolean(response.hasMore));
+        setPostSummary(
+          response.summary || {
+            total: 0,
+            archived: 0,
+            hiddenLikes: 0,
+            shareDisabled: 0,
+          },
+        );
+      } catch (error) {
+        toast.error(error.response?.data?.message || "Failed to load posts");
+      } finally {
+        setPostLoading(false);
+        setIsMorePostsLoading(false);
       }
+    },
+  );
 
-      const response = await getMyPosts({
-        cursor,
-        limit: 12,
-      });
-
-      const nextPosts = response.posts || [];
-      setMyPosts((prev) => (reset ? nextPosts : mergeUniqueById(prev, nextPosts)));
-      setPostCursor(response.nextCursor ?? null);
-      setHasMorePosts(Boolean(response.hasMore));
-      setPostSummary(
-        response.summary || {
-          total: 0,
-          archived: 0,
-          hiddenLikes: 0,
-          shareDisabled: 0,
-        },
-      );
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to load posts");
-    } finally {
-      setPostLoading(false);
-      setIsMorePostsLoading(false);
+  useEffect(() => {
+    if (activeSection === "Account") {
+      fetchActiveSessions();
     }
-  });
+  }, [activeSection, fetchActiveSessions]);
 
   useEffect(() => {
     if (activeSection === "Post") {
@@ -266,7 +316,9 @@ function Setting() {
     try {
       setUpdatingPostId(postToDelete._id);
       const response = await deletePost(postToDelete._id);
-      setMyPosts((prev) => prev.filter((post) => post._id !== postToDelete._id));
+      setMyPosts((prev) =>
+        prev.filter((post) => post._id !== postToDelete._id),
+      );
       setPostSummary((prev) => ({
         total: Math.max(prev.total - 1, 0),
         archived: Math.max(
@@ -290,6 +342,296 @@ function Setting() {
       setUpdatingPostId("");
     }
   };
+
+  const closeDeleteAccountModal = () => {
+    if (isDeletingAccount) return;
+    setDeleteAccountPassword("");
+    setIsDeleteAccountModalOpen(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deleteAccountPassword.trim()) {
+      toast.error("Password is required");
+      return;
+    }
+
+    const isDeleted = await deleteAccount({ password: deleteAccountPassword });
+    if (isDeleted) {
+      closeDeleteAccountModal();
+    }
+  };
+
+  const handleCopySupportEmail = async () => {
+    try {
+      await navigator.clipboard.writeText(SUPPORT_EMAIL);
+      toast.success("Support email copied");
+    } catch (error) {
+      toast.error("Unable to copy support email");
+    }
+  };
+
+  const handleEmailSupport = () => {
+    window.location.href = `mailto:${SUPPORT_EMAIL}?subject=Kapota support`;
+  };
+
+  const formatSessionTime = (value) => {
+    if (!value) return "Unknown";
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+  };
+
+  const renderAccountSection = () => (
+    <SectionShell item={activeItem} onBack={() => setActiveSection("all")}>
+      <div className="mx-auto w-full max-w-[1120px] px-3 sm:px-5 lg:px-6">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,740px)_320px] xl:justify-center">
+          {/* Main content */}
+          <div className="space-y-5">
+            <div className="overflow-hidden rounded-3xl border border-base-300/70 bg-base-100 shadow-sm">
+              <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-7">
+                {/* Header */}
+                <div className="flex items-start gap-4">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <Laptop2 className="size-6" />
+                  </div>
+
+                  <div className="min-w-0">
+                    <h2 className="text-xl font-semibold sm:text-2xl">
+                      Active devices
+                    </h2>
+
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-base-content/65 sm:text-[15px]">
+                      See where your account is currently logged in and remove
+                      devices you no longer use.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Notice */}
+                <div className="rounded-2xl border border-base-300/60 bg-base-200/40 px-4 py-3 text-sm leading-6 text-base-content/70">
+                  {canManageDevices
+                    ? "Oldest non-primary devices are removed automatically when a new login goes over your device limit."
+                    : "Device management is available from your primary device."}
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col gap-3 border-t border-base-300/60 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm w-full sm:btn-md sm:w-auto"
+                    onClick={fetchActiveSessions}
+                    disabled={isSessionsLoading}
+                  >
+                    <RefreshCw
+                      className={`size-4 ${
+                        isSessionsLoading ? "animate-spin" : ""
+                      }`}
+                    />
+                    Refresh
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-error btn-sm w-full sm:btn-md sm:w-auto"
+                    onClick={logoutOtherSessions}
+                    disabled={
+                      !canManageDevices ||
+                      isLoggingOutOthers ||
+                      otherSessionsCount === 0
+                    }
+                  >
+                    {isLoggingOutOthers ? (
+                      <span className="loading loading-spinner loading-sm"></span>
+                    ) : (
+                      <LogOut className="size-4" />
+                    )}
+
+                    <span className="truncate">Log out other devices</span>
+                  </button>
+                </div>
+
+                {/* Loading */}
+                {isSessionsLoading ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((item) => (
+                      <div
+                        key={item}
+                        className="rounded-3xl border border-base-300/70 p-4 sm:p-5"
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="skeleton h-12 w-12 shrink-0 rounded-2xl"></div>
+                          <div className="min-w-0 flex-1">
+                            <div className="skeleton h-5 w-44 max-w-full"></div>
+                            <div className="mt-4 grid gap-0 overflow-hidden rounded-2xl border border-base-300/50 sm:grid-cols-3">
+                              <div className="p-3">
+                                <div className="skeleton h-3 w-20"></div>
+                                <div className="skeleton mt-2 h-4 w-28"></div>
+                              </div>
+                              <div className="border-t border-base-300/50 p-3 sm:border-l sm:border-t-0">
+                                <div className="skeleton h-3 w-20"></div>
+                                <div className="skeleton mt-2 h-4 w-28"></div>
+                              </div>
+                              <div className="border-t border-base-300/50 p-3 sm:border-l sm:border-t-0">
+                                <div className="skeleton h-3 w-20"></div>
+                                <div className="skeleton mt-2 h-4 w-28"></div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : activeSessions.length === 0 ? (
+                  /* Empty state */
+                  <div className="rounded-3xl border border-dashed border-base-300 px-5 py-14 text-center">
+                    <ShieldCheck className="mx-auto size-11 text-base-content/35" />
+
+                    <h3 className="mt-4 text-lg font-semibold">
+                      No active devices
+                    </h3>
+
+                    <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-base-content/65">
+                      Once you log in, your current device sessions will appear
+                      here.
+                    </p>
+                  </div>
+                ) : (
+                  /* Sessions */
+                  <div className="space-y-4">
+                    {activeSessions.map((session) => (
+                      <div
+                        key={session._id}
+                        className={`group rounded-3xl border p-4 transition-all duration-200 sm:p-5 lg:p-6 ${
+                          session.isCurrent || session.isPrimaryDevice
+                            ? "border-primary/40 bg-primary/[0.04] shadow-sm"
+                            : "border-base-300/70 bg-base-100 hover:border-base-300 hover:shadow-sm"
+                        }`}
+                      >
+                        <div className="flex flex-col gap-5">
+                          {/* Top */}
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="flex min-w-0 items-start gap-4">
+                              <div
+                                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                                  session.isCurrent
+                                    ? "bg-primary/10 text-primary"
+                                    : session.isPrimaryDevice
+                                      ? "bg-primary/8 text-primary"
+                                    : "bg-base-200 text-base-content/70"
+                                }`}
+                              >
+                                <Laptop2 className="size-5" />
+                              </div>
+
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h3 className="truncate text-base font-semibold sm:text-lg">
+                                    {session.deviceName || "Unknown device"}
+                                  </h3>
+                                </div>
+                              </div>
+                            </div>
+
+                            {!session.isCurrent && (
+                              <button
+                                type="button"
+                                className="btn btn-outline btn-error btn-sm w-full lg:w-auto"
+                                onClick={() => logoutOneSession(session._id)}
+                                disabled={
+                                  !canManageDevices ||
+                                  sessionActionId === session._id
+                                }
+                              >
+                                {sessionActionId === session._id ? (
+                                  <span className="loading loading-spinner loading-sm"></span>
+                                ) : (
+                                  <LogOut className="size-4" />
+                                )}
+                                Log out
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Stats */}
+                          <div className="grid overflow-hidden rounded-2xl border border-base-300/60 bg-base-100 sm:grid-cols-2 xl:grid-cols-3">
+                            <div className="p-4">
+                              <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/45">
+                                <Clock3 className="size-3.5 shrink-0" />
+                                Last active
+                              </div>
+
+                              <p className="mt-1.5 text-sm font-medium text-base-content/80">
+                                {formatSessionTime(session.lastSeenAt)}
+                              </p>
+                            </div>
+
+                            <div className="border-t border-base-300/60 p-4 sm:border-l sm:border-t-0">
+                              <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/45">
+                                <ShieldCheck className="size-3.5 shrink-0" />
+                                Logged in
+                              </div>
+
+                              <p className="mt-1.5 text-sm font-medium text-base-content/80">
+                                {formatSessionTime(session.createdAt)}
+                              </p>
+                            </div>
+
+                            <div className="border-t border-base-300/60 p-4 sm:col-span-2 xl:col-span-1 xl:border-l xl:border-t-0">
+                              <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/45">
+                                <MapPin className="size-3.5 shrink-0" />
+                                Network
+                              </div>
+
+                              <p className="mt-1.5 truncate text-sm font-medium text-base-content/80">
+                                {session.ipAddress || "IP unavailable"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Sidebar */}
+          <aside className="xl:sticky xl:self-start">
+            <div className="rounded-3xl border border-error/25 bg-base-100 shadow-sm">
+              <div className="flex flex-col gap-5 p-5 sm:p-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-error sm:text-xl">
+                    Delete account
+                  </h2>
+
+                  <p className="mt-2 text-sm leading-6 text-base-content/68">
+                    Permanently remove your account, your posts, and your direct
+                    conversations. This action cannot be undone.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-error/10 bg-error/7 p-4 text-sm leading-6 text-base-content/75">
+                  You will be signed out immediately after the account is
+                  deleted.
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-error w-full"
+                  onClick={() => setIsDeleteAccountModalOpen(true)}
+                >
+                  <Trash2 className="size-4" />
+                  Delete account
+                </button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </SectionShell>
+  );
 
   const renderChatsSection = () => (
     <SectionShell item={activeItem} onBack={() => setActiveSection("all")}>
@@ -409,6 +751,166 @@ function Setting() {
     </SectionShell>
   );
 
+  const renderHelpSection = () => (
+    <SectionShell item={activeItem} onBack={() => setActiveSection("all")}>
+      <div className="space-y-6">
+        <div className="card border border-base-300 bg-base-100 shadow-sm">
+          <div className="card-body gap-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-2xl">
+                <h2 className="card-title text-2xl">We are here to help</h2>
+                <p className="mt-2 text-sm leading-6 text-base-content/70">
+                  Find quick guidance for common parts of Kapota, contact
+                  support, and share feedback that helps us improve the app.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleEmailSupport}
+              >
+                <Send className="size-4" />
+                Email support
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={handleCopySupportEmail}
+              >
+                <CircleQuestionMark className="size-4" />
+                Copy support email
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <div className="card border border-base-300 bg-base-100 shadow-sm">
+            <div className="card-body gap-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <CircleQuestionMark className="size-5" />
+                </div>
+                <div>
+                  <h3 className="card-title text-base">Help centre</h3>
+                  <p className="text-sm leading-6 text-base-content/70">
+                    Start with the most common areas users usually need help
+                    with.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {HELP_TOPICS.map((topic) => (
+                  <div
+                    key={topic.title}
+                    className="rounded-2xl border border-base-300 bg-base-100 p-4"
+                  >
+                    <h4 className="font-medium text-base-content">
+                      {topic.title}
+                    </h4>
+                    <p className="mt-1 text-sm leading-6 text-base-content/70">
+                      {topic.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="card border border-base-300 bg-base-100 shadow-sm">
+            <div className="card-body gap-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
+                  <MessageCircle className="size-5" />
+                </div>
+                <div>
+                  <h3 className="card-title text-base">Feedback and support</h3>
+                  <p className="text-sm leading-6 text-base-content/70">
+                    Report bugs, request features, or send product feedback with
+                    a little context so we can help faster.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-3xl bg-base-200/70 p-5">
+                <p className="text-sm font-medium text-base-content">
+                  Best things to include in your message
+                </p>
+                <div className="mt-3 space-y-2 text-sm leading-6 text-base-content/70">
+                  <p>- What you were trying to do</p>
+                  <p>- What happened instead</p>
+                  <p>- Device, browser, and screenshots if available</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-outline w-fit"
+                onClick={handleEmailSupport}
+              >
+                <Send className="size-4" />
+                Send feedback
+              </button>
+            </div>
+          </div>
+
+          <div className="card border border-base-300 bg-base-100 shadow-sm xl:col-span-2">
+            <div className="card-body gap-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+                  <Lock className="size-5" />
+                </div>
+                <div>
+                  <h3 className="card-title text-base">Privacy policy</h3>
+                  <p className="text-sm leading-6 text-base-content/70">
+                    A quick summary of the areas people usually look for before
+                    reaching out.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-base-300 p-4">
+                  <p className="text-sm font-medium">Account data</p>
+                  <p className="mt-1 text-sm leading-6 text-base-content/70">
+                    Profile information like name, bio, email, and profile
+                    photo.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-base-300 p-4">
+                  <p className="text-sm font-medium">Chats and media</p>
+                  <p className="mt-1 text-sm leading-6 text-base-content/70">
+                    Messages, shared images, and conversation details inside the
+                    app.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-base-300 p-4">
+                  <p className="text-sm font-medium">Posts and activity</p>
+                  <p className="mt-1 text-sm leading-6 text-base-content/70">
+                    Posts, likes, shares, and related explore activity tied to
+                    your account.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-dashed border-base-300 px-4 py-3 text-sm leading-6 text-base-content/70">
+                Need the full privacy details? Reach us at{" "}
+                <span className="font-medium text-base-content">
+                  {SUPPORT_EMAIL}
+                </span>
+                .
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </SectionShell>
+  );
+
   const renderGenericSection = () => {
     const highlights = activeItem.description
       .split(",")
@@ -433,8 +935,9 @@ function Setting() {
                   <div>
                     <h3 className="card-title text-base">{highlight}</h3>
                     <p className="text-sm leading-6 text-base-content/70">
-                      {activeItem.label} controls for {highlight.toLowerCase()} can
-                      live here while keeping the same section-based settings flow.
+                      {activeItem.label} controls for {highlight.toLowerCase()}{" "}
+                      can live here while keeping the same section-based
+                      settings flow.
                     </p>
                   </div>
                 </div>
@@ -473,12 +976,16 @@ function Setting() {
           </div>
           <div className="stat">
             <div className="stat-title">Likes hidden</div>
-            <div className="stat-value text-3xl">{postOverview.hiddenLikes}</div>
+            <div className="stat-value text-3xl">
+              {postOverview.hiddenLikes}
+            </div>
             <div className="stat-desc">Posts with hidden like count</div>
           </div>
           <div className="stat">
             <div className="stat-title">Share disabled</div>
-            <div className="stat-value text-3xl">{postOverview.shareDisabled}</div>
+            <div className="stat-value text-3xl">
+              {postOverview.shareDisabled}
+            </div>
             <div className="stat-desc">Posts not allowed to share</div>
           </div>
         </div>
@@ -527,7 +1034,9 @@ function Setting() {
                   <div className="card-body gap-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <h2 className="card-title text-lg">{authUser.fullname}</h2>
+                        <h2 className="card-title text-lg">
+                          {authUser.fullname}
+                        </h2>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-base-content/70">
                           <span className="badge badge-ghost gap-1">
                             <MapPin className="size-3.5" />
@@ -553,7 +1062,9 @@ function Setting() {
                           className="dropdown-content z-[1] mt-3 w-72 rounded-box border border-base-300 bg-base-100 p-3 shadow-xl"
                         >
                           <div className="mb-3 flex items-center justify-between">
-                            <p className="text-sm font-semibold">Post settings</p>
+                            <p className="text-sm font-semibold">
+                              Post settings
+                            </p>
                             {updatingPostId === post._id && (
                               <span className="loading loading-spinner loading-xs"></span>
                             )}
@@ -584,7 +1095,9 @@ function Setting() {
 
                             <label className="flex cursor-pointer items-center justify-between rounded-box bg-base-200/70 px-3 py-3">
                               <div>
-                                <p className="text-sm font-medium">Disable shared</p>
+                                <p className="text-sm font-medium">
+                                  Disable shared
+                                </p>
                                 <p className="text-xs text-base-content/60">
                                   Stop other users from sharing this post
                                 </p>
@@ -606,7 +1119,9 @@ function Setting() {
 
                             <label className="flex cursor-pointer items-center justify-between rounded-box bg-base-200/70 px-3 py-3">
                               <div>
-                                <p className="text-sm font-medium">isArchived</p>
+                                <p className="text-sm font-medium">
+                                  isArchived
+                                </p>
                                 <p className="text-xs text-base-content/60">
                                   Keep the post but hide it from explore feed
                                 </p>
@@ -682,7 +1197,9 @@ function Setting() {
 
                     <div className="flex flex-wrap gap-2">
                       {post.hideLike && (
-                        <span className="badge badge-outline">Hide like on</span>
+                        <span className="badge badge-outline">
+                          Hide like on
+                        </span>
                       )}
                       {post.disableShare && (
                         <span className="badge badge-outline">
@@ -695,11 +1212,13 @@ function Setting() {
                           Archived
                         </span>
                       )}
-                      {!post.hideLike && !post.disableShare && !post.isArchived && (
-                        <span className="badge badge-success badge-outline">
-                          Active post
-                        </span>
-                      )}
+                      {!post.hideLike &&
+                        !post.disableShare &&
+                        !post.isArchived && (
+                          <span className="badge badge-success badge-outline">
+                            Active post
+                          </span>
+                        )}
                     </div>
                   </div>
                 </div>
@@ -729,6 +1248,10 @@ function Setting() {
     if (!activeItem) return null;
 
     switch (activeSection) {
+      case "Account":
+        return renderAccountSection();
+      case "Help and feedback":
+        return renderHelpSection();
       case "Chats":
         return renderChatsSection();
       case "Post":
@@ -823,7 +1346,9 @@ function Setting() {
           </div>
         </div>
 
-        {activeSection !== "all" && <div className="lg:hidden">{renderContent()}</div>}
+        {activeSection !== "all" && (
+          <div className="lg:hidden">{renderContent()}</div>
+        )}
 
         <div className="hidden bg-base-200/40 lg:flex lg:min-h-0 lg:flex-col">
           {activeSection === "all" ? (
@@ -901,6 +1426,64 @@ function Setting() {
             type="button"
             className="modal-backdrop"
             onClick={() => setPostToDelete(null)}
+          >
+            close
+          </button>
+        </div>
+      )}
+
+      {isDeleteAccountModalOpen && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="text-lg font-semibold text-error">
+              Delete account?
+            </h3>
+            <p className="py-3 text-sm leading-6 text-base-content/70">
+              Enter your password to permanently remove this account. Your posts
+              and direct conversations will be deleted as part of this action.
+            </p>
+
+            <label className="form-control">
+              <span className="label-text mb-2 text-sm font-medium">
+                Confirm password
+              </span>
+              <input
+                type="password"
+                className="input input-bordered w-full"
+                value={deleteAccountPassword}
+                onChange={(e) => setDeleteAccountPassword(e.target.value)}
+                placeholder="Enter your password"
+                autoFocus
+              />
+            </label>
+
+            <div className="modal-action">
+              <button
+                type="button"
+                className="btn"
+                onClick={closeDeleteAccountModal}
+                disabled={isDeletingAccount}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-error"
+                onClick={handleDeleteAccount}
+                disabled={isDeletingAccount}
+              >
+                {isDeletingAccount && (
+                  <span className="loading loading-spinner loading-xs"></span>
+                )}
+                Delete account
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="modal-backdrop"
+            onClick={closeDeleteAccountModal}
           >
             close
           </button>

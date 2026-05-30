@@ -322,13 +322,9 @@ function ChatContainer() {
           computeItemKey={(index, item) => item._id}
           atBottomThreshold={120}
           atBottomStateChange={setIsAtBottom}
-<<<<<<< HEAD
           followOutput="smooth"
           firstItemIndex={100000 - message.length}
           initialTopMostItemIndex={message.length > 0 ? message.length - 1 : 0}
-=======
-          followOutput={isAtBottom ? "smooth" : false}
->>>>>>> 3aa031e25d735eef808f0228ce5a4ba8aa90eaab
           components={{
             Header: () =>
               hasMoreMessages || isMoreMessagesLoading ? (

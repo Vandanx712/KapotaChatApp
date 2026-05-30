@@ -67,24 +67,33 @@ export const getPlaceDetail = asynchandller(async (req, res) => {
   });
 });
 
-export const reverseGeocoding = asynchandller(async (location) => {
-  const url = getGoogleUrl(
-    `geocode/json?latlng=${location.lat},${location.lng}`,
-  );
+export const reverseGeocoding = async (location) => {
+  try {
+    const url = getGoogleUrl(
+      `geocode/json?latlng=${location.lat},${location.lng}`,
+    );
 
-  const response = await axios.get(url);
-  const resdata = response.data.results[0];
-  let area = "";
-  let city = "";
+    const response = await axios.get(url);
+    const resdata = response.data?.results[0];
+    let area = "";
+    let city = "";
 
-  resdata.address_components.forEach((c) => {
-    if (c.types.includes("sublocality")) {
-      area = c.long_name;
+    if (!resdata) {
+      console.log("No address components found");
+      return null;
     }
-    if (c.types.includes("locality")) {
-      city = c.long_name;
-    }
-  });
 
-  return `${area}, ${city}`;
-});
+    resdata?.address_components.forEach((c) => {
+      if (c.types.includes("sublocality")) {
+        area = c.long_name;
+      }
+      if (c.types.includes("locality")) {
+        city = c.long_name;
+      }
+    });
+
+    return `${area}, ${city}`;
+  } catch (error) {
+    console.log("Reverse Geocoding Error:", error);
+  }
+};

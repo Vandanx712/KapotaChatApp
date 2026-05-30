@@ -13,8 +13,8 @@ import {
 const messageRoute = Router();
 
 messageRoute.route("/search/:id").get(verifyjwt, searchMessages);
-messageRoute.route("/:id").get(verifyjwt, getMessages);
 messageRoute.route("/media/:id").get(verifyjwt, getMessageImgs);
+messageRoute.route("/:id").get(verifyjwt, getMessages);
 messageRoute.route("/:id").post(verifyjwt, sendMessage);
 messageRoute.route("/update/:id").put(verifyjwt, updateMessage);
 messageRoute.route("/delete/:id").put(verifyjwt, deleteMessage);
