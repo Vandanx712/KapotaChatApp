@@ -67,7 +67,7 @@ const settingsItems = [
   },
   {
     id: 2,
-    icon: Settings2,
+    icon: Settings2,  
     label: "Post",
     description: "See posts, post setting",
   },
