@@ -26,40 +26,64 @@ import LoadableImage from "./common/LoadableImage";
 
 const cardClass = "p-5 ";
 
+function SectionTitle({ title, subtitle, action }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-base-content/75">
+          {title}
+        </h3>
+        {subtitle && (
+          <p className="mt-1 text-sm text-base-content/55">{subtitle}</p>
+        )}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function ActionTile({ icon, label, onClick }) {
+  const IconComponent = icon;
+  return (
+    <button
+      onClick={onClick}
+      className="flex bg-error/5 space-x-3 rounded-2xl px-10 py-3 transition text-warning hover:bg-error/15"
+    >
+      <IconComponent className="size-5" />
+      <span className="min-w-0 text-sm font-medium">{label}</span>
+    </button>
+  );
+}
+
 function MediaSlider({ mediaFiles, getImgMessages }) {
-  function MediaSlider({ mediaFiles, getImgMessages }) {
-    const sliderRef = useRef(null);
+  const sliderRef = useRef(null);
 
-    const handleScroll = (direction) => {
-      sliderRef.current?.scrollBy({
-        left: direction * 180,
-        behavior: "smooth",
-      });
-    };
+  const handleScroll = (direction) => {
+    sliderRef.current?.scrollBy({
+      left: direction * 180,
+      behavior: "smooth",
+    });
+  };
 
-    return (
-      <section className={cardClass}>
-        <SectionTitle
-          title="Media"
-          subtitle={`${mediaFiles.length} shared ${
-            mediaFiles.length === 1 ? "item" : "items"
-          }`}
-          action={
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  handleScroll(-1);
-                  getImgMessages();
-                }}
-                onClick={() => {
-                  handleScroll(-1);
-                  getImgMessages();
-                }}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-base-200 bg-base-100 text-base-content/70 transition hover:border-base-300 hover:text-base-content"
-              >
-                <ChevronLeft className="size-4" />
-              </button>
+  return (
+    <section className={cardClass}>
+      <SectionTitle
+        title="Media"
+        subtitle={`${mediaFiles.length} shared ${
+          mediaFiles.length === 1 ? "item" : "items"
+        }`}
+        action={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                handleScroll(-1);
+                getImgMessages();
+              }}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-base-200 bg-base-100 text-base-content/70 transition hover:border-base-300 hover:text-base-content"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
               <button
                 type="button"
                 onClick={() => handleScroll(1)}
@@ -96,38 +120,9 @@ function MediaSlider({ mediaFiles, getImgMessages }) {
         )}
       </section>
     );
-  }
+}
 
-  function SectionTitle({ title, subtitle, action }) {
-    return (
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-base-content/75">
-            {title}
-          </h3>
-          {subtitle && (
-            <p className="mt-1 text-sm text-base-content/55">{subtitle}</p>
-          )}
-        </div>
-        {action}
-      </div>
-    );
-  }
-
-  function ActionTile({ icon, label, onClick }) {
-    const IconComponent = icon;
-    return (
-      <button
-        onClick={onClick}
-        className="flex bg-error/5 space-x-3 rounded-2xl px-10 py-3 transition text-warning hover:bg-error/15"
-      >
-        <IconComponent className="size-5" />
-        <span className="min-w-0 text-sm font-medium">{label}</span>
-      </button>
-    );
-  }
-
-  export default function InfoDrawer({ conversation, onClose }) {
+function InfoDrawer({ conversation, onClose }) {
     const isGroup = conversation?.isgroup;
     const navigate = useNavigate();
     const {
@@ -731,5 +726,6 @@ function MediaSlider({ mediaFiles, getImgMessages }) {
         </div>
       </div>
     );
-  }
 }
+
+export default InfoDrawer;

@@ -5,11 +5,11 @@ import jwt from "jsonwebtoken";
 import { updateMsgStatus } from "../controllers/message.controller.js";
 import { Conversation } from "../models/conversation.model.js";
 import { Session } from "../models/session.model.js";
-import dotenv from 'dotenv'
+import dotenv from "dotenv";
 
 const app = express();
 const server = http.createServer(app);
-dotenv.config()
+dotenv.config();
 
 const io = new Server(server, {
   cors: {
@@ -67,7 +67,9 @@ const getCookieValue = (cookieHeader = "", name) => {
 
 io.use(async (socket, next) => {
   try {
-    const token = getCookieValue(socket.handshake.headers.cookie, "token");
+    const token =
+      socket.handshake.auth.token ||
+      getCookieValue(socket.handshake.headers.cookie, "token");
 
     if (!token) return next(new Error("Unauthorized socket"));
 

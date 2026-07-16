@@ -141,11 +141,13 @@ export const verifySignupOtp = asynchandller(async (req, res) => {
     ipAddress: req.ip || "",
   });
 
-  generateToken(newuser._id, session._id, res);
+  const token = generateToken(newuser._id, session._id, res);
 
   return res.status(201).json({
     success: true,
     message: "Signup successfully",
+    token,
+    trustedDeviceId: trustedDevice._id.toString(),
     user: {
       _id: newuser._id,
       fullname: newuser.fullname,
@@ -234,10 +236,12 @@ export const login = asynchandller(async (req, res) => {
     ipAddress: req.ip || trustedDevice.ipAddress || "",
   });
 
-  generateToken(user._id, session._id, res);
+  const token = generateToken(user._id, session._id, res);
   return res.status(200).json({
     success: true,
     message: "Login successfully",
+    token,
+    trustedDeviceId: trustedDevice._id.toString(),
     user: {
       _id: user._id,
       fullname: user.fullname,

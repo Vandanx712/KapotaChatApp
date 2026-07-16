@@ -5,10 +5,14 @@ import { uploadChatPic } from "../lib/cloudinary.js";
 import { Post } from "../models/post.model.js";
 import { Like } from "../models/like.model.js";
 import { io } from "../lib/socket.js";
+import {
+  DEFAULT_POSTS_LIMIT,
+  MAX_POSTS_LIMIT,
+  parsePaginationParams,
+  buildPaginationQuery,
+  processPaginationResults,
+} from "../util/pagination.js";
 
-const DEFAULT_POST_LIMIT = 12;
-const DEFAULT_FEED_LIMIT = 10;
-const MAX_POST_LIMIT = 50;
 const NEARBY_MAX_DISTANCE_METERS = 5000;
 const EARTH_RADIUS_METERS = 6378137;
 
@@ -99,27 +103,27 @@ export const deletePost = asynchandller(async (req, res) => {
 
 export const userAllPost = asynchandller(async (req, res) => {
   const { _id } = req.user;
-  const { cursor, limit } = req.query;
 
-  const safeLimit = Math.min(
-    Math.max(parseInt(limit, 10) || DEFAULT_POST_LIMIT, 1),
-    MAX_POST_LIMIT,
+  const { cursor, safeLimit } = parsePaginationParams(
+    req,
+    12,
+    MAX_POSTS_LIMIT,
   );
 
-  const query = { user: _id };
+  const baseQuery = { user: _id };
 
-  if (cursor) {
-    query._id = { $lt: cursor };
-  }
+  const query = buildPaginationQuery(baseQuery, cursor);
 
   const docs = await Post.find(query)
     .sort({ _id: -1 })
     .limit(safeLimit + 1)
     .lean();
 
-  const hasMore = docs.length > safeLimit;
-  const posts = hasMore ? docs.slice(0, safeLimit) : docs;
-  const nextCursor = hasMore ? posts[posts.length - 1]._id : null;
+  const { page: posts, hasMore, nextCursor } = processPaginationResults(
+    docs,
+    safeLimit,
+    { reverse: false },
+  );
 
   const [summary = null] = await Post.aggregate([
     {
@@ -161,10 +165,12 @@ export const userAllPost = asynchandller(async (req, res) => {
 
 export const postFeed = asynchandller(async (req, res) => {
   const user = req.user;
-  const { cursor, limit } = req.query;
-  const safeLimit = Math.min(
-    Math.max(parseInt(limit, 10) || DEFAULT_FEED_LIMIT, 1),
-    MAX_POST_LIMIT,
+  const { cursor } = req.query;
+  
+  const { safeLimit } = parsePaginationParams(
+    req,
+    10,
+    MAX_POSTS_LIMIT,
   );
 
   const coordinates = [user.location.lng, user.location.lat];

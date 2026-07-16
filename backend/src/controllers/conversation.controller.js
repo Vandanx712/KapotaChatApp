@@ -7,9 +7,13 @@ import { deleteImage, uploadChatPic } from "../lib/cloudinary.js";
 import { StoragePath } from "../util/filepath.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 import { jobsQueue } from "../lib/worker.js";
-
-const DEFAULT_USERS_LIMIT = 30;
-const MAX_USERS_LIMIT = 100;
+import {
+  DEFAULT_USERS_LIMIT,
+  MAX_USERS_LIMIT,
+  parsePaginationParams,
+  buildPaginationQuery,
+  processPaginationResults,
+} from "../util/pagination.js";
 
 const getConversationRoomId = (conversation) => {
   const id = conversation?.conversationId || conversation?._id;
@@ -332,10 +336,10 @@ export const setBgimage = asynchandller(async (req, res) => {
 //get surrounding users
 export const getSurrUsers = asynchandller(async (req, res) => {
   const { _id } = req.user;
-  const { cursor, limit } = req.query;
 
-  const safeLimit = Math.min(
-    Math.max(parseInt(limit, 10) || DEFAULT_USERS_LIMIT, 1),
+  const { cursor, safeLimit } = parsePaginationParams(
+    req,
+    DEFAULT_USERS_LIMIT,
     MAX_USERS_LIMIT,
   );
 
@@ -355,12 +359,13 @@ export const getSurrUsers = asynchandller(async (req, res) => {
 
   const userIds = Array.from(userIdSet);
 
-  const query = {
+  const baseQuery = {
     _id: { $nin: userIds },
   };
 
+  const query = buildPaginationQuery(baseQuery, cursor);
   if (cursor) {
-    query._id.$lt = cursor;
+    query._id = { ...(query._id || {}), $lt: cursor };
   }
 
   const docs = await User.find(query)
@@ -369,9 +374,11 @@ export const getSurrUsers = asynchandller(async (req, res) => {
     .limit(safeLimit + 1)
     .lean();
 
-  const hasMore = docs.length > safeLimit;
-  const users = hasMore ? docs.slice(0, safeLimit) : docs;
-  const nextCursor = hasMore ? users[users.length - 1]._id : null;
+  const { page: users, hasMore, nextCursor } = processPaginationResults(
+    docs,
+    safeLimit,
+    { reverse: false },
+  );
 
   return res.status(200).json({
     success: true,
@@ -489,11 +496,12 @@ export const updateGroupDetail = asynchandller(async (req, res) => {
 export const getOtherUsers = asynchandller(async (req, res) => {
   const { id } = req.params;
   const { _id } = req.user;
-  const { cursor, limit } = req.query;
+
   if (!id) throw new ApiError(401, "Select group conversation");
 
-  const safeLimit = Math.min(
-    Math.max(parseInt(limit, 10) || DEFAULT_USERS_LIMIT, 1),
+  const { cursor, safeLimit } = parsePaginationParams(
+    req,
+    DEFAULT_USERS_LIMIT,
     MAX_USERS_LIMIT,
   );
 
@@ -505,12 +513,13 @@ export const getOtherUsers = asynchandller(async (req, res) => {
     _id.toString(),
   ];
 
-  const query = {
+  const baseQuery = {
     _id: { $nin: userIds },
   };
 
+  const query = buildPaginationQuery(baseQuery, cursor);
   if (cursor) {
-    query._id.$lt = cursor;
+    query._id = { ...(query._id || {}), $lt: cursor };
   }
 
   const docs = await User.find(query)
@@ -519,9 +528,11 @@ export const getOtherUsers = asynchandller(async (req, res) => {
     .limit(safeLimit + 1)
     .lean();
 
-  const hasMore = docs.length > safeLimit;
-  const users = hasMore ? docs.slice(0, safeLimit) : docs;
-  const nextCursor = hasMore ? users[users.length - 1]._id : null;
+  const { page: users, hasMore, nextCursor } = processPaginationResults(
+    docs,
+    safeLimit,
+    { reverse: false },
+  );
 
   return res.status(200).json({
     success: true,

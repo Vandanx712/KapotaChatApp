@@ -13,11 +13,13 @@ import { Session } from "../models/session.model.js";
 import { io } from "../lib/socket.js";
 import { TrustedDevice } from "../models/trustedDevice.model.js";
 import { clearTrustedDeviceCookie } from "../lib/tonken.js";
-
-const DEFAULT_USERS_LIMIT = 30;
-const DEFAULT_PROFILE_POST_LIMIT = 12;
-const MAX_USERS_LIMIT = 100;
-const MAX_PROFILE_POST_LIMIT = 50;
+import {
+  DEFAULT_USERS_LIMIT,
+  MAX_USERS_LIMIT,
+  parsePaginationParams,
+  buildPaginationQuery,
+  processPaginationResults,
+} from "../util/pagination.js";
 
 const queueAssetCleanup = async ({ keys = [], messages = [] }) => {
   const filteredKeys = [...new Set(keys.filter(Boolean))];
@@ -235,21 +237,22 @@ export const deleteAccount = asynchandller(async (req, res) => {
 
 export const getallUsers = asynchandller(async (req, res) => {
   const { _id } = req.user;
-  const { cursor, limit } = req.query;
 
-  const safeLimit = Math.min(
-    Math.max(parseInt(limit, 10) || DEFAULT_USERS_LIMIT, 1),
+  const { cursor, safeLimit } = parsePaginationParams(
+    req,
+    DEFAULT_USERS_LIMIT,
     MAX_USERS_LIMIT,
   );
 
-  const query = {
+  const baseQuery = {
     _id: {
       $ne: _id,
     },
   };
 
+  const query = buildPaginationQuery(baseQuery, cursor);
   if (cursor) {
-    query._id.$lt = cursor;
+    query._id = { ...(query._id || {}), $lt: cursor };
   }
 
   const docs = await User.find(query)
@@ -258,9 +261,11 @@ export const getallUsers = asynchandller(async (req, res) => {
     .limit(safeLimit + 1)
     .lean();
 
-  const hasMore = docs.length > safeLimit;
-  const users = hasMore ? docs.slice(0, safeLimit) : docs;
-  const nextCursor = hasMore ? users[users.length - 1]._id : null;
+  const { page: users, hasMore, nextCursor } = processPaginationResults(
+    docs,
+    safeLimit,
+    { reverse: false },
+  );
 
   return res.status(200).json({
     success: true,
@@ -275,35 +280,35 @@ export const getallUsers = asynchandller(async (req, res) => {
 export const getUserById = asynchandller(async (req, res) => {
   const { id } = req.params;
   const { _id } = req.user;
-  const { cursor, limit } = req.query;
 
   if (!id) throw new ApiError(401, "Missing field");
 
-  const safeLimit = Math.min(
-    Math.max(parseInt(limit, 10) || DEFAULT_PROFILE_POST_LIMIT, 1),
-    MAX_PROFILE_POST_LIMIT,
+  const { cursor, safeLimit } = parsePaginationParams(
+    req,
+    12,
+    50,
   );
 
   const user = await User.findById(id).select("-password").lean();
   if (!user) throw new ApiError(400, "User not found");
 
-  const postQuery = {
+  const baseQuery = {
     user: user._id,
     isArchived: false,
   };
 
-  if (cursor) {
-    postQuery._id = { $lt: cursor };
-  }
+  const postQuery = buildPaginationQuery(baseQuery, cursor);
 
   const postDocs = await Post.find(postQuery)
     .sort({ _id: -1 })
     .limit(safeLimit + 1)
     .lean();
 
-  const hasMore = postDocs.length > safeLimit;
-  const userposts = hasMore ? postDocs.slice(0, safeLimit) : postDocs;
-  const nextCursor = hasMore ? userposts[userposts.length - 1]._id : null;
+  const { page: userposts, hasMore, nextCursor } = processPaginationResults(
+    postDocs,
+    safeLimit,
+    { reverse: false },
+  );
 
   const userpostIds = userposts.map((p) => p._id);
   const likedPosts = await Like.find({

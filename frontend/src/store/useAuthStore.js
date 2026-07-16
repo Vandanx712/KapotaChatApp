@@ -202,7 +202,7 @@ export const useAuthStore = create((set, get) => ({
 
   fetchActiveSessions: async () => {
     set({ isSessionsLoading: true });
-    try {
+    try { 
       const resdata = await getActiveSessionsRequest();
       set({
         activeSessions: resdata.sessions || [],
@@ -242,7 +242,7 @@ export const useAuthStore = create((set, get) => ({
       set({ sessionActionId: "" });
     }
   },
-
+  
   logoutOtherSessions: async () => {
     set({ isLoggingOutOthers: true });
     try {

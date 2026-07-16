@@ -6,40 +6,42 @@ import { ApiError } from "../util/apierror.js";
 import { asynchandller } from "../util/asynchandller.js";
 import { StoragePath } from "../util/filepath.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
-
-const DEFAULT_MESSAGE_LIMIT = 30;
-const MAX_MESSAGE_LIMIT = 100;
+import {
+  DEFAULT_MESSAGE_LIMIT,
+  MAX_MESSAGE_LIMIT,
+  parsePaginationParams,
+  buildPaginationQuery,
+  processPaginationResults,
+} from "../util/pagination.js";
 
 export const getMessages = asynchandller(async (req, res) => {
   const { id } = req.params;
-  const { cursor, limit } = req.query;
   const { _id } = req.user;
 
   if (!id) throw new ApiError(401, "Select Conversation");
 
-  const safeLimit = Math.min(
-    Math.max(parseInt(limit, 10) || DEFAULT_MESSAGE_LIMIT, 1),
+  const { cursor, safeLimit } = parsePaginationParams(
+    req,
+    DEFAULT_MESSAGE_LIMIT,
     MAX_MESSAGE_LIMIT,
   );
 
-  const query = {
+  const baseQuery = {
     conversationId: id,
     deletedFor: { $ne: _id },
   };
 
-  if (cursor) {
-    query._id = { $lt: cursor };
-  }
+  const query = buildPaginationQuery(baseQuery, cursor);
 
   const docs = await Message.find(query)
     .sort({ _id: -1 })
     .limit(safeLimit + 1)
     .lean();
 
-  const hasMore = docs.length > safeLimit;
-  const page = hasMore ? docs.slice(0, safeLimit) : docs;
-  const messages = page.reverse();
-  const nextCursor = hasMore ? messages[0]._id : null;
+  const { page: messages, hasMore, nextCursor } = processPaginationResults(
+    docs,
+    safeLimit,
+  );
 
   return res.status(200).json({
     success: true,
@@ -52,27 +54,26 @@ export const getMessages = asynchandller(async (req, res) => {
 
 export const getMessageImgs = asynchandller(async (req, res) => {
   const { id } = req.params;
-  const { cursor, limit } = req.query;
   const { _id } = req.user;
 
   if (!id) throw new ApiError(401, "Select Conversation");
 
-  const query = {
+  const { cursor, safeLimit } = parsePaginationParams(req, 5, 5);
+
+  const baseQuery = {
     conversationId: id,
     deletedFor: { $ne: _id },
     "image.url": { $exists: true },
   };
 
-  if (cursor) {
-    query._id = { $lt: cursor };
-  }
+  const query = buildPaginationQuery(baseQuery, cursor);
 
-  const docs = await Message.find(query).sort({ _id: -1 }).limit(6).lean();
+  const docs = await Message.find(query).sort({ _id: -1 }).limit(safeLimit + 1).lean();
 
-  const hasMore = docs.length > 5;
-  const page = hasMore ? docs.slice(0, 5) : docs;
-  const messages = page.reverse();
-  const nextCursor = hasMore ? messages[0]._id : null;
+  const { page: messages, hasMore, nextCursor } = processPaginationResults(
+    docs,
+    safeLimit,
+  );
 
   return res.status(200).json({
     success: true,
@@ -85,13 +86,14 @@ export const getMessageImgs = asynchandller(async (req, res) => {
 
 export const searchMessages = asynchandller(async (req, res) => {
   const { id } = req.params;
-  const { q, limit } = req.query;
+  const { q } = req.query;
   const { _id } = req.user;
 
   if (!id) throw new ApiError(401, "Select Conversation");
   if (!q || q.trim().length === 0) throw new ApiError(401, "Missing field");
 
-  const safeLimit = Math.min(parseInt(limit, 10) || 20, 50);
+  const { safeLimit } = parsePaginationParams(req, 20, 50);
+
   const messages = await Message.find(
     {
       conversationId: id,

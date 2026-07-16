@@ -38,7 +38,8 @@ export const clearTrustedDeviceCookie = (res) => {
 };
 
 export const getTrustedDeviceFromRequest = async (req, userId) => {
-  const trustedDeviceId = req.cookies?.[TRUSTED_DEVICE_COOKIE];
+  const trustedDeviceId =
+    req?.cookies?.[TRUSTED_DEVICE_COOKIE] || req.headers["x-device-id"];
   if (!trustedDeviceId) return null;
 
   const trustedDevice = await TrustedDevice.findOne({
