@@ -32,6 +32,7 @@ function ChatContainer() {
   const { authUser, socket } = useAuthStore();
   const virtuosoRef = useRef(null);
   const didInitialScrollRef = useRef(false);
+  const didInitialScrollRef = useRef(false);
   const searchInputRef = useRef(null);
   const [Typing, setTyping] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -144,7 +145,22 @@ function ChatContainer() {
         align: "end",
         behavior: "auto",
       });
+    if (!message.length || didInitialScrollRef.current) return;
+
+    didInitialScrollRef.current = true;
+
+    requestAnimationFrame(() => {
+      virtuosoRef.current?.scrollToIndex({
+        index: message.length - 1,
+        align: "end",
+        behavior: "auto",
+      });
     });
+  }, [message.length]);
+
+  useEffect(() => {
+    didInitialScrollRef.current = false;
+  }, [selectedConversation.conversationId]);
   }, [message.length]);
 
   useEffect(() => {
@@ -319,6 +335,7 @@ function ChatContainer() {
           ref={virtuosoRef}
           style={{ height: "100%" }}
           data={virtuosoData}
+          computeItemKey={(index, item) => item._id}
           computeItemKey={(index, item) => item._id}
           atBottomThreshold={120}
           atBottomStateChange={setIsAtBottom}
