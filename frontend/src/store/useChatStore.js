@@ -22,6 +22,7 @@ import { useAuthStore } from "./useAuthStore";
 
 const MESSAGE_PAGE_LIMIT = 30;
 const USER_PAGE_LIMIT = 30;
+let latestMessageRequestId = 0;
 
 export const useChatStore = create((set, get) => ({
   message: [],
@@ -64,6 +65,8 @@ export const useChatStore = create((set, get) => ({
   getMessage: async () => {
     const { selectedConversation } = get();
     if (!selectedConversation?.conversationId) return;
+    const conversationId = selectedConversation.conversationId;
+    const requestId = ++latestMessageRequestId;
 
     set({
       isMessageLoading: true,
@@ -75,9 +78,16 @@ export const useChatStore = create((set, get) => ({
 
     const authUser = useAuthStore.getState().authUser;
     try {
-      const resdata = await getMessages(selectedConversation.conversationId, {
+      const resdata = await getMessages(conversationId, {
         limit: MESSAGE_PAGE_LIMIT,
       });
+      if (
+        requestId !== latestMessageRequestId ||
+        get().selectedConversation?.conversationId !== conversationId
+      ) {
+        return;
+      }
+
       const updatedMessages = resdata.messages.map((msg) => {
         if (msg.system) return msg;
         const hasSeen =
@@ -90,27 +100,39 @@ export const useChatStore = create((set, get) => ({
         }
         return msg;
       });
-      set({
-        message: updatedMessages,
+
+      set((state) => ({
+        message: mergeUniqueById(updatedMessages, state.message),
         messageCursor: resdata.nextCursor ?? null,
         hasMoreMessages: Boolean(resdata.hasMore),
-      });
+      }));
+
+      const socket = useAuthStore.getState().socket;
       resdata.messages.forEach((msg) => {
         if (msg.system) return;
         const hasSeen =
           Array.isArray(msg.seenBy) && msg.seenBy.includes(authUser._id);
         if (msg.sender !== authUser._id && !hasSeen) {
-          const socket = useAuthStore.getState().socket;
-          socket.emit("msgseen", {
+          socket?.emit("msgseen", {
             msgId: msg._id,
             senderId: msg.sender,
           });
         }
       });
     } catch (error) {
-      toast.error(error.response?.data.message);
+      if (
+        requestId === latestMessageRequestId &&
+        get().selectedConversation?.conversationId === conversationId
+      ) {
+        toast.error(error.response?.data.message);
+      }
     } finally {
-      set({ isMessageLoading: false });
+      if (
+        requestId === latestMessageRequestId &&
+        get().selectedConversation?.conversationId === conversationId
+      ) {
+        set({ isMessageLoading: false });
+      }
     }
   },
 
@@ -127,7 +149,6 @@ export const useChatStore = create((set, get) => ({
     if (mediaImgCursor === null && hasMoremediaImgs === false) return;
 
     set({ isMediaImgLoading: true });
-    const authUser = useAuthStore.getState().authUser;
 
     try {
       const resdata = await getMessageImgs(
@@ -173,17 +194,25 @@ export const useChatStore = create((set, get) => ({
       !hasMoreMessages ||
       isMoreMessagesLoading
     ) {
-      return;
+      return false;
     }
 
+    const conversationId = selectedConversation.conversationId;
+    const requestId = latestMessageRequestId;
     set({ isMoreMessagesLoading: true });
     const authUser = useAuthStore.getState().authUser;
 
     try {
-      const resdata = await getMessages(selectedConversation.conversationId, {
+      const resdata = await getMessages(conversationId, {
         cursor: messageCursor,
         limit: MESSAGE_PAGE_LIMIT,
       });
+      if (
+        requestId !== latestMessageRequestId ||
+        get().selectedConversation?.conversationId !== conversationId
+      ) {
+        return false;
+      }
 
       const updatedMessages = resdata.messages.map((msg) => {
         if (msg.system) return msg;
@@ -199,42 +228,53 @@ export const useChatStore = create((set, get) => ({
       });
 
       set((state) => ({
-        message: [...updatedMessages, ...state.message],
+        message: mergeUniqueById(updatedMessages, state.message),
         messageCursor: resdata.nextCursor ?? null,
         hasMoreMessages: Boolean(resdata.hasMore),
       }));
 
+      const socket = useAuthStore.getState().socket;
       resdata.messages.forEach((msg) => {
         if (msg.system) return;
         const hasSeen =
           Array.isArray(msg.seenBy) && msg.seenBy.includes(authUser._id);
         if (msg.sender !== authUser._id && !hasSeen) {
-          const socket = useAuthStore.getState().socket;
-          socket.emit("msgseen", {
+          socket?.emit("msgseen", {
             msgId: msg._id,
             senderId: msg.sender,
           });
         }
       });
+      return true;
     } catch (error) {
       toast.error(error.response?.data?.message);
+      return false;
     } finally {
-      set({ isMoreMessagesLoading: false });
+      if (get().selectedConversation?.conversationId === conversationId) {
+        set({ isMoreMessagesLoading: false });
+      }
     }
   },
 
   sendMessage: async (messageData) => {
     const { selectedConversation } = get();
+    if (!selectedConversation?.conversationId) return false;
+    const conversationId = selectedConversation.conversationId;
+
     try {
       const resdata = await sendMessage(
-        selectedConversation.conversationId,
+        conversationId,
         messageData,
       );
-      set((state) => ({
-        message: [...state.message, resdata.newMessage],
-      }));
+      if (get().selectedConversation?.conversationId === conversationId) {
+        set((state) => ({
+          message: mergeUniqueById(state.message, [resdata.newMessage]),
+        }));
+      }
+      return true;
     } catch (error) {
-      toast.error(error.response.data.message);
+      toast.error(error.response?.data?.message || "Failed to send message");
+      return false;
     }
   },
 
@@ -242,23 +282,23 @@ export const useChatStore = create((set, get) => ({
     const { selectedConversation } = get();
     const authUser = useAuthStore.getState().authUser;
     if (!selectedConversation) return;
-    if (
-      newmsg.conversationId == selectedConversation.conversationId &&
-      newmsg.sender == authUser._id
-    )
-      return;
+    if (newmsg.conversationId != selectedConversation.conversationId) return;
+    if (newmsg.sender == authUser._id) return;
+
     set((state) => ({
-      message: [...state.message, newmsg],
+      message: mergeUniqueById(state.message, [newmsg]),
     }));
   },
 
-  offlineToMessage: () => {
+  offlineToMessage: (handler) => {
     const socket = useAuthStore.getState().socket;
-    socket.off("newmessage");
+    if (!socket || !handler) return;
+    socket.off("newmessage", handler);
   },
 
   setIsTyping: (selectedConversation) => {
     const socket = useAuthStore.getState().socket;
+    if (!socket?.connected || !selectedConversation?.conversationId) return;
     socket.emit("istyping", {
       receiverId: selectedConversation.conversationId,
     });
@@ -266,6 +306,7 @@ export const useChatStore = create((set, get) => ({
 
   setStopTyping: (selectedConversation) => {
     const socket = useAuthStore.getState().socket;
+    if (!socket?.connected || !selectedConversation?.conversationId) return;
     socket.emit("StopTyping", {
       receiverId: selectedConversation.conversationId,
     });
@@ -281,14 +322,14 @@ export const useChatStore = create((set, get) => ({
       message: state.message.map((msg) =>
         msg._id == msgId
           ? {
-              ...msg,
-              seenBy: seenBy
-                ? seenBy
-                : userId
-                  ? Array.from(new Set([...(msg.seenBy || []), userId]))
-                  : msg.seenBy,
-              isSeen: typeof isSeen === "boolean" ? isSeen : msg.isSeen,
-            }
+            ...msg,
+            seenBy: seenBy
+              ? seenBy
+              : userId
+                ? Array.from(new Set([...(msg.seenBy || []), userId]))
+                : msg.seenBy,
+            isSeen: typeof isSeen === "boolean" ? isSeen : msg.isSeen,
+          }
           : msg,
       ),
     }));
@@ -335,7 +376,13 @@ export const useChatStore = create((set, get) => ({
   },
 
   setUnselectedConversation: (selectedConversation) => {
-    set({ selectedConversation });
+    latestMessageRequestId += 1;
+    set({
+      selectedConversation,
+      isMessageLoading: false,
+      isMoreMessagesLoading: false,
+      showInfo: false,
+    });
   },
 
   getSurroundingUsers: async () => {
@@ -428,20 +475,37 @@ export const useChatStore = create((set, get) => ({
   },
 
   conBgimage: (id, image) => {
-    set((state) => ({
-      selectedConversation: state.selectedConversation.conversationId == id && {
-        ...state.selectedConversation,
-        bgImage: image,
-      },
-    }));
+    set((state) => {
+      const selectedConversation =
+        state.selectedConversation?.conversationId == id
+          ? {
+            ...state.selectedConversation,
+            bgImage: image,
+          }
+          : state.selectedConversation;
+
+      return {
+        selectedConversation,
+        conversations: state.conversations.map((conversation) =>
+          conversation.conversationId == id
+            ? {
+              ...conversation,
+              bgImage: image,
+            }
+            : conversation,
+        ),
+      };
+    });
   },
 
   messageUpdate: async (id, data) => {
     try {
       await updateMessage(id, data);
+      return true;
     } catch (error) {
-      toast.error(error);
+      toast.error(error.response?.data?.message || "Failed to update message");
       console.log(error);
+      return false;
     }
   },
 
@@ -457,11 +521,11 @@ export const useChatStore = create((set, get) => ({
           lastmessage: {
             ...con.lastmessage,
             text:
-              message.reacted !== con.lastmessage.reacted
+              message.reacted !== con.lastmessage?.reacted
                 ? con.isgroup
                   ? authUser._id == message.userId
                     ? `You reacted ${message?.reacted} to '${message.text}'`
-                    : `${con.groupdetail.membersDetail[message.userId].fullname} reacted ${message.reacted} to '${message.text}'`
+                    : `${con.groupdetail?.membersDetail?.[message.userId]?.fullname || "Someone"} reacted ${message.reacted} to '${message.text}'`
                   : authUser._id == message.userId
                     ? `You reacted ${message?.reacted} to '${message.text}'`
                     : `${con.name} reacted ${message.reacted} to '${message.text}'`
@@ -475,7 +539,13 @@ export const useChatStore = create((set, get) => ({
   setReactedMsg: (message) => {
     set((state) => ({
       message: state.message.map((msg) =>
-        msg._id === message._id ? { ...msg, reacted: message.reacted } : msg,
+        msg._id === message._id
+          ? {
+            ...msg,
+            text: message.text,
+            reacted: message.reacted,
+          }
+          : msg,
       ),
     }));
   },
@@ -496,16 +566,16 @@ export const useChatStore = create((set, get) => ({
         return {
           message: state.message.map((msg) =>
             msg?._id === message?._id &&
-            !message.deletedFor.includes(authUser._id)
+              !message.deletedFor.includes(authUser._id)
               ? {
-                  ...msg,
-                  text:
-                    authUser._id == message.sender
-                      ? "You deleted this message"
-                      : "This message was deleted",
-                  reacted: message.reacted,
-                  image: message.image,
-                }
+                ...msg,
+                text:
+                  authUser._id == message.sender
+                    ? "You deleted this message"
+                    : "This message was deleted",
+                reacted: message.reacted,
+                image: message.image,
+              }
               : msg,
           ),
         };
@@ -527,6 +597,12 @@ export const useChatStore = create((set, get) => ({
           con.conversationId == message.conversationId &&
           message.deletedForEveryone
         ) {
+          const wasUnseen =
+            message.sender != authUser._id &&
+            !(message.seenBy || []).some(
+              (userId) => userId?.toString?.() === authUser._id?.toString?.(),
+            );
+
           return {
             ...con,
             lastmessage: {
@@ -538,7 +614,9 @@ export const useChatStore = create((set, get) => ({
               reacted: message.reacted,
               image: message.image,
             },
-            unseenMsg: con.unseenMsg - 1 >= 0 ? con.unseenMsg - 1 : 0,
+            unseenMsg: wasUnseen
+              ? Math.max(0, (con.unseenMsg || 0) - 1)
+              : con.unseenMsg || 0,
           };
         } else return con;
       }),
@@ -548,45 +626,72 @@ export const useChatStore = create((set, get) => ({
   clearAllMsg: async (id) => {
     try {
       const resdata = await clearChat(id);
+      get().setClearChat({ _id: id });
       toast.success(resdata.message);
+      return true;
     } catch (error) {
       console.log(error);
-      toast.error(error.response.data.message);
+      toast.error(error.response?.data?.message || "Failed to clear chat");
+      return false;
     }
   },
 
   setClearChat: (conversation) => {
-    set((state) => ({
-      conversations: state.conversations.map((con) => {
-        if (con.conversationId == conversation._id) {
-          return {
-            ...con,
-            lastmessage: {
-              ...con.lastmessage,
-              text: "",
+    const conversationId = conversation?._id || conversation?.conversationId;
+    if (!conversationId) return;
+
+    set((state) => {
+      const isSelected =
+        state.selectedConversation?.conversationId == conversationId;
+
+      return {
+        conversations: state.conversations.map((con) =>
+          con.conversationId == conversationId
+            ? {
+              ...con,
+              lastmessage: con.lastmessage
+                ? {
+                  ...con.lastmessage,
+                  text: "",
+                  image: null,
+                  post: null,
+                }
+                : con.lastmessage,
               unseenMsg: 0,
-            },
-          };
-        } else return con;
-      }),
-      message: [],
-      messageCursor: null,
-      hasMoreMessages: false,
-    }));
+            }
+            : con,
+        ),
+        ...(isSelected
+          ? {
+            message: [],
+            messageCursor: null,
+            hasMoreMessages: false,
+          }
+          : {}),
+      };
+    });
   },
 
-  setShowInfo: () => {
-    set((state) => ({ showInfo: !state.showInfo }));
+  setShowInfo: (value) => {
+    set((state) => ({ showInfo: typeof value === "boolean" ? value : !state.showInfo }));
   },
 
   setDeleteChat: async (id) => {
     try {
       const resdata = await deleteConversation(id);
       toast.success(resdata.message);
-      set({ selectedConversation: null });
+      latestMessageRequestId += 1;
+      set({
+        selectedConversation: null,
+        isMessageLoading: false,
+        isMoreMessagesLoading: false,
+        showInfo: false,
+      });
+      return true;
     } catch (error) {
       console.log(error);
       toast.error(error.response?.data.message);
+      return false;
     }
   },
 
@@ -601,21 +706,21 @@ export const useChatStore = create((set, get) => ({
         conversations: state.conversations.map((con) =>
           con.conversationId === conversation._id
             ? {
-                ...con,
-                groupdetail: { ...con.groupdetail, ...updatedGroup },
-              }
+              ...con,
+              groupdetail: { ...con.groupdetail, ...updatedGroup },
+            }
             : con,
         ),
 
         selectedConversation:
           state.selectedConversation?.conversationId === conversation._id
             ? {
-                ...state.selectedConversation,
-                groupdetail: {
-                  ...state.selectedConversation.groupdetail,
-                  ...updatedGroup,
-                },
-              }
+              ...state.selectedConversation,
+              groupdetail: {
+                ...state.selectedConversation.groupdetail,
+                ...updatedGroup,
+              },
+            }
             : state.selectedConversation,
       };
     });
@@ -752,9 +857,9 @@ export const useChatStore = create((set, get) => ({
           conversations = conversations.map((con) =>
             getId(con) === incomingId
               ? {
-                  ...con,
-                  groupdetail: conversation.groupdetail ?? con.groupdetail,
-                }
+                ...con,
+                groupdetail: conversation.groupdetail ?? con.groupdetail,
+              }
               : con,
           );
 

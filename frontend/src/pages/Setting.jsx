@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useMemo, useState } from "react";
+import { useEffect, useCallback, useMemo, useState } from "react";
 import {
   Archive,
   ArrowLeft,
@@ -67,7 +67,7 @@ const settingsItems = [
   },
   {
     id: 2,
-    icon: Settings2,  
+    icon: Settings2,
     label: "Post",
     description: "See posts, post setting",
   },
@@ -193,7 +193,7 @@ function Setting() {
     [activeSessions],
   );
 
-  const loadMyPosts = useEffectEvent(
+  const loadMyPosts = useCallback(
     async ({ reset = false, cursor = null } = {}) => {
       try {
         if (reset) {
@@ -227,7 +227,7 @@ function Setting() {
         setPostLoading(false);
         setIsMorePostsLoading(false);
       }
-    },
+    }, []
   );
 
   useEffect(() => {
@@ -243,7 +243,7 @@ function Setting() {
       setHasMorePosts(false);
       loadMyPosts({ reset: true });
     }
-  }, [activeSection]);
+  }, [activeSection,loadMyPosts]);
 
   const handleItemClick = async (label) => {
     if (label === "Profile") {
@@ -365,7 +365,7 @@ function Setting() {
     try {
       await navigator.clipboard.writeText(SUPPORT_EMAIL);
       toast.success("Support email copied");
-    } catch (error) {
+    } catch {
       toast.error("Unable to copy support email");
     }
   };
@@ -424,9 +424,8 @@ function Setting() {
                     disabled={isSessionsLoading}
                   >
                     <RefreshCw
-                      className={`size-4 ${
-                        isSessionsLoading ? "animate-spin" : ""
-                      }`}
+                      className={`size-4 ${isSessionsLoading ? "animate-spin" : ""
+                        }`}
                     />
                     Refresh
                   </button>
@@ -502,24 +501,22 @@ function Setting() {
                     {activeSessions.map((session) => (
                       <div
                         key={session._id}
-                        className={`group rounded-3xl border p-4 transition-all duration-200 sm:p-5 lg:p-6 ${
-                          session.isCurrent || session.isPrimaryDevice
+                        className={`group rounded-3xl border p-4 transition-all duration-200 sm:p-5 lg:p-6 ${session.isCurrent || session.isPrimaryDevice
                             ? "border-primary/40 bg-primary/[0.04] shadow-sm"
                             : "border-base-300/70 bg-base-100 hover:border-base-300 hover:shadow-sm"
-                        }`}
+                          }`}
                       >
                         <div className="flex flex-col gap-5">
                           {/* Top */}
                           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                             <div className="flex min-w-0 items-start gap-4">
                               <div
-                                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
-                                  session.isCurrent
+                                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${session.isCurrent
                                     ? "bg-primary/10 text-primary"
                                     : session.isPrimaryDevice
                                       ? "bg-primary/8 text-primary"
-                                    : "bg-base-200 text-base-content/70"
-                                }`}
+                                      : "bg-base-200 text-base-content/70"
+                                  }`}
                               >
                                 <Laptop2 className="size-5" />
                               </div>
@@ -651,11 +648,10 @@ function Setting() {
                   <button
                     key={itemTheme}
                     type="button"
-                    className={`group rounded-2xl border p-2 transition ${
-                      theme === itemTheme
+                    className={`group rounded-2xl border p-2 transition ${theme === itemTheme
                         ? "border-primary bg-primary/10"
                         : "border-base-300 bg-base-100 hover:border-base-content/20 hover:bg-base-200/60"
-                    }`}
+                      }`}
                     onClick={() => setTheme(itemTheme)}
                   >
                     <div
@@ -704,24 +700,21 @@ function Setting() {
                   {previewMessages.map((message) => (
                     <div
                       key={message.id}
-                      className={`flex ${
-                        message.issent ? "justify-end" : "justify-start"
-                      }`}
+                      className={`flex ${message.issent ? "justify-end" : "justify-start"
+                        }`}
                     >
                       <div
-                        className={`max-w-[80%] rounded-2xl p-3 text-sm shadow-sm ${
-                          message.issent
+                        className={`max-w-[80%] rounded-2xl p-3 text-sm shadow-sm ${message.issent
                             ? "bg-primary text-primary-content"
                             : "bg-base-200 text-base-content"
-                        }`}
+                          }`}
                       >
                         <p>{message.content}</p>
                         <p
-                          className={`mt-1 text-[10px] ${
-                            message.issent
+                          className={`mt-1 text-[10px] ${message.issent
                               ? "text-primary-content/70"
                               : "text-base-content/70"
-                          }`}
+                            }`}
                         >
                           12:00 PM
                         </p>
@@ -1263,11 +1256,10 @@ function Setting() {
 
   return (
     <>
-      <div className="h-full max-w-[1600px] bg-base-100 pt-16 lg:grid lg:grid-cols-[390px_1fr]">
+      <div className="min-h-screen bg-base-100 pt-[72px] lg:grid lg:grid-cols-[390px_1fr]">
         <div
-          className={`${
-            activeSection === "all" ? "flex" : "hidden lg:flex"
-          } flex-col border-r border-base-300`}
+          className={`${activeSection === "all" ? "flex" : "hidden lg:flex"
+            } flex-col border-r border-base-300`}
         >
           <div
             className="mx-3 mt-5 flex cursor-pointer items-center gap-4 rounded-3xl p-4 transition hover:bg-base-200/60"
@@ -1301,18 +1293,16 @@ function Setting() {
                   key={item.id}
                   type="button"
                   onClick={() => handleItemClick(item.label)}
-                  className={`mb-2 flex w-full items-center gap-4 rounded-3xl px-4 py-4 text-left transition ${
-                    isActive
+                  className={`mb-2 flex w-full items-center gap-4 rounded-3xl px-4 py-4 text-left transition ${isActive
                       ? "bg-primary/10 text-primary"
                       : "hover:bg-base-200/70"
-                  }`}
+                    }`}
                 >
                   <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
-                      isActive
+                    className={`flex h-12 w-12 items-center justify-center rounded-2xl ${isActive
                         ? "bg-primary text-primary-content"
                         : "bg-base-200 text-base-content/75"
-                    }`}
+                      }`}
                   >
                     <Icon className="size-5" />
                   </div>

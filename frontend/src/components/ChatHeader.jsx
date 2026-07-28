@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ArrowLeft,
   EllipsisVerticalIcon,
@@ -8,36 +9,43 @@ import {
   Trash2Icon,
   VideoIcon,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
-import { useEffect } from "react";
+import ConfirmDialog from "./common/ConfirmDialog";
 import LoadableImage from "./common/LoadableImage";
 
 const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
-  const {
-    selectedConversation,
-    setUnselectedConversation,
-    setConBgimage,
-    clearAllMsg,
-    setShowInfo,
-    setDeleteChat,
-    getConversation,
-    setGroupUpdation,
-  } = useChatStore();
-  const { onlineUsers, authUser, socket } = useAuthStore();
-
-  useEffect(() => {
-    socket.on("udGroupDetail", (conversation) =>
-      setGroupUpdation(conversation),
-    );
-    return () => {
-      socket.off('udGroupDetail');
-    };
-  }, [socket]);
+  const [confirmAction, setConfirmAction] = useState("");
+  const selectedConversation = useChatStore(
+    (state) => state.selectedConversation,
+  );
+  const setUnselectedConversation = useChatStore(
+    (state) => state.setUnselectedConversation,
+  );
+  const setConBgimage = useChatStore((state) => state.setConBgimage);
+  const clearAllMsg = useChatStore((state) => state.clearAllMsg);
+  const setShowInfo = useChatStore((state) => state.setShowInfo);
+  const setDeleteChat = useChatStore((state) => state.setDeleteChat);
+  const getConversation = useChatStore((state) => state.getConversation);
+  const onlineUsers = useAuthStore((state) => state.onlineUsers);
+  const authUser = useAuthStore((state) => state.authUser);
 
   const handleimagechange = (e) => {
     e.preventDefault();
     const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 9 * 1024 * 1024) {
+      toast.error("Image must be smaller than 9 MB");
+      e.target.value = "";
+      return;
+    }
+
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => {
@@ -52,20 +60,18 @@ const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
 
   const onlineUsersSet = new Set(onlineUsers);
 
-  let onlinemember = [];
+  const groupMembers =
+    selectedConversation.groupdetail?.membersDetail || {};
+  const onlinemember = [];
   let myrole = selectedConversation.isgroup
-    ? selectedConversation.groupdetail.membersDetail[authUser._id].role
+    ? groupMembers[authUser._id]?.role || "member"
     : "";
 
   if (selectedConversation.isgroup) {
-    const membersId = Object.keys(
-      selectedConversation.groupdetail.membersDetail,
-    );
+    const membersId = Object.keys(groupMembers);
     membersId.forEach((id) => {
       if (id !== authUser._id && onlineUsersSet.has(id)) {
-        onlinemember.push(
-          selectedConversation.groupdetail.membersDetail[id].fullname,
-        );
+        onlinemember.push(groupMembers[id]?.fullname || "Someone");
       }
     });
   }
@@ -77,9 +83,8 @@ const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
       : "Click here for contact info";
   } else {
     if (onlinemember.length > 1) {
-      statusText = `${onlinemember[0]} & ${onlinemember.length - 1} other${
-        onlinemember.length - 1 > 1 ? "s" : ""
-      } are online`;
+      statusText = `${onlinemember[0]} & ${onlinemember.length - 1} other${onlinemember.length - 1 > 1 ? "s" : ""
+        } are online`;
     } else if (onlinemember.length === 1) {
       statusText = `${onlinemember[0]} is online`;
     } else {
@@ -87,31 +92,44 @@ const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
     }
   }
 
-  const handleClearChat = () => {
-    clearAllMsg(selectedConversation.conversationId);
+  const handleClearChat = async () => {
+    const cleared = await clearAllMsg(selectedConversation.conversationId);
+    if (cleared) setConfirmAction("");
   };
 
-  const handleDeleteChat = () => {
-    setDeleteChat(selectedConversation.conversationId);
-    setTimeout(() => {
+  const handleDeleteChat = async () => {
+    const deleted = await setDeleteChat(
+      selectedConversation.conversationId,
+    );
+    if (deleted) {
+      setConfirmAction("");
       getConversation();
-    }, 3000);
+    }
   };
 
   return (
-    <div className="p-2.5 pt-5 border-b border-base-300">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <>
+      <div className="border-b border-base-300 px-4 py-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
           {/* Avatar */}
-          <button onClick={() => setUnselectedConversation(null)}>
-            <ArrowLeft />
+          <button
+            type="button"
+            aria-label="Back to conversations"
+            onClick={() => {
+              setShowInfo(false);
+              setUnselectedConversation(null);
+            }}
+            className="btn btn-ghost btn-circle btn-sm"
+          >
+            <ArrowLeft className="size-5" />
           </button>
           <div className="avatar">
             <div className="size-10 rounded-full ">
               <LoadableImage
                 src={
                   selectedConversation.isgroup
-                    ? selectedConversation.groupdetail?.groupIcon.url
+                    ? selectedConversation.groupdetail?.groupIcon?.url
                     : selectedConversation?.profilePic?.url
                 }
                 alt={
@@ -127,7 +145,11 @@ const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
           </div>
 
           {/* User info */}
-          <div onClick={() => setShowInfo()} className="flex flex-col min-w-0 cursor-pointer">
+          <button
+            type="button"
+            onClick={() => setShowInfo(true)}
+            className="flex min-w-0 flex-col text-left"
+          >
             <h3 className="font-medium text-lg truncate">
               {selectedConversation.isgroup
                 ? selectedConversation.groupdetail.groupname
@@ -141,23 +163,33 @@ const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
             >
               {statusText}
             </p>
-          </div>
+          </button>
         </div>
-        <div className="flex items-center justify-evenly space-x-5">
-          <button onClick={onStartCall} className="">
-            <VideoIcon />
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={onStartCall}
+            aria-label="Start video call"
+            className="btn btn-ghost btn-circle btn-sm"
+          >
+            <VideoIcon className="size-5" />
           </button>
           {onToggleSearch && (
             <button
               onClick={onToggleSearch}
-              className={`${showSearch ? "text-primary" : ""}`}
+              aria-label="Search messages"
+              className={`btn btn-ghost btn-circle btn-sm ${showSearch ? "text-primary" : ""}`}
             >
               <Search className="size-5" />
             </button>
           )}
           <div className="dropdown dropdown-bottom dropdown-end">
-            <button>
-              <EllipsisVerticalIcon />
+            <button
+              type="button"
+              aria-label="Conversation actions"
+              className="btn btn-ghost btn-circle btn-sm"
+            >
+              <EllipsisVerticalIcon className="size-5" />
             </button>
             <ul
               tabIndex={0}
@@ -165,7 +197,7 @@ const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
             >
               <li>
                 <button
-                  onClick={() => setShowInfo()}
+                  onClick={() => setShowInfo(true)}
                   className="flex items-center"
                 >
                   <InfoIcon className="size-4" />{" "}
@@ -174,30 +206,26 @@ const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
               </li>
               {myrole != "member" && (
                 <li>
-                  <button
-                    onClick={() => alert("Must be dimension 800x600 or above")}
+                  <label
+                    className="flex cursor-pointer items-center gap-2"
+                    htmlFor="avatar-upload"
                   >
-                    <label
-                      className="flex gap-2 items-center"
-                      htmlFor="avatar-upload"
-                    >
-                      <ImageIcon className="size-4" /> Chat Theme
-                      <input
-                        type="file"
-                        id="avatar-upload"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleimagechange}
-                      />
-                    </label>
-                  </button>
+                    <ImageIcon className="size-4" /> Chat Theme
+                    <input
+                      type="file"
+                      id="avatar-upload"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleimagechange}
+                    />
+                  </label>
                 </li>
               )}
               <div className="divider m-0 divider-primary" />
               <li>
                 <button
                   className="flex items-center"
-                  onClick={() => handleClearChat()}
+                  onClick={() => setConfirmAction("clear")}
                 >
                   <MinusCircle className="size-4" /> Clear Chat
                 </button>
@@ -205,7 +233,7 @@ const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
               {myrole != "member" && (
                 <li>
                   <button
-                    onClick={() => handleDeleteChat()}
+                    onClick={() => setConfirmAction("delete")}
                     className="flex items-center"
                   >
                     <Trash2Icon className="size-4" /> Delete Chat
@@ -216,7 +244,22 @@ const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction === "delete" ? "Delete conversation?" : "Clear chat?"}
+        description={
+          confirmAction === "delete"
+            ? "This removes the conversation from your chat list."
+            : "This removes all messages in this conversation for you."
+        }
+        confirmLabel={confirmAction === "delete" ? "Delete" : "Clear"}
+        onCancel={() => setConfirmAction("")}
+        onConfirm={
+          confirmAction === "delete" ? handleDeleteChat : handleClearChat
+        }
+      />
+    </>
   );
 };
 export default ChatHeader;

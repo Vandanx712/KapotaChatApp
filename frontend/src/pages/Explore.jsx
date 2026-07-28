@@ -133,10 +133,10 @@ function Explore() {
         prev.map((post) =>
           post._id === postId
             ? {
-                ...post,
-                isLiked: likesCountChange == -1 ? false : true,
-                likesCount: post.likesCount + likesCountChange,
-              }
+              ...post,
+              isLiked: likesCountChange == -1 ? false : true,
+              likesCount: post.likesCount + likesCountChange,
+            }
             : post,
         ),
       );
@@ -221,32 +221,32 @@ function Explore() {
       ),
     );
 
-    // const successCount = results.filter(
-    //   (result) => result.status === "fulfilled",
-    // ).length;
-    // const failedCount = results.length - successCount;
+    const successCount = results.filter(
+      (result) => result.status === "fulfilled",
+    ).length;
+    const failedCount = results.length - successCount;
 
-    // if (successCount > 0) {
-    //   setPosts((prev) =>
-    //     prev.map((post) =>
-    //       post._id === sharePost._id
-    //         ? {
-    //             ...post,
-    //             sharesCount: (post.sharesCount || 0) + successCount,
-    //           }
-    //         : post,
-    //     ),
-    //   );
-    //   toast.success(
-    //     `Post sent to ${successCount} conversation${successCount > 1 ? "s" : ""}`,
-    //   );
-    // }
+    if (successCount > 0) {
+      setPosts((prev) =>
+        prev.map((post) =>
+          post._id === sharePost._id
+            ? {
+              ...post,
+              sharesCount: (post.sharesCount || 0) + successCount,
+            }
+            : post,
+        ),
+      );
+      toast.success(
+        `Post sent to ${successCount} conversation${successCount > 1 ? "s" : ""}`,
+      );
+    }
 
-    // if (failedCount > 0) {
-    //   toast.error(
-    //     `${failedCount} conversation${failedCount > 1 ? "s" : ""} failed`,
-    //   );
-    // }
+    if (failedCount > 0) {
+      toast.error(
+        `${failedCount} conversation${failedCount > 1 ? "s" : ""} failed`,
+      );
+    }
 
     setSharePost(null);
     setSelectedConversationIds([]);
@@ -355,7 +355,7 @@ function Explore() {
           ))}
 
           <div ref={loadMoreRef} className=" flex justify-center">
-            {loading && <Loader2 className="size-12 wanimate-spin" />}
+            {loading && <Loader2 className="size-12 animate-spin" />}
             {!loading && !hasMore && posts.length > 0 && (
               <p className="py-6 text-sm text-base-content/60">
                 You&apos;ve reached the end of the feed.
@@ -454,11 +454,10 @@ function Explore() {
                             conversation.conversationId,
                           )
                         }
-                        className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${
-                          isSelected
+                        className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${isSelected
                             ? "border-primary bg-primary/10"
                             : "border-base-300 bg-base-100 hover:bg-base-200/60"
-                        }`}
+                          }`}
                       >
                         <div className="avatar">
                           <div className="w-12 rounded-full bg-base-300">
@@ -479,11 +478,10 @@ function Explore() {
                         </div>
 
                         <div
-                          className={`flex h-6 w-6 items-center justify-center rounded-full border ${
-                            isSelected
+                          className={`flex h-6 w-6 items-center justify-center rounded-full border ${isSelected
                               ? "border-primary bg-primary text-primary-content"
                               : "border-base-300"
-                          }`}
+                            }`}
                         >
                           {isSelected && <Check className="size-4" />}
                         </div>

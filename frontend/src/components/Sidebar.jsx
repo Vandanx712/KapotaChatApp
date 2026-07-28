@@ -1,4 +1,4 @@
-import React, { useEffect, useEffectEvent, useMemo, useState } from "react";
+import React, { useEffect, useCallback, useMemo, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton";
 import {
@@ -26,6 +26,7 @@ function Sidebar() {
     isConversationLoading,
     setNmsgInCon,
     setUpdatedMessage,
+    setReactedMsg,
     setDeletedMessageForSlider,
     setGroupUpdation,
     refreshGroupMember,
@@ -57,7 +58,8 @@ function Sidebar() {
     );
   }, [conversations]);
 
-  const loadusers = useEffectEvent(async ({ reset = false, cursor = null } = {}) => {
+  const loadusers = useCallback(async ({ reset = false, cursor = null } = {}) => {
+
     try {
       if (reset) {
         setIsUsersLoading(true);
@@ -80,7 +82,7 @@ function Sidebar() {
       setIsUsersLoading(false);
       setIsMoreUsersLoading(false);
     }
-  });
+  }, []);
 
   useEffect(() => {
     if (!newChat) return;
@@ -91,7 +93,7 @@ function Sidebar() {
     setDebouncedSearch("");
     setSearch("");
     loadusers({ reset: true });
-  }, [newChat]);
+  }, [newChat, loadusers]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -106,29 +108,68 @@ function Sidebar() {
   }, [getConversation]);
 
   useEffect(() => {
-    socket.on("newmessage", (newMessage) => setNmsgInCon(newMessage));
-    socket.on("istyping", (userId) => setTyping(userId));
-    socket.on("StopTyping", (userId) =>
-      setTyping(userId.receiverId == Typing.receiverId ? "" : Typing),
-    );
-    socket.on("reacted", (msg) => setUpdatedMessage(msg));
-    socket.on("delete", (msg) => setDeletedMessageForSlider(msg));
-    socket.on("udGroupDetail", (conversation) =>
-      setGroupUpdation(conversation),
-    );
-    socket.on("refresh", (type, conversation) => {
-      refreshGroupMember(type, conversation);
-    });
-    return () => {
-      socket.off("istyping");
-      socket.off("StopTyping");
-      socket.off("newmessage");
-      socket.off("reacted");
-      socket.off("delete");
-      socket.off("udGroupDetail");
-      socket.off("refresh");
+    if (!socket) return;
+
+    const handleNewMessage = (newMessage) => {
+      setNmsgInCon(newMessage);
     };
-  }, [socket]);
+
+    const handleTyping = (payload) => {
+      setTyping(payload);
+    };
+
+    const handleStopTyping = (payload) => {
+      setTyping((prev) =>
+        prev?.receiverId === payload?.receiverId &&
+          prev?.userId === payload?.userId
+          ? ""
+          : prev,
+      );
+    };
+
+    const handleReacted = (msg) => {
+      setUpdatedMessage(msg);
+      setReactedMsg(msg);
+    };
+
+    const handleDelete = (msg) => {
+      setDeletedMessageForSlider(msg);
+    };
+
+    const handleGroupDetail = (conversation) => {
+      setGroupUpdation(conversation);
+    };
+
+    const handleRefresh = (type, conversation) => {
+      refreshGroupMember(type, conversation);
+    };
+
+    socket.on("newmessage", handleNewMessage);
+    socket.on("istyping", handleTyping);
+    socket.on("StopTyping", handleStopTyping);
+    socket.on("reacted", handleReacted);
+    socket.on("delete", handleDelete);
+    socket.on("udGroupDetail", handleGroupDetail);
+    socket.on("refresh", handleRefresh);
+
+    return () => {
+      socket.off("newmessage", handleNewMessage);
+      socket.off("istyping", handleTyping);
+      socket.off("StopTyping", handleStopTyping);
+      socket.off("reacted", handleReacted);
+      socket.off("delete", handleDelete);
+      socket.off("udGroupDetail", handleGroupDetail);
+      socket.off("refresh", handleRefresh);
+    };
+  }, [
+    socket,
+    setNmsgInCon,
+    setUpdatedMessage,
+    setReactedMsg,
+    setDeletedMessageForSlider,
+    setGroupUpdation,
+    refreshGroupMember,
+  ]);
 
   const handleChatClick = (id) => {
     creteConversation(id);
@@ -139,7 +180,9 @@ function Sidebar() {
 
   const getOnlineGroupUsers = (conversation, onlineUsersSet) => {
     if (!conversation.isgroup) return [];
-    return Object.entries(conversation.groupdetail.membersDetail).filter(
+    return Object.entries(
+      conversation.groupdetail?.membersDetail || {},
+    ).filter(
       ([id]) => id !== authUser._id && onlineUsersSet.has(id),
     );
   };
@@ -151,7 +194,9 @@ function Sidebar() {
   });
 
   const filteredUsers = users.filter((user) => {
-    return user.fullname.toLowerCase().includes(debouncedSearch.toLowerCase());
+    return (user.fullname || "")
+      .toLowerCase()
+      .includes(debouncedSearch.toLowerCase());
   });
 
   const setSelectedChat = (id) => {
@@ -171,15 +216,27 @@ function Sidebar() {
       {!open && (
         <>
           <div className="shrink-0 border-b border-base-300 p-5">
-            <div className="flex items-center justify-between gap-2">
-              <Users
+            <div className="grid grid-cols-2 rounded-lg bg-base-300/60 p-1">
+              <button
+                type="button"
                 onClick={() => setNewChat(false)}
-                className={`size-6 cursor-pointer ${!newChat && " opacity-60"}`}
-              />
-              <MessageSquarePlusIcon
+                aria-pressed={!newChat}
+                className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${!newChat ? "bg-base-100 font-medium shadow-sm" : "text-base-content/65"
+                  }`}
+              >
+                <Users className="size-4" />
+                Chats
+              </button>
+              <button
+                type="button"
                 onClick={() => setNewChat(true)}
-                className={`size-6 cursor-pointer ${newChat && " opacity-60"}`}
-              />
+                aria-pressed={newChat}
+                className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${newChat ? "bg-base-100 font-medium shadow-sm" : "text-base-content/65"
+                  }`}
+              >
+                <MessageSquarePlusIcon className="size-4" />
+                New chat
+              </button>
             </div>
             <div className="mt-6">
               <label className="flex items-center gap-2 input input-bordered input-md w-full">
@@ -202,6 +259,7 @@ function Sidebar() {
                   conversation,
                   onlineUsersSet,
                 );
+                const unseenCount = Math.max(0, conversation.unseenMsg || 0);
                 return (
                   <button
                     key={conversation.conversationId}
@@ -216,7 +274,7 @@ function Sidebar() {
                       <PhotoProvider>
                         {(() => {
                           const imageSrc = conversation.isgroup
-                            ? conversation.groupdetail?.groupIcon.url
+                            ? conversation.groupdetail?.groupIcon?.url
                             : conversation?.profilePic?.url;
 
                           return (
@@ -226,8 +284,8 @@ function Sidebar() {
                                   src={imageSrc}
                                   alt={
                                     conversation.isgroup
-                                      ? conversation.groupdetail.groupname
-                                      : conversation.name
+                                      ? conversation.groupdetail?.groupname
+                                      : conversation.name || "Conversation"
                                   }
                                   className="size-12 rounded-full object-cover"
                                   wrapperClassName="size-12 rounded-full"
@@ -240,39 +298,35 @@ function Sidebar() {
                       </PhotoProvider>
                       {!conversation.isgroup
                         ? onlineUsersSet.has(conversation.oruserId) && (
-                            <span
-                              className="absolute bottom-0 right-0 size-3 bg-green-500 
-                    rounded-full"
-                            />
-                          )
+                          <span
+                            className="absolute bottom-0 right-0 size-3 rounded-full bg-green-500"
+                          />
+                        )
                         : onlineMembers?.length > 0 && (
-                            <span
-                              className="absolute bottom-0 right-0 size-3 bg-green-500 
-                    rounded-full"
-                            />
-                          )}
+                          <span
+                            className="absolute bottom-0 right-0 size-3 rounded-full bg-green-500"
+                          />
+                        )}
                     </div>
 
                     <div className="text-left flex-1 min-w-0">
                       <div className=" flex justify-between items-center">
                         <div className="font-medium text-sm truncate flex-1 min-w-0">
                           {conversation.isgroup
-                            ? conversation.groupdetail.groupname
-                            : conversation.name}
+                            ? conversation.groupdetail?.groupname || "Group"
+                            : conversation.name || "Conversation"}
                         </div>
                         <div
-                          className={`rounded-full ${conversation.unseenMsg == 0 || conversation.lastmessage?.sender == authUser._id ? "hidden" : "flex"} justify-center items-center bg-base-300 p-2 text-xs size-3`}
+                          className={`rounded-full ${unseenCount === 0 || conversation.lastmessage?.sender == authUser._id ? "hidden" : "flex"} size-5 items-center justify-center bg-primary text-xs text-primary-content`}
                         >
-                          {conversation.lastmessage?.deletedForEveryone
-                            ? conversation.unseenMsg - 1
-                            : conversation.unseenMsg}
+                          {unseenCount}
                         </div>
                       </div>
                       <div className="text-xs text-zinc-400 truncate">
                         {Typing.receiverId == conversation.conversationId &&
-                        Typing.userId !== authUser._id
+                          Typing.userId !== authUser._id
                           ? conversation.isgroup
-                            ? `${conversation.groupdetail.membersDetail[Typing.userId].fullname} is typing...`
+                            ? `${conversation.groupdetail?.membersDetail?.[Typing.userId]?.fullname || "Someone"} is typing...`
                             : "typing..."
                           : conversation?.lastmessage?.deletedForEveryone
                             ? authUser._id == conversation?.lastmessage?.sender
@@ -280,9 +334,9 @@ function Sidebar() {
                               : "This message was deleted"
                             : conversation.lastmessage?.image
                               ? "Image"
-                              : conversation?.lastmessage.deletedFor?.includes(
-                                    authUser._id,
-                                  )
+                              : conversation?.lastmessage?.deletedFor?.includes(
+                                authUser._id,
+                              )
                                 ? ""
                                 : conversation?.lastmessage.text || ""}
                       </div>
@@ -332,13 +386,16 @@ function Sidebar() {
                       {filteredUsers.map((user) => (
                         <div
                           key={user._id}
-                          onClick={() => setSelectedChat(user._id)}
+                          onClick={() => existConversationSet.has(user._id)
+                            ? setSelectedChat(user._id)
+                            : handleChatClick(user._id)
+                          }
                           className="flex items-center gap-3 rounded-lg p-3 transition hover:bg-base-200"
                         >
                           <div className="avatar relative">
                             <div className="w-12 rounded-full bg-base-300">
                               <LoadableImage
-                                src={user.profilePic.url}
+                                src={user.profilePic?.url}
                                 alt={user.fullname}
                                 className="rounded-full object-cover"
                                 wrapperClassName="size-12 rounded-full"

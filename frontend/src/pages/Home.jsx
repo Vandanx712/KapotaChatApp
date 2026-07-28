@@ -10,15 +10,15 @@ function Home() {
 
   return (
     <div className="h-screen bg-base-200">
-      <div className="pt-16 h-full">
-        <div className="flex h-[calc(100vh-4rem)]">
+      <div className="h-full pt-[72px]">
+        <div className="flex h-[calc(100vh-72px)]">
           <Sidebar />
           {!selectedConversation ? <NoChatSelected /> : <ChatContainer />}
 
           {showInfo && (
             <InfoDrawer
               conversation={selectedConversation}
-              onClose={() => setShowInfo()}
+              onClose={() => setShowInfo(false)}
             />
           )}
         </div>

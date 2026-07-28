@@ -116,7 +116,7 @@ function Profile() {
                 className="rounded-full"
               />
               <LoadableImage
-                src={selectedImg || authUser?.profilePic.url}
+                src={selectedImg || authUser?.profilePic?.url}
                 alt="Profile"
                 className="size-32 rounded-full object-cover border-4"
                 wrapperClassName="size-32 rounded-full"
@@ -188,7 +188,7 @@ function Profile() {
                               onClick={() => handleProfileAvatar(avatar)}
                               disabled={isProfilePhotoUploading}
                               className={`flex-shrink-0 w-14 h-14 rounded-xl transition-all ${
-                                authUser.profilePic.url === avatar.url
+                                authUser.profilePic?.url === avatar.url
                                   ? "mt-1 ring-2 ring-primary ring-offset-2 ring-offset-card"
                                   : "opacity-60 hover:opacity-100"
                               }`}
@@ -224,7 +224,7 @@ function Profile() {
                 <User className="w-4 h-4" />
                 Full Name
               </div>
-              <p className="px-4 flex justify-between py-2.5 bg-base-200 rounded-lg border">
+              <div className="px-4 flex justify-between py-2.5 bg-base-200 rounded-lg border">
                 <input
                   type="text"
                   value={profile.fullname}
@@ -246,7 +246,7 @@ function Profile() {
                     />
                   </button>
                 </div>
-              </p>
+              </div>
             </div>
 
             <div className="space-y-1.5">
@@ -254,7 +254,7 @@ function Profile() {
                 <UserPen className="w-4 h-4" />
                 Bio
               </div>
-              <p className="px-4 flex justify-between py-2.5 bg-base-200 rounded-lg border">
+              <div className="px-4 flex justify-between py-2.5 bg-base-200 rounded-lg border">
                 <input
                   type="text"
                   onChange={(e) => {
@@ -276,7 +276,7 @@ function Profile() {
                     />
                   </button>
                 </div>
-              </p>
+              </div>
             </div>
 
             <div className="space-y-1.5">

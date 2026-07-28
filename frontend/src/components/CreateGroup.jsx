@@ -8,7 +8,7 @@ import {
   SmileIcon,
   X,
 } from "lucide-react";
-import React, { useEffect, useEffectEvent, useState } from "react";
+import React, { useEffect, useCallback, useState } from "react";
 import { createGroup, getAllUsers } from "../lib/axios";
 import { useAuthStore } from "../store/useAuthStore";
 import toast from "react-hot-toast";
@@ -40,7 +40,7 @@ function CreateGroup({ onClose }) {
   const [usersCursor, setUsersCursor] = useState(null);
   const [hasMoreUsers, setHasMoreUsers] = useState(false);
 
-  const loadusers = useEffectEvent(async ({ reset = false, cursor = null } = {}) => {
+  const loadusers = useCallback(async ({ reset = false, cursor = null } = {}) => {
     try {
       if (reset) {
         setIsUsersLoading(true);
@@ -63,11 +63,11 @@ function CreateGroup({ onClose }) {
       setIsUsersLoading(false);
       setIsMoreUsersLoading(false);
     }
-  });
+  }, []);
 
   useEffect(() => {
     loadusers({ reset: true });
-  }, []);
+  }, [loadusers]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -78,7 +78,9 @@ function CreateGroup({ onClose }) {
   }, [search]);
 
   const filteredUsers = users.filter((user) => {
-      return user.fullname.toLowerCase().includes(debouncedSearch.toLowerCase());
+    return (user.fullname || "")
+      .toLowerCase()
+      .includes(debouncedSearch.toLowerCase());
   });
 
   const removeMember = (id) => {
@@ -89,6 +91,18 @@ function CreateGroup({ onClose }) {
   const handleProfilePic = (e) => {
     e.preventDefault();
     const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 9 * 1024 * 1024) {
+      toast.error("Image must be smaller than 9 MB");
+      e.target.value = "";
+      return;
+    }
+
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = async () => {
@@ -117,7 +131,7 @@ function CreateGroup({ onClose }) {
       onClose();
     } catch (error) {
       console.log(error);
-      toast.error();
+      toast.error(error.response?.data?.message || "Failed to create group");
     } finally {
       setIsCreatingGroup(false);
     }
@@ -140,7 +154,7 @@ function CreateGroup({ onClose }) {
             <input
               type="text"
               value={search}
-              onChange={(e) =>setSearch(e.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search Name"
               className="w-full bg-transparent outline-none"
             />
@@ -187,7 +201,7 @@ function CreateGroup({ onClose }) {
                   <div className="avatar">
                     <div className="w-12 rounded-full bg-base-300">
                       <LoadableImage
-                        src={user?.profilePic.url}
+                        src={user?.profilePic?.url}
                         alt={user.fullname}
                         className="rounded-full object-cover"
                         wrapperClassName="size-12 rounded-full"
@@ -257,22 +271,20 @@ function CreateGroup({ onClose }) {
                 <span className={`${groupicon ? "hidden" : ""}`}>
                   Add group icon
                 </span>
-                <button
-                  onClick={() => alert("Photo size almost 9mb")}
-                  className={`${groupicon ? " -right-1" : " right-1"} absolute bottom-1`}
+                <label
+                  htmlFor="create-group-icon-upload"
+                  aria-label="Choose group icon"
+                  className={`btn btn-circle btn-sm ${groupicon ? "-right-1" : "right-1"} absolute bottom-1 cursor-pointer`}
                 >
-                  <label htmlFor="avatar-upload">
-                    <Image className=" size-6" />
-                    <input
-                      type="file"
-                      id="avatar-upload"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleProfilePic}
-                      // disabled={isUpdateProfile}
-                    />
-                  </label>
-                </button>
+                  <Image className="size-5" />
+                  <input
+                    type="file"
+                    id="create-group-icon-upload"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleProfilePic}
+                  />
+                </label>
               </>
 
               {groupicon && (
@@ -321,9 +333,9 @@ function CreateGroup({ onClose }) {
                           prev.map((p) =>
                             p.userId === par._id
                               ? {
-                                  ...p,
-                                  role: e.target.checked ? "admin" : "member",
-                                }
+                                ...p,
+                                role: e.target.checked ? "admin" : "member",
+                              }
                               : p,
                           ),
                         );

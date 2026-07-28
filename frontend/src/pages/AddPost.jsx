@@ -178,6 +178,8 @@ function AddPost() {
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) return toast.error("Select an image file");
+    if (file.size > 9 * 1024 * 1024) return toast.error("Image must be smaller than 9 MB");
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagePreview(reader.result);
@@ -237,10 +239,10 @@ function AddPost() {
           caption,
           location: locationSource
             ? {
-                name: locationSource.name,
-                type: "Point",
-                coordinates: [locationSource.lat, locationSource.lng],
-              }
+              name: locationSource.name,
+              type: "Point",
+              coordinates: [locationSource.lat, locationSource.lng],
+            }
             : null,
           hideLikes,
           disableShare,
@@ -287,7 +289,7 @@ function AddPost() {
           </div>
           <button
             onClick={() => handleSave()}
-            disabled={isUploadingPost}
+            disabled={isUploadingPost || !imagePreview || !croppedAreaPixels}
             className="btn btn-primary"
           >
             {isUploadingPost ? (
@@ -321,29 +323,26 @@ function AddPost() {
                   <div className="join">
                     <button
                       onClick={() => changeRatio("square")}
-                      className={`btn btn-xs join-item ${
-                        ratioType === "square" ? "btn-primary" : "btn-outline"
-                      }`}
+                      className={`btn btn-xs join-item ${ratioType === "square" ? "btn-primary" : "btn-outline"
+                        }`}
                     >
                       1:1
                     </button>
 
                     <button
                       onClick={() => changeRatio("portrait")}
-                      className={`btn btn-xs join-item ${
-                        ratioType === "portrait" ? "btn-primary" : "btn-outline"
-                      }`}
+                      className={`btn btn-xs join-item ${ratioType === "portrait" ? "btn-primary" : "btn-outline"
+                        }`}
                     >
                       4:5
                     </button>
 
                     <button
                       onClick={() => changeRatio("landscape")}
-                      className={`btn btn-xs join-item ${
-                        ratioType === "landscape"
+                      className={`btn btn-xs join-item ${ratioType === "landscape"
                           ? "btn-primary"
                           : "btn-outline"
-                      }`}
+                        }`}
                     >
                       16:9
                     </button>
@@ -384,7 +383,7 @@ function AddPost() {
                         max={3}
                         step={0.1}
                         value={zoom}
-                        onChange={(e) => setZoom(e.target.value)}
+                        onChange={(e) => setZoom(Number(e.target.value))}
                         className="range range-xs"
                       />
                     </div>
@@ -407,7 +406,6 @@ function AddPost() {
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onClick={() => alert("Image size must be 9mb")}
                   onChange={handleImageChange}
                 />
               </label>

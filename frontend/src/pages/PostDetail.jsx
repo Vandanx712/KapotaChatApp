@@ -91,10 +91,10 @@ function PostDetail() {
       setPost((prev) =>
         prev
           ? {
-              ...prev,
-              isLiked: response.liked,
-              likesCount: prev.likesCount + (response.liked ? 1 : -1),
-            }
+            ...prev,
+            isLiked: response.liked,
+            likesCount: prev.likesCount + (response.liked ? 1 : -1),
+          }
           : prev,
       );
     } catch (error) {
@@ -147,6 +147,33 @@ function PostDetail() {
       ),
     );
 
+    const successCount = results.filter(
+      (result) => result.status === "fulfilled",
+    ).length;
+
+    const failedCount = results.length - successCount;
+
+    if (successCount > 0) {
+      setPost((prev) =>
+        prev
+          ? {
+            ...prev,
+            sharesCount: (prev.sharesCount || 0) + successCount,
+          }
+          : prev,
+      );
+
+      toast.success(
+        `Post sent to ${successCount} conversation${successCount > 1 ? "s" : ""}`,
+      );
+    }
+
+    if (failedCount > 0) {
+      toast.error(
+        `${failedCount} conversation${failedCount > 1 ? "s" : ""} failed`,
+      );
+    }
+
     setSharePost(null);
     setSelectedConversationIds([]);
     setShareSearch("");
@@ -154,7 +181,7 @@ function PostDetail() {
     setIsSharing(false);
   };
 
-  if (loading && !post) {
+  if (loading && !post?.id) {
     return (
       <div className="min-h-screen bg-base-100 pt-20">
         <div className="flex h-[calc(100vh-5rem)] items-center justify-center">
@@ -164,7 +191,7 @@ function PostDetail() {
     );
   }
 
-  if (!post) {
+  if (!post?.id) {
     return (
       <div className="min-h-screen bg-base-100 pt-20">
         <div className="mx-auto flex h-[calc(100vh-5rem)] max-w-2xl flex-col items-center justify-center px-6 text-center">
@@ -382,11 +409,10 @@ function PostDetail() {
                             conversation.conversationId,
                           )
                         }
-                        className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${
-                          isSelected
+                        className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${isSelected
                             ? "border-primary bg-primary/10"
                             : "border-base-300 bg-base-100 hover:bg-base-200/60"
-                        }`}
+                          }`}
                       >
                         <div className="avatar">
                           <div className="w-12 rounded-full bg-base-300">
@@ -407,11 +433,10 @@ function PostDetail() {
                         </div>
 
                         <div
-                          className={`flex h-6 w-6 items-center justify-center rounded-full border ${
-                            isSelected
+                          className={`flex h-6 w-6 items-center justify-center rounded-full border ${isSelected
                               ? "border-primary bg-primary text-primary-content"
                               : "border-base-300"
-                          }`}
+                            }`}
                         >
                           {isSelected && <Check className="size-4" />}
                         </div>

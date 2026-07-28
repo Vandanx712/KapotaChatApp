@@ -7,7 +7,6 @@ import {
   Edit2,
   EllipsisVerticalIcon,
   LucideInfo,
-  MapPin,
   SmileIcon,
   Trash2Icon,
   X,
@@ -17,27 +16,57 @@ import "react-photo-view/dist/react-photo-view.css";
 import EmojiPicker from "emoji-picker-react";
 import { useNavigate } from "react-router-dom";
 import { useChatStore } from "../store/useChatStore";
-import { useAuthStore } from "../store/useAuthStore";
 import toast from "react-hot-toast";
 
 const MessageItem = memo(
   ({ m, authUser, selectedConversation, highlightId }) => {
     const isSentByMe = m?.sender === authUser._id;
-    const { messageUpdate } = useChatStore();
     const [showPicker, setShowPicker] = useState(false);
     const [editing, setEditing] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [editedText, setEditedText] = useState(m?.text);
     const [info, setInfo] = useState(false);
 
-    const { socket } = useAuthStore();
     const navigate = useNavigate();
-    const { setReactedMsg, messageDelete } = useChatStore();
+    const messageUpdate = useChatStore((state) => state.messageUpdate);
+    const messageDelete = useChatStore((state) => state.messageDelete);
     const [openUp, setOpenUp] = useState(false);
     const [showActions, setShowActions] = useState(false);
+    const modalRef = useRef(null);
     const dropdownRef = useRef(null);
     const isHighlighted = highlightId && m?._id === highlightId;
     const isSharedPost = Boolean(m?.post?._id);
+    const hasOpenDialog = info || editing || deleting;
+
+    // click outside close
+    useEffect(() => {
+      if (!hasOpenDialog) return undefined;
+
+      const closeDialogs = () => {
+        setInfo(false);
+        setDeleting(false);
+        setEditing(false);
+      };
+
+      const handleClickOutside = (e) => {
+        if (modalRef.current && !modalRef.current.contains(e.target)) {
+          closeDialogs();
+        }
+      };
+
+      const handleEsc = (e) => {
+        if (e.key === "Escape") {
+          closeDialogs();
+        }
+      };
+
+      document.addEventListener("pointerdown", handleClickOutside);
+      window.addEventListener("keydown", handleEsc);
+      return () => {
+        document.removeEventListener("pointerdown", handleClickOutside);
+        window.removeEventListener("keydown", handleEsc);
+      };
+    }, [hasOpenDialog]);
 
     if (m?.system) {
       if (m?.deletedFor?.includes(authUser._id)) return null;
@@ -49,36 +78,6 @@ const MessageItem = memo(
         </div>
       );
     }
-
-    const modalRef = useRef(null);
-
-    const onClose = () => {
-      setInfo(false);
-      setDeleting(false);
-      setEditing(false);
-    };
-
-    // click outside close
-    useEffect(() => {
-      const handleClickOutside = (e) => {
-        if (modalRef.current && !modalRef.current.contains(e.target)) {
-          onClose();
-        }
-      };
-
-      const handleEsc = (e) => {
-        if (e.key === "Escape") {
-          onClose();
-        }
-      };
-
-      document.addEventListener("pointerdown", handleClickOutside);
-      window.addEventListener("keydown", handleEsc);
-      return () => {
-        document.removeEventListener("pointerdown", handleClickOutside);
-        window.removeEventListener("keydown", handleEsc);
-      };
-    }, []);
 
     const supportsHover =
       typeof window !== "undefined" &&
@@ -117,7 +116,7 @@ const MessageItem = memo(
       );
       const mydetail =
         selectedConversation.groupdetail.membersDetail[
-          membersId.filter((mem) => mem == authUser._id)[0]
+        membersId.filter((mem) => mem == authUser._id)[0]
         ];
       myrole = mydetail?.role;
     }
@@ -135,13 +134,13 @@ const MessageItem = memo(
     const seenByNames =
       selectedConversation.isgroup && isSentByMe
         ? [...seenBySet]
-            .filter((id) => id !== authUser._id)
-            .map(
-              (id) =>
-                selectedConversation.groupdetail?.membersDetail?.[id]
-                  ?.fullname || "Unknown",
-            )
-            .filter(Boolean)
+          .filter((id) => id !== authUser._id)
+          .map(
+            (id) =>
+              selectedConversation.groupdetail?.membersDetail?.[id]
+                ?.fullname || "Unknown",
+          )
+          .filter(Boolean)
         : [];
 
     const canEdit =
@@ -155,12 +154,6 @@ const MessageItem = memo(
         updatefor &&
         !isSharedPost);
 
-    useEffect(() => {
-      socket.on("reacted", (msg) => {
-        setReactedMsg(msg);
-      });
-    }, [socket]);
-
     const onEmojiClick = (id, emojiData) => {
       messageUpdate(id, {
         conversationId: selectedConversation.conversationId,
@@ -169,14 +162,16 @@ const MessageItem = memo(
       });
     };
 
-    const handleSaveEdit = () => {
-      messageUpdate(m._id, {
+    const handleSaveEdit = async () => {
+      const trimmedText = editedText.trim();
+      if (!trimmedText || trimmedText === m.text) return;
+
+      const updated = await messageUpdate(m._id, {
         conversationId: selectedConversation.conversationId,
-        text: editedText.trim(),
+        text: trimmedText,
         emoji: "",
       });
-      m.text = editedText.trim();
-      setEditing(false);
+      if (updated) setEditing(false);
     };
 
     const handledeleteForMe = () => {
@@ -200,10 +195,29 @@ const MessageItem = memo(
 
       navigate(`/post/${m.post._id}`, {
         state: {
-          sharedPost:true,
+          sharedPost: true,
         },
       });
     };
+
+    const handleCopy = async () => {
+      if (!m?.text) {
+        toast.error("This message has no text to copy");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(m.text);
+        toast.success("Copied");
+      } catch {
+        toast.error("Unable to copy message");
+      }
+    };
+
+    const canDeleteForEveryone =
+      deletefor &&
+      isSentByMe &&
+      (!selectedConversation.isgroup || myrole === "admin");
 
     return (
       <div
@@ -214,8 +228,8 @@ const MessageItem = memo(
             <img
               src={
                 isSentByMe
-                  ? authUser.profilePic.url || ""
-                  : profilePic?.url || selectedConversation?.profilePic.url
+                  ? authUser.profilePic?.url || ""
+                  : profilePic?.url || selectedConversation?.profilePic?.url || ""
               }
               alt="profile"
             />
@@ -235,7 +249,7 @@ const MessageItem = memo(
               <PhotoView src={m.image.url}>
                 <img
                   src={m.image.url}
-                  className="sm:max-w-[200px] rounded-md mb-2 cursor-pointer"
+                  className="max-h-[420px] max-w-[min(420px,55vw)] rounded-md mb-2 cursor-pointer object-contain"
                   alt="attachment"
                 />
               </PhotoView>
@@ -289,21 +303,19 @@ const MessageItem = memo(
               ))}
           </time>
           <div
-            className={` ${
-              m?.deletedForEveryone
-                ? "hidden"
-                : supportsHover
-                  ? "opacity-0 group-hover:opacity-100"
-                  : showActions
-                    ? "opacity-100"
-                    : "opacity-0"
-            } ${isSentByMe ? "right-full mr-2" : "left-full ml-2"} absolute top-1 gap-2 items-center transition-opacity duration-200`}
+            className={` ${m?.deletedForEveryone
+              ? "hidden"
+              : supportsHover
+                ? "opacity-0 group-hover:opacity-100"
+                : showActions
+                  ? "opacity-100"
+                  : "opacity-0"
+              } ${isSentByMe ? "right-full mr-2" : "left-full ml-2"} absolute top-1 gap-2 items-center transition-opacity duration-200`}
           >
             <div
               ref={dropdownRef}
-              className={`dropdown ${
-                isSentByMe ? "dropdown-start mr-2" : "ml-2 dropdown-end"
-              } ${openUp ? "dropdown-top" : "dropdown-bottom"}`}
+              className={`dropdown ${isSentByMe ? "dropdown-start mr-2" : "ml-2 dropdown-end"
+                } ${openUp ? "dropdown-top" : "dropdown-bottom"}`}
             >
               <button onClick={handleOpen}>
                 <EllipsisVerticalIcon className="size-5 cursor-pointer" />
@@ -314,10 +326,7 @@ const MessageItem = memo(
               >
                 <li>
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(m?.text);
-                      toast.success("Copied");
-                    }}
+                    onClick={handleCopy}
                     className="flex text-sm items-center gap-3"
                   >
                     <CopyIcon className="size-4" /> Copy Message
@@ -431,7 +440,7 @@ const MessageItem = memo(
                 />
                 <button
                   onClick={handleSaveEdit}
-                  disabled={editedText.trim() === m.text}
+                  disabled={!editedText.trim() || editedText.trim() === m.text}
                   className="btn btn-circle"
                 >
                   <Check className="size-4" />
@@ -458,7 +467,7 @@ const MessageItem = memo(
               <div className="md:p-5 p-1 flex flex-col gap-3 items-end">
                 <button
                   onClick={handleDeleteEeveryone}
-                  className={`${deletefor && myrole == "admin" && m.sender == authUser._id ? "" : "hidden"} btn cursor-pointer rounded-2xl text-error`}
+                  className={`${canDeleteForEveryone ? "" : "hidden"} btn cursor-pointer rounded-2xl text-error`}
                 >
                   Delete for everyone
                 </button>

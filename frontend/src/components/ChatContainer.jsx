@@ -6,7 +6,7 @@ import MessageSkeleton from "../components/skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
 import MessageItem from "./MessageItem";
 import { Virtuoso } from "react-virtuoso";
-import { Loader2, Search, X } from "lucide-react";
+import { ArrowDown, Loader2, Search, X } from "lucide-react";
 import { searchMessages } from "../lib/axios";
 import { formatMessageTime } from "../lib/utils";
 import toast from "react-hot-toast";
@@ -23,7 +23,6 @@ function ChatContainer() {
     isMoreMessagesLoading,
     selectedConversation,
     onlineToMessage,
-    offlineToMessage,
     setMsgSeen,
     conBgimage,
     setDeletedMessage,
@@ -31,7 +30,6 @@ function ChatContainer() {
   } = useChatStore();
   const { authUser, socket } = useAuthStore();
   const virtuosoRef = useRef(null);
-  const didInitialScrollRef = useRef(false);
   const didInitialScrollRef = useRef(false);
   const searchInputRef = useRef(null);
   const [Typing, setTyping] = useState(false);
@@ -45,14 +43,14 @@ function ChatContainer() {
 
   useEffect(() => {
     getMessage();
-  }, [selectedConversation, getMessage]);
+  }, [selectedConversation?.conversationId, getMessage]);
 
   useEffect(() => {
     setShowSearch(false);
     setSearchQuery("");
     setSearchResults([]);
     setHighlightedId(null);
-  }, [selectedConversation]);
+  }, [selectedConversation?.conversationId]);
 
   useEffect(() => {
     if (!showSearch) return;
@@ -132,19 +130,9 @@ function ChatContainer() {
         senderId: lastmsg.sender,
       });
     }
-  }, [lastmsg?._id, lastmsg?.sender, authUser?._id, socket, lastmsg?.seenBy]);
+  }, [lastmsg, authUser?._id, socket]);
 
   useEffect(() => {
-    if (!message.length || didInitialScrollRef.current) return;
-
-    didInitialScrollRef.current = true;
-
-    requestAnimationFrame(() => {
-      virtuosoRef.current?.scrollToIndex({
-        index: message.length - 1,
-        align: "end",
-        behavior: "auto",
-      });
     if (!message.length || didInitialScrollRef.current) return;
 
     didInitialScrollRef.current = true;
@@ -160,38 +148,46 @@ function ChatContainer() {
 
   useEffect(() => {
     didInitialScrollRef.current = false;
-  }, [selectedConversation.conversationId]);
-  }, [message.length]);
+  }, [selectedConversation?.conversationId]);
 
   useEffect(() => {
-    didInitialScrollRef.current = false;
-  }, [selectedConversation.conversationId]);
+    if (!socket) return
 
-  useEffect(() => {
-    socket.on("msgseen", (payload) => {
-      setMsgSeen(payload);
-    });
-    socket.on("changeBgimage", ({ conversationId, bgImage }) => {
+    const handleMsgSeen = (payload) => setMsgSeen(payload)
+    const handleBgImage = ({ conversationId, bgImage }) => {
       conBgimage(conversationId, bgImage);
-    });
-    socket.on("istyping", (userId) => setTyping(userId));
-    socket.on("StopTyping", (userId) =>
-      setTyping(userId.userId == Typing.userId ? "" : Typing),
-    );
-    socket.on("delete", (msg) => setDeletedMessage(msg));
-    socket.on("clearchat", (conversation) => setClearChat(conversation));
-    socket.on("newmessage", (newMessage) => onlineToMessage(newMessage));
-    return () => {
-      offlineToMessage();
-      socket.off("msgseen");
-      socket.off("istyping");
-      socket.off("StopTyping");
-      socket.off("changeBgimage");
-      socket.off("delete");
-      socket.off("clearchat");
-      socket.off("newmessage");
     };
-  }, [socket]);
+    const handleTyping = (payload) => setTyping(payload);
+    const handleStopTyping = (payload) => {
+      setTyping((prev) =>
+        payload?.userId === prev?.userId &&
+        payload?.receiverId === prev?.receiverId
+          ? ""
+          : prev,
+      );
+    };
+    const handleDelete = (msg) => setDeletedMessage(msg);
+    const handleClearChat = (conversation) => setClearChat(conversation);
+    const handleNewMessage = (newMessage) => onlineToMessage(newMessage);
+
+    socket.on("msgseen", handleMsgSeen);
+    socket.on("changeBgimage", handleBgImage);
+    socket.on("istyping", handleTyping);
+    socket.on("StopTyping", handleStopTyping);
+    socket.on("delete", handleDelete);
+    socket.on("clearchat", handleClearChat);
+    socket.on("newmessage", handleNewMessage);
+
+    return () => {
+      socket.off("msgseen", handleMsgSeen);
+      socket.off("changeBgimage", handleBgImage);
+      socket.off("istyping", handleTyping);
+      socket.off("StopTyping", handleStopTyping);
+      socket.off("delete", handleDelete);
+      socket.off("clearchat", handleClearChat);
+      socket.off("newmessage", handleNewMessage);
+    };
+  }, [socket, onlineToMessage, setClearChat, setMsgSeen, conBgimage, setDeletedMessage]);
 
   const handleToggleSearch = () => {
     setShowSearch((prev) => !prev);
@@ -211,13 +207,45 @@ function ChatContainer() {
     startOutgoingCall(selectedConversation);
   };
 
-  const handleResultClick = (msg) => {
-    const index = message.findIndex((m) => m._id === msg._id);
-    if (index === -1) return;
-    virtuosoRef.current?.scrollToIndex({
-      index,
-      align: "center",
-      behavior: "smooth",
+  const handleResultClick = async (msg) => {
+    const conversationId = selectedConversation.conversationId;
+    let state = useChatStore.getState();
+    let index = state.message.findIndex((item) => item._id === msg._id);
+    let pagesLoaded = 0;
+
+    setIsSearching(true);
+    while (
+      index === -1 &&
+      state.hasMoreMessages &&
+      state.selectedConversation?.conversationId === conversationId &&
+      pagesLoaded < 50
+    ) {
+      const previousCursor = state.messageCursor;
+      const loaded = await loadOlderMessages();
+      state = useChatStore.getState();
+      index = state.message.findIndex((item) => item._id === msg._id);
+      pagesLoaded += 1;
+
+      if (!loaded || state.messageCursor === previousCursor) break;
+    }
+    setIsSearching(false);
+
+    if (
+      state.selectedConversation?.conversationId !== conversationId ||
+      index === -1
+    ) {
+      if (state.selectedConversation?.conversationId === conversationId) {
+        toast.error("Unable to load this message");
+      }
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      virtuosoRef.current?.scrollToIndex({
+        index,
+        align: "center",
+        behavior: "smooth",
+      });
     });
     setHighlightedId(msg._id);
     setTimeout(() => {
@@ -233,6 +261,15 @@ function ChatContainer() {
     () => (typingActive ? [...message, { _id: "typing" }] : message),
     [message, typingActive],
   );
+
+  const scrollToLatest = () => {
+    if (!message.length) return;
+    virtuosoRef.current?.scrollToIndex({
+      index: message.length - 1,
+      align: "end",
+      behavior: "smooth",
+    });
+  };
 
   if (isMessageLoading)
     return (
@@ -328,14 +365,13 @@ function ChatContainer() {
         style={{
           backgroundImage: `url('${selectedConversation.bgImage?.url}')`,
         }}
-        className={`flex-1 min-h-0 ${selectedConversation.bgImage ? `bg-cover bg-center bg-no-repeat` : ""}`}
+        className={`relative flex-1 min-h-0 ${selectedConversation.bgImage ? `bg-cover bg-center bg-no-repeat` : ""}`}
       >
         <Virtuoso
           key={selectedConversation.conversationId}
           ref={virtuosoRef}
           style={{ height: "100%" }}
           data={virtuosoData}
-          computeItemKey={(index, item) => item._id}
           computeItemKey={(index, item) => item._id}
           atBottomThreshold={120}
           atBottomStateChange={setIsAtBottom}
@@ -373,6 +409,16 @@ function ChatContainer() {
             />
           )}
         />
+        {!isAtBottom && message.length > 0 && (
+          <button
+            type="button"
+            onClick={scrollToLatest}
+            aria-label="Jump to latest message"
+            className="btn btn-circle btn-sm absolute bottom-4 right-4 z-20 border border-base-300 bg-base-100 shadow-lg"
+          >
+            <ArrowDown className="size-4" />
+          </button>
+        )}
       </div>
       <MessageInput />
     </div>

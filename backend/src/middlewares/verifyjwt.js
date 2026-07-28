@@ -5,7 +5,9 @@ import { Session } from "../models/session.model.js";
 
 export const verifyjwt = async (req, res, next) => {
   try {
-    const token = req?.cookies?.token || req?.headers?.Authorization?.split(" ")[1];
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    const bearerToken = authHeader?.startsWith("Bearer ")
+    const token = req?.cookies?.token || bearerToken
     if (!token) throw new ApiError(401, "Unauthorized request");
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -18,7 +20,7 @@ export const verifyjwt = async (req, res, next) => {
       expireAt: { $gt: new Date() },
     }).lean();
     if (!session) throw new ApiError(401, "Session was deleted");
-
+    
     req.user = user;
     req.session = session;
     next();

@@ -9,16 +9,48 @@ function MessageInput() {
   const [imagePreview, setImagePreview] = useState(null);
   const [showPicker, setShowPicker] = useState(false);
   const fileInputRef = useRef(null);
-  const typingRef = useRef(null);
-  const { selectedConversation, sendMessage, setIsTyping, setStopTyping } =
-    useChatStore();
+  const typingTimeoutRef = useRef(null);
+  const isTypingRef = useRef(false);
+  const selectedConversation = useChatStore(
+    (state) => state.selectedConversation,
+  );
+  const sendMessage = useChatStore((state) => state.sendMessage);
+  const setIsTyping = useChatStore((state) => state.setIsTyping);
+  const setStopTyping = useChatStore((state) => state.setStopTyping);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(typingTimeoutRef.current);
+      if (isTypingRef.current) {
+        setStopTyping(selectedConversation);
+        isTypingRef.current = false;
+      }
+    };
+  }, [selectedConversation, setStopTyping]);
+
+  const stopTypingNow = () => {
+    clearTimeout(typingTimeoutRef.current);
+    if (!isTypingRef.current) return;
+    setStopTyping(selectedConversation);
+    isTypingRef.current = false;
+  };
 
   const handleimagechange = (e) => {
     const file = e.target.files[0];
     if (!file) {
-      toast.error("Please select an image file");
       return;
     }
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 9 * 1024 * 1024) {
+      toast.error("Image must be smaller than 9 MB");
+      e.target.value = "";
+      return;
+    }
+
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onloadend = () => {
@@ -35,12 +67,18 @@ function MessageInput() {
     e.preventDefault();
     if (!text.trim() && !imagePreview) return;
     try {
-      await sendMessage({ text: text.trim(), image: imagePreview });
+      const sent = await sendMessage({
+        text: text.trim(),
+        image: imagePreview,
+      });
+      if (!sent) return;
+
       setText("");
       setImagePreview(null);
+      stopTypingNow();
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (error) {
-      toast.error(error.response.data.message);
+      toast.error(error?.response?.data?.message || "Failed to send message");
       console.error("Failed to send message:", error);
     }
   };
@@ -106,13 +144,21 @@ function MessageInput() {
               placeholder="Type a message..."
               value={text}
               onChange={(e) => {
-                setText(e.target.value);
-                if (e.target.value.trim().length > 0)
+                const nextText = e.target.value;
+                setText(nextText);
+
+                if (!nextText.trim()) {
+                  stopTypingNow();
+                  return;
+                }
+
+                if (!isTypingRef.current) {
                   setIsTyping(selectedConversation);
-                clearTimeout(typingRef.current);
-                typingRef.current = setTimeout(() => {
-                  setStopTyping(selectedConversation);
-                }, 800);
+                  isTypingRef.current = true;
+                }
+
+                clearTimeout(typingTimeoutRef.current);
+                typingTimeoutRef.current = setTimeout(stopTypingNow, 800);
               }}
             />
             <input

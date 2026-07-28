@@ -1,5 +1,4 @@
 import React from 'react'
-import {MessageSquare} from 'lucide-react'
 import Logo from './common/Logo'
 
 function NoChatSelected() {
