@@ -24,19 +24,29 @@ import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import ConfirmDialog from "./common/ConfirmDialog";
 import SectionLoader from "./common/SectionLoader";
-import LoadableImage from "./common/LoadableImage";
+import {
+  Avatar,
+  Badge,
+  Button,
+  EmptyState,
+  Input,
+  Modal,
+  Tooltip,
+} from "./ui";
+import { useThemeStore } from "../store/useThemeStore";
+import { useCallStore } from "../store/useCallStore";
 
-const cardClass = "p-5 ";
+const cardClass = "border-t border-line p-5";
 
 function SectionTitle({ title, subtitle, action }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div>
-        <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-base-content/75">
+        <h3 className="text-sm font-semibold text-ink">
           {title}
         </h3>
         {subtitle && (
-          <p className="mt-1 text-sm text-base-content/55">{subtitle}</p>
+          <p className="mt-1 text-xs leading-5 text-muted">{subtitle}</p>
         )}
       </div>
       {action}
@@ -50,7 +60,7 @@ function ActionTile({ icon, label, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-lg bg-error/5 px-4 py-3 text-error transition hover:bg-error/15"
+      className="flex w-full items-center gap-3 rounded-control border border-danger/10 bg-danger-soft/50 px-3 py-2.5 text-danger transition hover:bg-danger-soft"
     >
       <IconComponent className="size-5" />
       <span className="min-w-0 text-sm font-medium">{label}</span>
@@ -75,31 +85,35 @@ function MediaSlider({ mediaFiles, getImgMessages = () => { } }) {
         subtitle={`${mediaFiles.length} shared ${mediaFiles.length === 1 ? "item" : "items"
           }`}
         action={
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
+          <div className="flex items-center gap-1">
+            <Button
+              iconOnly
+              size="xs"
+              variant="ghost"
               onClick={() => {
                 handleScroll(-1);
                 getImgMessages();
               }}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-base-200 bg-base-100 text-base-content/70 transition hover:border-base-300 hover:text-base-content"
+              aria-label="Previous media"
             >
               <ChevronLeft className="size-4" />
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              iconOnly
+              size="xs"
+              variant="ghost"
               onClick={() => handleScroll(1)}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-base-200 bg-base-100 text-base-content/70 transition hover:border-base-300 hover:text-base-content"
+              aria-label="Next media"
             >
               <ChevronRight className="size-4" />
-            </button>
+            </Button>
           </div>
         }
       />
       {mediaFiles.length > 0 ? (
         <div
           ref={sliderRef}
-          className="mt-3 flex space-x-5 overflow-x-auto scroll-smooth no-scrollbar"
+          className="no-scrollbar mt-3 flex gap-2 overflow-x-auto scroll-smooth"
         >
           <PhotoProvider>
             {mediaFiles.map((file) => (
@@ -107,7 +121,7 @@ function MediaSlider({ mediaFiles, getImgMessages = () => { } }) {
                 <img
                   src={file?.url}
                   alt=""
-                  className="rounded-lg object-cover size-20 shrink-0 cursor-pointer"
+                  className="size-20 shrink-0 cursor-pointer rounded-control border border-line object-cover"
                   loading="lazy"
                   decoding="async"
                 />
@@ -116,9 +130,12 @@ function MediaSlider({ mediaFiles, getImgMessages = () => { } }) {
           </PhotoProvider>
         </div>
       ) : (
-        <button className="btn btn-disabled btn-lg mt-3">
-          <CircleSlash2 />
-        </button>
+        <EmptyState
+          icon={CircleSlash2}
+          title="No shared media"
+          description="Images from this conversation will appear here."
+          className="py-7"
+        />
       )}
     </section>
   );
@@ -145,6 +162,8 @@ function InfoDrawer({ conversation, onClose }) {
     resetImgMessages,
   } = useChatStore();
   const { authUser } = useAuthStore();
+  const theme = useThemeStore((state) => state.theme);
+  const startOutgoingCall = useCallStore((state) => state.startOutgoingCall);
 
   const mediaFiles = mediaImgs;
 
@@ -312,98 +331,110 @@ function InfoDrawer({ conversation, onClose }) {
 
     return (
       <>
-        <div className="flex items-center justify-between p-4 border-b border-base-300">
-          <h2 className="text-lg font-semibold">Group Info</h2>
-          <button
-            onClick={onClose}
-            className="btn btn-sm btn-ghost btn-circle"
-          >
-            <X className="size-6" />
-          </button>
-        </div>
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-line px-4">
+          <div>
+            <h2 className="text-sm font-semibold text-ink">Group info</h2>
+            <p className="mt-0.5 text-xs text-muted">Details and shared media</p>
+          </div>
+          <Button iconOnly size="sm" variant="ghost" onClick={onClose} aria-label="Close group info">
+            <X className="size-5" />
+          </Button>
+        </header>
 
-        <div className="flex-1 overflow-y-auto scroll-smooth no-scrollbar">
+        <div className="ui-scrollbar min-h-0 flex-1 overflow-y-auto scroll-smooth">
           <div className="flex flex-col">
-            <div className="flex flex-col items-center gap-3 p-6 border-b border-base-200">
-              <div className="avatar">
-                <div className="w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
-                  <PhotoProvider>
-                    <PhotoView src={groupicon || group?.groupIcon?.url}>
-                      <LoadableImage
-                        src={groupicon || group?.groupIcon?.url}
-                        alt="group"
-                        className="object-cover"
-                        wrapperClassName="w-20 h-20"
-                        imgProps={{ loading: "eager", decoding: "async" }}
-                      />
-                    </PhotoView>
-                  </PhotoProvider>
-                </div>
-                {myrole !== "member" && (
-                  <label
-                    htmlFor="groupIcon-upload"
-                    className="btn btn-circle btn-sm absolute -bottom-1 right-0 cursor-pointer"
-                    aria-label="Change group photo"
-                  >
-                    <Image className="size-6" />
-                    <input
-                      type="file"
-                      id="groupIcon-upload"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleProfilePic}
+            <div className="flex flex-col items-center gap-3 p-6">
+              <div className="relative">
+                <PhotoProvider>
+                  <PhotoView src={groupicon || group?.groupIcon?.url}>
+                    <Avatar
+                      src={groupicon || group?.groupIcon?.url}
+                      alt={group?.groupname || "Group"}
+                      size="xl"
+                      className="ring-2 ring-brand/30 ring-offset-2 ring-offset-surface"
                     />
-                  </label>
+                  </PhotoView>
+                </PhotoProvider>
+                {myrole !== "member" && (
+                  <Button
+                    iconOnly
+                    size="sm"
+                    variant="primary"
+                    className="absolute -bottom-1 -right-1 rounded-full"
+                    aria-label="Change group photo"
+                    onClick={() => document.getElementById("groupIcon-upload")?.click()}
+                  >
+                    <Image className="size-4" />
+                  </Button>
                 )}
               </div>
+              <input
+                type="file"
+                id="groupIcon-upload"
+                className="hidden"
+                accept="image/*"
+                onChange={handleProfilePic}
+              />
 
               {myrole == "member" && (
-                <div className="text-center text-xl font-semibold">
+                <div className="text-center text-lg font-semibold text-ink">
                   <h1>{group.groupname}</h1>
                 </div>
               )}
 
               {myrole !== "member" && (
-                <div>
-                  <div className="text-xl font-semibold">
-                    <div className="flex items-center">
-                      <input
+                <div className="w-full">
+                  <div className="flex items-center justify-center">
+                      <Input
                         type="text"
                         defaultValue={group.groupname}
                         ref={groupNameRef}
                         readOnly={!groupForm}
-                        className={`w-full text-center bg-transparent ${groupForm && "border-b border-primary py-2 text-start"} outline-none`}
+                        className={groupForm ? "mx-auto max-w-64" : "mx-auto max-w-64 border-transparent bg-transparent shadow-none"}
+                        inputClassName="text-center text-base font-semibold"
+                        trailing={groupForm ? (
+                          <Button iconOnly size="xs" variant="ghost" onClick={() => setShowPicker(true)} aria-label="Add emoji">
+                            <SmileIcon className="size-4" />
+                          </Button>
+                        ) : null}
                       />
-                      {groupForm && (
-                        <SmileIcon
-                          onClick={() => setShowPicker((prev) => !prev)}
-                        />
-                      )}
-                    </div>
                   </div>
-                  <div className="flex items-center gap-5">
-                    <button
+                  <div className="mt-3 flex items-center justify-center gap-1">
+                    <Tooltip label="Add members" side="bottom">
+                    <Button
+                      iconOnly
+                      size="sm"
+                      variant="ghost"
                       onClick={() => setShowUser((prev) => !prev)}
-                      className="btn btn-md btn-ghost btn-circle"
+                      aria-label="Add members"
                     >
                       <UserPlusIcon className="size-[22px]" />
-                    </button>
-                    <button
+                    </Button>
+                    </Tooltip>
+                    <Tooltip label="Edit group" side="bottom">
+                    <Button
+                      iconOnly
+                      size="sm"
+                      variant="ghost"
                       onClick={() => setGroupForm(!groupForm)}
-                      className="btn btn-md btn-ghost btn-circle"
+                      aria-label="Edit group"
                     >
                       <Edit className="size-[22px]" />
-                    </button>
+                    </Button>
+                    </Tooltip>
                     {groupForm && (
-                      <button
+                      <Button
+                        iconOnly
+                        size="sm"
+                        variant="primary"
                         onClick={handleSave}
-                        className="btn btn-primary btn-circle"
+                        aria-label="Save group details"
                       >
-                        <Check />
-                      </button>
+                        <Check className="size-4" />
+                      </Button>
                     )}
                   </div>
-                </>
+                </div>
               )}
             </div>
 
@@ -418,62 +449,39 @@ function InfoDrawer({ conversation, onClose }) {
                 subtitle="Roles and permissions for everyone in the group"
                 action={
                   showSaveButton ? (
-                    <button
-                      type="button"
+                    <Button
+                      size="sm"
+                      variant="primary"
                       onClick={handleUpdate}
-                      className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-content transition hover:opacity-90"
                     >
                       <Check className="size-4" />
                       Update
-                    </button>
+                    </Button>
                   ) : null
                 }
               />
               <div
-                className="mt-4 space-y-3 max-h-[26rem] overflow-y-auto pr-1 no-scrollbar"
+                className="ui-scrollbar mt-4 max-h-[26rem] space-y-1 overflow-y-auto pr-1"
               >
                 {participants.map((member) => (
                   <div
                     key={member.userId}
-                    className="flex items-center justify-between bg-base-200 p-3 rounded-lg"
+                    className="flex items-center justify-between gap-3 rounded-control p-2.5 transition hover:bg-surface-hover"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="avatar">
-                        <div className="w-10 rounded-full">
-                          <PhotoProvider>
-                            <PhotoView
-                              src={
-                                group?.membersDetail[member.userId]
-                                  ?.profilePic?.url ||
-                                tempData[member.userId]?.profilePic?.url
-                              }
-                            >
-                              <LoadableImage
-                                src={
-                                  group?.membersDetail[member.userId]
-                                    ?.profilePic?.url ||
-                                  tempData[member.userId]?.profilePic?.url
-                                }
-                                alt=""
-                                className="object-cover"
-                                wrapperClassName="w-10 h-10 rounded-full"
-                                imgProps={{
-                                  loading: "lazy",
-                                  decoding: "async",
-                                }}
-                              />
-                            </PhotoView>
-                          </PhotoProvider>
-                        </div>
-                      </div>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Avatar
+                        src={group?.membersDetail[member.userId]?.profilePic?.url || tempData[member.userId]?.profilePic?.url}
+                        alt={group?.membersDetail[member.userId]?.fullname || tempData[member.userId]?.fullname || "Member"}
+                        size="md"
+                      />
 
-                      <div>
-                        <p className="font-medium">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
                           {group?.membersDetail[member.userId]?.fullname ||
                             tempData[member.userId]?.fullname}
                         </p>
                         {member.role === "admin" && (
-                          <p className="text-xs text-primary">Admin</p>
+                          <p className="text-xs text-brand-strong">Admin</p>
                         )}
                       </div>
                     </div>
@@ -481,21 +489,23 @@ function InfoDrawer({ conversation, onClose }) {
                     {group?.membersDetail?.[authUser._id]?.role === "admin" &&
                       member.userId !== authUser._id && (
                         <div className="flex gap-2">
-                          <button
+                          <Button
+                            size="xs"
+                            variant="outline"
                             onClick={() => changeRole(member.userId)}
-                            className="btn btn-xs btn-outline"
                           >
                             {member.role === "admin"
                               ? "Remove Admin"
                               : "Make Admin"}
-                          </button>
+                          </Button>
 
-                          <button
+                          <Button
+                            size="xs"
+                            variant="dangerGhost"
                             onClick={() => handleRemove(member.userId)}
-                            className="btn btn-xs btn-error btn-outline"
                           >
                             Remove
-                          </button>
+                          </Button>
                         </div>
                       )}
                   </div>
@@ -542,29 +552,38 @@ function InfoDrawer({ conversation, onClose }) {
           </div>
         </div>
 
-        {showUser && (
-          <div className="fixed min-w-[350px] rounded-xl p-5 bg-black/50 backdrop-blur-[2px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
-            <div className="flex items-center justify-between mb-3">
-              <h2>Add Members</h2>
-              <X onClick={() => setShowUser((prev) => !prev)} />
-            </div>
+        <Modal
+          open={showUser}
+          onClose={() => setShowUser(false)}
+          title="Add members"
+          description="Select people to add to this group."
+          size="sm"
+          footer={
+            <>
+              <Button onClick={() => setShowUser(false)}>Cancel</Button>
+              <Button variant="primary" onClick={addMember} disabled={members.length === 0}>
+                Add {members.length || ""} member{members.length === 1 ? "" : "s"}
+              </Button>
+            </>
+          }
+        >
             {members.length > 0 && (
-              <div className="shrink-0 flex flex-wrap gap-2 px-4 pb-2 max-h-16 overflow-y-auto">
+              <div className="ui-scrollbar mb-3 flex max-h-20 shrink-0 flex-wrap gap-1.5 overflow-y-auto rounded-control bg-surface-muted p-2">
                 {members.map((mem) => (
-                  <div
+                  <Badge
                     key={mem._id}
-                    className="bg-base-300 px-3 py-1 rounded-full flex items-center gap-2 text-sm"
+                    variant="brand"
+                    className="h-7 gap-1.5 pr-1"
                   >
-                    <span className="truncate max-w-20">{mem.fullname}</span>
-                    <X
-                      onClick={() => removeMember(mem._id)}
-                      className="size-4 cursor-pointer"
-                    />
-                  </div>
+                    <span className="max-w-24 truncate">{mem.fullname}</span>
+                    <button type="button" onClick={() => removeMember(mem._id)} className="flex size-5 items-center justify-center rounded-full hover:bg-brand/15" aria-label={`Remove ${mem.fullname}`}>
+                      <X className="size-3.5" />
+                    </button>
+                  </Badge>
                 ))}
               </div>
             )}
-            <div className="max-h-52 overflow-y-auto">
+            <div className="ui-scrollbar max-h-72 overflow-y-auto">
               <SectionLoader
                 loading={isOtherUsersLoading}
                 label="Loading users..."
@@ -572,86 +591,56 @@ function InfoDrawer({ conversation, onClose }) {
               >
                 <>
                   {otherUsers.map((user) => (
-                    <div
+                    <button
+                      type="button"
                       onClick={() => {
                         if (!members.find((m) => m._id === user._id)) {
                           setMembers((prev) => [...prev, user]);
                         }
                       }}
                       key={user._id}
-                      className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition hover:bg-base-200"
+                      className="flex w-full items-center gap-3 rounded-control p-2.5 text-left transition hover:bg-surface-hover"
                     >
-                      <div className="avatar relative">
-                        <div className="w-10 rounded-full bg-base-300">
-                          <LoadableImage
-                            src={user.profilePic?.url}
-                            alt={user.fullname}
-                            className="rounded-full object-cover"
-                            wrapperClassName="w-10 h-10 rounded-full"
-                            imgProps={{ loading: "lazy", decoding: "async" }}
-                          />
-                        </div>
-                      </div>
+                      <Avatar src={user.profilePic?.url} alt={user.fullname} size="md" />
 
-                      <div className="flex-1 min-w-0">
-                        <div className="text-base md:text-lg font-medium truncate">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">
                           {user.fullname}
                         </div>
                       </div>
-                    </div>
+                      {members.some((member) => member._id === user._id) && <Check className="size-4 text-brand-strong" />}
+                    </button>
                   ))}
                   {hasMoreOtherUsers && (
                     <div className="flex justify-center px-2 py-2">
-                      <button
-                        type="button"
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() =>
                           loadMoreOtherUsers(conversation.conversationId)
                         }
-                        disabled={isMoreOtherUsersLoading}
-                        className="btn btn-sm btn-outline"
+                        loading={isMoreOtherUsersLoading}
                       >
-                        {isMoreOtherUsersLoading
-                          ? "Loading..."
-                          : "Load more users"}
-                      </button>
+                        Load more people
+                      </Button>
                     </div>
                   )}
                 </>
               </SectionLoader>
             </div>
-            <div className="flex m-5 items-center justify-center">
-              <button
-                onClick={() => addMember()}
-                disabled={members.length == 0}
-                className="btn btn-primary btn-circle"
-              >
-                <Check />
-              </button>
-            </div>
-          </div>
-        )}
-        {showPicker && (
-          <>
-            <div
-              className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
-              onClick={() => setShowPicker((prev) => !prev)}
-            />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
-              <div className="shadow-2xl border border-base-300 rounded-xl overflow-hidden scale-95 md:scale-100 animate-in zoom-in duration-200">
+        </Modal>
+        <Modal open={showPicker} onClose={() => setShowPicker(false)} title="Add an emoji" size="sm" className="w-auto">
+              <div className="overflow-hidden rounded-control border border-line">
                 <EmojiPicker
-                  onEmojiClick={(emojiData, event) => {
-                    onEmojiClick(emojiData, event);
-                  }}
-                  theme="dark"
+                  onEmojiClick={(emojiData) => onEmojiClick(emojiData)}
+                  theme={theme}
                   autoFocusSearch={true}
-                  width={window.innerWidth < 450 ? 280 : 350}
+                  width={350}
                   height={400}
                   lazyLoadEmojis={true}
                 />
               </div>
-            </div>
-          </>
-        )}
+        </Modal>
       </>
     );
   }
@@ -667,60 +656,64 @@ function InfoDrawer({ conversation, onClose }) {
     };
     return (
       <>
-        <div className="flex items-center justify-between p-4 border-b border-base-300">
-          <h2 className="text-lg font-semibold">Contact Info</h2>
-          <button
-            onClick={onClose}
-            className="btn btn-sm btn-ghost btn-circle"
-          >
-            <X className="size-6" />
-          </button>
-        </div>
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-line px-4">
+          <div>
+            <h2 className="text-sm font-semibold text-ink">Contact info</h2>
+            <p className="mt-0.5 text-xs text-muted">Profile and shared media</p>
+          </div>
+          <Button iconOnly size="sm" variant="ghost" onClick={onClose} aria-label="Close contact info">
+            <X className="size-5" />
+          </Button>
+        </header>
 
-        <div className="flex-1 overflow-y-auto scroll-smooth no-scrollbar">
+        <div className="ui-scrollbar min-h-0 flex-1 overflow-y-auto scroll-smooth">
           <div className="flex flex-col">
-            <div className="flex flex-col items-center gap-3 p-6 border-b border-base-200">
-              <div className="avatar">
-                <div className="w-24 rounded-full ring ring-accent ring-offset-base-100 ring-offset-2">
-                  <PhotoProvider>
-                    <PhotoView src={user?.profilePic?.url}>
-                      <LoadableImage
-                        src={user?.profilePic?.url}
-                        alt="profile"
-                        className="object-cover"
-                        wrapperClassName="w-24 h-24 rounded-full"
-                        imgProps={{ loading: "eager", decoding: "async" }}
-                      />
-                    </PhotoView>
-                  </PhotoProvider>
-                </div>
-              </div>
+            <div className="flex flex-col items-center gap-3 p-6">
+              <PhotoProvider>
+                <PhotoView src={user?.profilePic?.url}>
+                  <Avatar
+                    src={user?.profilePic?.url}
+                    alt={user?.name || "Contact"}
+                    size="xl"
+                    className="ring-2 ring-brand/30 ring-offset-2 ring-offset-surface"
+                  />
+                </PhotoView>
+              </PhotoProvider>
 
               <div className="text-center">
-                <h3 className="text-xl font-semibold">{user?.name}</h3>
+                <h3 className="text-lg font-semibold text-ink">{user?.name}</h3>
               </div>
 
-              <div className="p-3 space-x-3 flex items-center justify-center">
-                <div className="flex text-sm flex-col items-center">
-                  <button
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <div className="flex flex-col items-center gap-1 text-xs text-muted">
+                  <Button
+                    iconOnly
+                    size="md"
+                    variant="outline"
                     type="button"
                     onClick={handleOpenProfile}
-                    className="btn btn-circle btn-ghost"
+                    aria-label="Open profile"
                   >
                     <User2Icon className="size-5" />
-                  </button>
+                  </Button>
                   Profile
                 </div>
-                <div className="flex text-sm flex-col items-center">
-                  <button className="btn btn-circle btn-ghost">
+                <div className="flex flex-col items-center gap-1 text-xs text-muted">
+                  <Button
+                    iconOnly
+                    size="md"
+                    variant="outline"
+                    onClick={() => startOutgoingCall(conversation)}
+                    aria-label="Start video call"
+                  >
                     <VideoIcon className="size-5" />
-                  </button>
-                  Video Call
+                  </Button>
+                  Video call
                 </div>
               </div>
             </div>
 
-            <MediaSlider mediaFiles={mediaFiles} />
+            <MediaSlider mediaFiles={mediaFiles} getImgMessages={getImgMessages} />
 
             <section className={cardClass}>
               <SectionTitle
@@ -764,12 +757,8 @@ function InfoDrawer({ conversation, onClose }) {
 
   return (
     <>
-      <div className="fixed inset-x-0 bottom-0 top-[72px] z-30 flex justify-end">
-        <div
-          onClick={onClose}
-          className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
-        />
-        <div className="relative w-full md:w-[450px] h-full bg-base-100 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+      <div className="fixed inset-0 z-40 bg-black/30 2xl:hidden" onClick={onClose} aria-hidden="true" />
+      <aside className="fixed bottom-0 right-0 top-0 z-50 flex h-full w-[380px] flex-col border-l border-line bg-surface shadow-overlay animate-slide-in-right 2xl:relative 2xl:z-auto 2xl:w-[360px] 2xl:shrink-0 2xl:shadow-none">
           {isGroup ? (
             <GroupInfo
               group={conversation.groupdetail}
@@ -783,8 +772,7 @@ function InfoDrawer({ conversation, onClose }) {
               requestConfirmation={setConfirmation}
             />
           )}
-        </div>
-      </div>
+      </aside>
       <ConfirmDialog
         open={Boolean(confirmation)}
         title={confirmation?.title}

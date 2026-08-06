@@ -1,12 +1,4 @@
-import {
-  ArrowLeft,
-  Heart,
-  Loader2,
-  MapPin,
-  Search,
-  SendIcon,
-  X,
-} from "lucide-react";
+import { ArrowLeft, Heart, ImageOff, MapPin, SendIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { PhotoProvider, PhotoView } from "react-photo-view";
@@ -15,6 +7,10 @@ import "react-photo-view/dist/react-photo-view.css";
 import { getPostDetail, postLiked, sendMessage } from "../lib/axios";
 import { formatMessageTime } from "../lib/utils";
 import { useChatStore } from "../store/useChatStore";
+import { AppPage, PageHeader } from "../components/layout/AppPage";
+import { Avatar, Button, EmptyState, Spinner } from "../components/ui";
+import LoadableImage from "../components/common/LoadableImage";
+import SharePostDialog from "../components/posts/SharePostDialog";
 
 function PostDetail() {
   const navigate = useNavigate();
@@ -23,8 +19,8 @@ function PostDetail() {
   const { conversations, getConversation } = useChatStore();
   const sharedPost = location.state?.sharedPost || null;
 
-  const [post, setPost] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [post, setPost] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [likeLoading, setLikeLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [sharePost, setSharePost] = useState(null);
@@ -35,67 +31,54 @@ function PostDetail() {
   const filteredConversations = useMemo(() => {
     const query = shareSearch.trim().toLowerCase();
     if (!query) return conversations;
-
     return conversations.filter((conversation) => {
       const label = conversation.isgroup
         ? conversation.groupdetail?.groupname
         : conversation.name;
-
       return (label || "").toLowerCase().includes(query);
     });
   }, [conversations, shareSearch]);
 
   useEffect(() => {
     let active = true;
-
     const loadPost = async () => {
       try {
         setLoading(true);
         setLoadError("");
         const response = await getPostDetail(id);
-        if (!active) return;
-        setPost(response.post);
+        if (active) setPost(response.post || null);
       } catch (error) {
         if (!active) return;
-        const message =
-          error.response?.data?.message || "Failed to load shared post";
+        const message = error.response?.data?.message || "Failed to load shared post";
         setLoadError(message);
         toast.error(message);
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     };
-
     loadPost();
-
     return () => {
       active = false;
     };
   }, [id]);
 
   useEffect(() => {
-    if (sharePost && conversations.length === 0) {
-      getConversation();
-    }
+    if (sharePost && conversations.length === 0) getConversation();
   }, [sharePost, conversations.length, getConversation]);
 
   const handleLike = async () => {
     if (!post?._id || likeLoading) return;
-
     try {
       setLikeLoading(true);
       const response = await postLiked(post._id);
-
-      setPost((prev) =>
-        prev
+      setPost((current) =>
+        current
           ? {
-            ...prev,
+            ...current,
             isLiked: response.liked,
-            likesCount: prev.likesCount + (response.liked ? 1 : -1),
+            likesCount: current.likesCount + (response.liked ? 1 : -1),
           }
-          : prev,
+          : current,
       );
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to like post");
@@ -104,29 +87,29 @@ function PostDetail() {
     }
   };
 
-  const handleOpenShareModal = async (post) => {
-    setSharePost(post);
+  const handleOpenShareModal = async (selectedPost) => {
+    setSharePost(selectedPost);
     setShareSearch("");
     setSelectedConversationIds([]);
-
-    if (conversations.length === 0) {
-      await getConversation();
-    }
+    if (conversations.length === 0) await getConversation();
   };
 
   const toggleConversationSelection = (conversationId) => {
-    setSelectedConversationIds((prev) => {
-      if (prev.includes(conversationId)) {
-        return prev.filter((id) => id !== conversationId);
-      }
-
-      if (prev.length >= 5) {
+    setSelectedConversationIds((current) => {
+      if (current.includes(conversationId)) return current.filter((item) => item !== conversationId);
+      if (current.length >= 5) {
         toast.error("You can send a post to only 5 conversations");
-        return prev;
+        return current;
       }
-
-      return [...prev, conversationId];
+      return [...current, conversationId];
     });
+  };
+
+  const closeShareDialog = () => {
+    if (isSharing) return;
+    setSharePost(null);
+    setSelectedConversationIds([]);
+    setShareSearch("");
   };
 
   const handleSharePost = async () => {
@@ -137,7 +120,6 @@ function PostDetail() {
     }
 
     setIsSharing(true);
-
     const results = await Promise.allSettled(
       selectedConversationIds.map((conversationId) =>
         sendMessage(conversationId, {
@@ -146,339 +128,153 @@ function PostDetail() {
         }),
       ),
     );
-
-    const successCount = results.filter(
-      (result) => result.status === "fulfilled",
-    ).length;
-
+    const successCount = results.filter((result) => result.status === "fulfilled").length;
     const failedCount = results.length - successCount;
 
     if (successCount > 0) {
-      setPost((prev) =>
-        prev
-          ? {
-            ...prev,
-            sharesCount: (prev.sharesCount || 0) + successCount,
-          }
-          : prev,
+      setPost((current) =>
+        current ? { ...current, sharesCount: (current.sharesCount || 0) + successCount } : current,
       );
-
-      toast.success(
-        `Post sent to ${successCount} conversation${successCount > 1 ? "s" : ""}`,
-      );
+      toast.success(`Post sent to ${successCount} conversation${successCount > 1 ? "s" : ""}`);
     }
-
     if (failedCount > 0) {
-      toast.error(
-        `${failedCount} conversation${failedCount > 1 ? "s" : ""} failed`,
-      );
+      toast.error(`${failedCount} conversation${failedCount > 1 ? "s" : ""} failed`);
     }
 
     setSharePost(null);
     setSelectedConversationIds([]);
     setShareSearch("");
-
     setIsSharing(false);
   };
 
-  if (loading && !post?.id) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-base-100 pt-20">
-        <div className="flex h-[calc(100vh-5rem)] items-center justify-center">
-          <Loader2 className="size-10 animate-spin text-base-content/50" />
+      <AppPage contentClassName="bg-surface">
+        <div className="flex min-h-screen items-center justify-center">
+          <Spinner size="lg" />
         </div>
-      </div>
+      </AppPage>
     );
   }
 
-  if (!post?.id) {
+  if (!post?._id) {
     return (
-      <div className="min-h-screen bg-base-100 pt-20">
-        <div className="mx-auto flex h-[calc(100vh-5rem)] max-w-2xl flex-col items-center justify-center px-6 text-center">
-          <h1 className="text-2xl font-semibold">Post unavailable</h1>
-          <p className="mt-3 text-sm leading-6 text-base-content/70">
-            {loadError || "This shared post is no longer available."}
-          </p>
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="btn btn-primary mt-6"
-          >
-            Go back
-          </button>
+      <AppPage contentClassName="bg-surface">
+        <PageHeader
+          title="Post unavailable"
+          backAction={
+            <Button iconOnly size="sm" variant="ghost" onClick={() => navigate(-1)} aria-label="Go back">
+              <ArrowLeft className="size-5" />
+            </Button>
+          }
+        />
+        <div className="flex min-h-[calc(100vh-80px)] items-center justify-center">
+          <EmptyState
+            icon={ImageOff}
+            title="This post is unavailable"
+            description={loadError || "It may have been removed or is no longer visible."}
+            action={<Button variant="primary" onClick={() => navigate(-1)}>Go back</Button>}
+          />
         </div>
-      </div>
+      </AppPage>
     );
   }
 
   return (
     <PhotoProvider>
-      <div className="min-h-screen bg-base-100 pt-20">
-        <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-4xl items-center justify-center px-4 py-6">
-          <article className="w-full max-w-2xl">
-            <div className="mb-4 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                className="btn btn-circle btn-ghost btn-sm"
-              >
-                <ArrowLeft className="size-5" />
-              </button>
-              <div>
-                <p className="text-lg font-semibold">
-                  {sharedPost ? "Shared Post" : "Post"}
-                </p>
-                <p className="text-sm text-base-content/60">
-                  {sharedPost ? "Opened from chat" : "Opened from profile"}
-                </p>
-              </div>
-            </div>
+      <AppPage contentClassName="bg-surface">
+        <PageHeader
+          title={sharedPost ? "Shared post" : "Post"}
+          description={sharedPost ? "Opened from a conversation" : `Shared by ${post.user?.fullname || "Kapota user"}`}
+          backAction={
+            <Button iconOnly size="sm" variant="ghost" onClick={() => navigate(-1)} aria-label="Go back">
+              <ArrowLeft className="size-5" />
+            </Button>
+          }
+        />
 
-            <div className="rounded-[2rem] border border-base-300 bg-base-100 p-4 shadow-sm sm:p-5">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="avatar">
-                  <div className="w-11 rounded-full">
-                    <img
-                      src={post.user?.profilePic?.url}
-                      alt={post.user?.fullname}
-                    />
-                  </div>
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">
-                    {post.user?.fullname}
-                  </p>
-                  {post.location?.name && (
-                    <div className="flex items-start gap-1 text-xs text-base-content/60">
-                      <MapPin className="mt-0.5 size-3.5 shrink-0" />
-                      <span className="break-words">{post.location.name}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="overflow-hidden rounded-[1.5rem] bg-base-200">
-                <PhotoView src={post.image?.url}>
-                  <img
-                    src={post.image?.url}
-                    alt={post.caption || "Shared post"}
-                    className="block max-h-[70vh] w-full object-contain"
-                  />
-                </PhotoView>
-              </div>
-
-              <div className="mt-4 flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="flex shrink-0 items-center gap-4">
-                    <button
-                      type="button"
-                      onClick={handleLike}
-                      className="text-base-content transition-colors hover:text-primary"
-                    >
-                      <Heart
-                        className={`size-5 ${post.isLiked ? "fill-red-700" : "fill-transparent"}`}
-                      />
-                      <span className="mt-1 block text-xs">
-                        {post.hideLike ? "Likes" : post.likesCount}
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleOpenShareModal(post)}
-                      disabled={post.disableShare}
-                      className="text-base-content transition-colors hover:text-primary"
-                    >
-                      <SendIcon className="size-5" />
-                      <span className="mt-1 block text-xs">
-                        {post.disableShare ? "Send" : post.sharesCount}
-                      </span>
-                    </button>
-                  </div>
-                  <p className="text-sm leading-6 break-words">
-                    {post.caption && (
-                      <span className="mr-2 font-bold">
-                        {post.user?.fullname}
-                      </span>
-                    )}
-                    <span>{post.caption}</span>
-                  </p>
-
-                  <time className="block text-sm opacity-50">
-                    {formatMessageTime(post.createdAt)}
-                  </time>
-
-                  {loadError && (
-                    <p className="text-xs text-warning">
-                      Live post refresh failed. Showing available preview data.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </article>
-        </div>
-        {sharePost && (
-          <div className="modal modal-open">
-            <div className="modal-box max-w-xl">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold">Send post</h3>
-                  <p className="mt-1 text-sm text-base-content/70">
-                    Select up to 5 conversations, just like an Instagram-style
-                    share sheet.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-circle btn-ghost btn-sm"
-                  onClick={() => setSharePost(null)}
-                >
-                  <X className="size-4" />
-                </button>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-base-300 bg-base-200/60 p-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-16 w-16 overflow-hidden rounded-2xl bg-base-300">
-                    <img
-                      src={sharePost.image?.url}
-                      alt={sharePost.caption || "Shared post"}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">
-                      {sharePost.user?.fullname}
-                    </p>
-                    <p className="line-clamp-2 text-sm text-base-content/70">
-                      {sharePost.caption || "No caption"}
-                    </p>
-                    {sharePost.location?.name && (
-                      <div className="mt-1 flex items-center gap-1 text-xs text-base-content/55">
-                        <MapPin className="size-3.5" />
-                        <span className="truncate">
-                          {sharePost.location.name}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <label className="input input-bordered mt-4 flex items-center gap-2">
-                <Search className="size-4 text-base-content/55" />
-                <input
-                  type="text"
-                  value={shareSearch}
-                  onChange={(e) => setShareSearch(e.target.value)}
-                  placeholder="Search conversations"
-                  className="w-full bg-transparent"
+        <div className="mx-auto flex min-h-[calc(100vh-80px)] max-w-6xl items-center px-10 py-8">
+          <article className="grid w-full grid-cols-[minmax(0,1.55fr)_minmax(320px,0.75fr)] overflow-hidden rounded-app border border-line bg-surface shadow-panel">
+            <PhotoView src={post.image?.url}>
+              <div className="flex min-h-[620px] cursor-zoom-in items-center justify-center bg-canvas">
+                <LoadableImage
+                  src={post.image?.url}
+                  alt={post.caption || "Post"}
+                  className="max-h-[76vh] w-full object-contain"
+                  wrapperClassName="h-full w-full"
+                  imgProps={{ loading: "eager", decoding: "async" }}
                 />
-              </label>
-
-              <div className="mt-3 flex items-center justify-between text-sm text-base-content/70">
-                <span>{selectedConversationIds.length}/5 selected</span>
-                <span>{filteredConversations.length} conversations</span>
               </div>
+            </PhotoView>
 
-              <div className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">
-                {filteredConversations.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-base-300 px-4 py-8 text-center text-sm text-base-content/65">
-                    No conversations found.
-                  </div>
+            <div className="flex min-h-[620px] flex-col border-l border-line">
+              <header className="flex items-center gap-3 border-b border-line p-4">
+                <Avatar src={post.user?.profilePic?.url} alt={post.user?.fullname || "User"} size="md" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-ink">{post.user?.fullname}</p>
+                  {post.location?.name && (
+                    <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted">
+                      <MapPin className="size-3 shrink-0" />
+                      <span className="truncate">{post.location.name}</span>
+                    </p>
+                  )}
+                </div>
+              </header>
+
+              <div className="ui-scrollbar min-h-0 flex-1 overflow-y-auto p-5">
+                {post.caption ? (
+                  <p className="text-sm leading-7 text-ink">
+                    <span className="mr-2 font-semibold">{post.user?.fullname}</span>
+                    {post.caption}
+                  </p>
                 ) : (
-                  filteredConversations.map((conversation) => {
-                    const label = conversation.isgroup
-                      ? conversation.groupdetail?.groupname
-                      : conversation.name;
-                    const image = conversation.isgroup
-                      ? conversation.groupdetail?.groupIcon?.url
-                      : conversation.profilePic?.url;
-                    const isSelected = selectedConversationIds.includes(
-                      conversation.conversationId,
-                    );
-
-                    return (
-                      <button
-                        key={conversation.conversationId}
-                        type="button"
-                        onClick={() =>
-                          toggleConversationSelection(
-                            conversation.conversationId,
-                          )
-                        }
-                        className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${isSelected
-                            ? "border-primary bg-primary/10"
-                            : "border-base-300 bg-base-100 hover:bg-base-200/60"
-                          }`}
-                      >
-                        <div className="avatar">
-                          <div className="w-12 rounded-full bg-base-300">
-                            <img src={image} alt={label} />
-                          </div>
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {label}
-                          </p>
-                          <p className="truncate text-xs text-base-content/60">
-                            {conversation.lastmessage?.text ||
-                              (conversation.isgroup
-                                ? "Group conversation"
-                                : "Direct conversation")}
-                          </p>
-                        </div>
-
-                        <div
-                          className={`flex h-6 w-6 items-center justify-center rounded-full border ${isSelected
-                              ? "border-primary bg-primary text-primary-content"
-                              : "border-base-300"
-                            }`}
-                        >
-                          {isSelected && <Check className="size-4" />}
-                        </div>
-                      </button>
-                    );
-                  })
+                  <p className="text-sm text-muted">No caption</p>
+                )}
+                <time className="mt-4 block text-xs text-subtle">{formatMessageTime(post.createdAt)}</time>
+                {loadError && (
+                  <p className="mt-4 rounded-control bg-warning/10 p-3 text-xs leading-5 text-warning">
+                    Live refresh failed. Showing the available post preview.
+                  </p>
                 )}
               </div>
 
-              <div className="modal-action">
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setSharePost(null)}
-                  disabled={isSharing}
+              <footer className="flex items-center gap-2 border-t border-line p-4">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleLike}
+                  loading={likeLoading}
+                  className={post.isLiked ? "text-danger" : ""}
                 >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleSharePost}
-                  disabled={isSharing || selectedConversationIds.length === 0}
+                  <Heart className={`size-4 ${post.isLiked ? "fill-current" : ""}`} />
+                  {post.hideLike ? "Likes hidden" : post.likesCount || 0}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleOpenShareModal(post)}
+                  disabled={post.disableShare}
                 >
-                  {isSharing && (
-                    <span className="loading loading-spinner loading-xs"></span>
-                  )}
-                  Send post
-                </button>
-              </div>
+                  <SendIcon className="size-4" />
+                  {post.disableShare ? "Sharing off" : post.sharesCount || 0}
+                </Button>
+              </footer>
             </div>
+          </article>
+        </div>
 
-            <button
-              type="button"
-              className="modal-backdrop"
-              onClick={() => setSharePost(null)}
-            >
-              close
-            </button>
-          </div>
-        )}
-      </div>
+        <SharePostDialog
+          post={sharePost}
+          conversations={filteredConversations}
+          search={shareSearch}
+          onSearchChange={setShareSearch}
+          selectedIds={selectedConversationIds}
+          onToggle={toggleConversationSelection}
+          onClose={closeShareDialog}
+          onSend={handleSharePost}
+          isSending={isSharing}
+        />
+      </AppPage>
     </PhotoProvider>
   );
 }

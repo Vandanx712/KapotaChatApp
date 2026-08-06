@@ -13,7 +13,15 @@ import toast from "react-hot-toast";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import ConfirmDialog from "./common/ConfirmDialog";
-import LoadableImage from "./common/LoadableImage";
+import {
+  Avatar,
+  Button,
+  DropdownMenu,
+  MenuItem,
+  MenuSeparator,
+  Tooltip,
+} from "./ui";
+import { cn } from "../lib/utils";
 
 const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
   const [confirmAction, setConfirmAction] = useState("");
@@ -109,142 +117,102 @@ const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
 
   return (
     <>
-      <div className="border-b border-base-300 px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
+      <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4">
           <div className="flex min-w-0 items-center gap-3">
-          {/* Avatar */}
-          <button
-            type="button"
-            aria-label="Back to conversations"
-            onClick={() => {
-              setShowInfo(false);
-              setUnselectedConversation(null);
-            }}
-            className="btn btn-ghost btn-circle btn-sm"
-          >
-            <ArrowLeft className="size-5" />
-          </button>
-          <div className="avatar">
-            <div className="size-10 rounded-full ">
-              <LoadableImage
-                src={
-                  selectedConversation.isgroup
-                    ? selectedConversation.groupdetail?.groupIcon?.url
-                    : selectedConversation?.profilePic?.url
-                }
-                alt={
-                  selectedConversation.isgroup
-                    ? selectedConversation.groupdetail.groupname
-                    : selectedConversation.name
-                }
-                className="rounded-full object-cover"
-                wrapperClassName="size-10 rounded-full"
-                imgProps={{ loading: "eager", decoding: "async" }}
-              />
-            </div>
-          </div>
-
-          {/* User info */}
-          <button
-            type="button"
-            onClick={() => setShowInfo(true)}
-            className="flex min-w-0 flex-col text-left"
-          >
-            <h3 className="font-medium text-lg truncate">
-              {selectedConversation.isgroup
-                ? selectedConversation.groupdetail.groupname
-                : selectedConversation.name}
-            </h3>
-
-            <p
-              className="text-xs sm:text-sm 
-                text-base-content/70 
-                truncate"
-            >
-              {statusText}
-            </p>
-          </button>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={onStartCall}
-            aria-label="Start video call"
-            className="btn btn-ghost btn-circle btn-sm"
-          >
-            <VideoIcon className="size-5" />
-          </button>
-          {onToggleSearch && (
-            <button
-              onClick={onToggleSearch}
-              aria-label="Search messages"
-              className={`btn btn-ghost btn-circle btn-sm ${showSearch ? "text-primary" : ""}`}
-            >
-              <Search className="size-5" />
-            </button>
-          )}
-          <div className="dropdown dropdown-bottom dropdown-end">
+            <Tooltip label="Back to conversations" side="bottom">
+              <Button
+                iconOnly
+                size="sm"
+                variant="ghost"
+                aria-label="Back to conversations"
+                onClick={() => {
+                  setShowInfo(false);
+                  setUnselectedConversation(null);
+                }}
+                className="lg:hidden"
+              >
+                <ArrowLeft className="size-5" />
+              </Button>
+            </Tooltip>
             <button
               type="button"
-              aria-label="Conversation actions"
-              className="btn btn-ghost btn-circle btn-sm"
+              onClick={() => setShowInfo(true)}
+              className="flex min-w-0 items-center gap-3 rounded-control p-1 text-left transition hover:bg-surface-hover"
             >
-              <EllipsisVerticalIcon className="size-5" />
+              <Avatar
+                src={selectedConversation.isgroup ? selectedConversation.groupdetail?.groupIcon?.url : selectedConversation?.profilePic?.url}
+                alt={selectedConversation.isgroup ? selectedConversation.groupdetail?.groupname : selectedConversation.name}
+                size="md"
+              />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-ink">
+                  {selectedConversation.isgroup
+                    ? selectedConversation.groupdetail?.groupname
+                    : selectedConversation.name}
+                </span>
+                <span className={cn(
+                  "mt-0.5 block truncate text-xs",
+                  statusText === "Online" ? "text-brand-strong" : "text-muted",
+                )}>
+                  {statusText}
+                </span>
+              </span>
             </button>
-            <ul
-              tabIndex={0}
-              className="dropdown-content menu mt-5 bg-base-100 rounded-box z-[1] w-52 p-2 shadow"
-            >
-              <li>
-                <button
-                  onClick={() => setShowInfo(true)}
-                  className="flex items-center"
-                >
-                  <InfoIcon className="size-4" />{" "}
-                  {`${selectedConversation?.isgroup ? "Group" : "Contact"} Info`}
-                </button>
-              </li>
-              {myrole != "member" && (
-                <li>
-                  <label
-                    className="flex cursor-pointer items-center gap-2"
-                    htmlFor="avatar-upload"
-                  >
-                    <ImageIcon className="size-4" /> Chat Theme
-                    <input
-                      type="file"
-                      id="avatar-upload"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleimagechange}
-                    />
-                  </label>
-                </li>
-              )}
-              <div className="divider m-0 divider-primary" />
-              <li>
-                <button
-                  className="flex items-center"
-                  onClick={() => setConfirmAction("clear")}
-                >
-                  <MinusCircle className="size-4" /> Clear Chat
-                </button>
-              </li>
-              {myrole != "member" && (
-                <li>
-                  <button
-                    onClick={() => setConfirmAction("delete")}
-                    className="flex items-center"
-                  >
-                    <Trash2Icon className="size-4" /> Delete Chat
-                  </button>
-                </li>
-              )}
-            </ul>
           </div>
-        </div>
-      </div>
-      </div>
+          <div className="flex shrink-0 items-center gap-1">
+          <Tooltip label="Video call" side="bottom">
+            <Button iconOnly size="sm" variant="ghost" onClick={onStartCall} aria-label="Start video call">
+              <VideoIcon className="size-5" />
+            </Button>
+          </Tooltip>
+          {onToggleSearch && (
+            <Tooltip label="Search messages" side="bottom">
+              <Button
+                iconOnly
+                size="sm"
+                variant="ghost"
+                onClick={onToggleSearch}
+                aria-label="Search messages"
+                className={showSearch ? "bg-brand-soft text-brand-strong" : ""}
+              >
+                <Search className="size-5" />
+              </Button>
+            </Tooltip>
+          )}
+          <DropdownMenu
+            trigger={
+              <Button iconOnly size="sm" variant="ghost" aria-label="Conversation actions">
+                <EllipsisVerticalIcon className="size-5" />
+              </Button>
+            }
+          >
+              <MenuItem icon={InfoIcon} onClick={() => setShowInfo(true)}>
+                {selectedConversation?.isgroup ? "Group info" : "Contact info"}
+              </MenuItem>
+              {myrole != "member" && (
+                <MenuItem icon={ImageIcon} onClick={() => document.getElementById("chat-background-upload")?.click()}>
+                  Change chat background
+                </MenuItem>
+              )}
+              <MenuSeparator />
+              <MenuItem icon={MinusCircle} onClick={() => setConfirmAction("clear")}>
+                Clear chat
+              </MenuItem>
+              {myrole != "member" && (
+                <MenuItem icon={Trash2Icon} destructive onClick={() => setConfirmAction("delete")}>
+                  Delete chat
+                </MenuItem>
+              )}
+          </DropdownMenu>
+          <input
+            type="file"
+            id="chat-background-upload"
+            className="hidden"
+            accept="image/*"
+            onChange={handleimagechange}
+          />
+          </div>
+      </header>
       <ConfirmDialog
         open={Boolean(confirmAction)}
         title={confirmAction === "delete" ? "Delete conversation?" : "Clear chat?"}

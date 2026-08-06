@@ -1,7 +1,19 @@
 import { create } from "zustand";
 
+const getInitialTheme = () => {
+  const savedTheme = localStorage.getItem("kapota-theme");
+  if (savedTheme === "light" || savedTheme === "dark") return savedTheme;
+
+  const legacyTheme = localStorage.getItem("chat-theme");
+  if (legacyTheme === "light" || legacyTheme === "dark") return legacyTheme;
+
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+};
+
 export const useThemeStore = create((set) => ({
-  theme: localStorage.getItem("chat-theme") || "coffee",
+  theme: getInitialTheme(),
   FILTERS:{
     Original: () => "none",
   
@@ -51,9 +63,13 @@ export const useThemeStore = create((set) => ({
     `,
   },
   setTheme: (theme) => {
-    localStorage.setItem("chat-theme", theme);
+    localStorage.setItem("kapota-theme", theme);
     set({ theme });
   },
-
-  
+  toggleTheme: () =>
+    set((state) => {
+      const theme = state.theme === "dark" ? "light" : "dark";
+      localStorage.setItem("kapota-theme", theme);
+      return { theme };
+    }),
 }));

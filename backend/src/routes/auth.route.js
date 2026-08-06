@@ -1,13 +1,16 @@
 import { Router } from "express";
 import {
   checkAuth,
+  completeQrLogin,
   getActivesessions,
   login,
   logout,
   logoutOne,
   logoutOthers,
   requestForgotPasswordOtp,
+  requestQrLogin,
   requestSignupOtp,
+  scanQrLogin,
   verifyForgotPasswordOtp,
   verifySignupOtp,
 } from "../controllers/auth.controller.js";
@@ -29,5 +32,10 @@ authRouter.route("/forgot-password/verify").post(verifyForgotPasswordOtp);
 authRouter.route("/sessions").get(verifyjwt, getActivesessions);
 authRouter.route("/sessions/others").delete(verifyjwt, logoutOthers);
 authRouter.route("/sessions/:id").delete(verifyjwt, logoutOne);
+
+//linked-device part
+authRouter.route("/qr-login/request").post(requestQrLogin);
+authRouter.route("/qr-login/scan").post(verifyjwt, scanQrLogin);
+authRouter.route("/qr-login/complete").post(completeQrLogin)
 
 export default authRouter;

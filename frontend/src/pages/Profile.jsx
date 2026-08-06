@@ -1,23 +1,35 @@
-import React, { useState } from "react";
-import { useAuthStore } from "../store/useAuthStore";
+import { useState } from "react";
 import {
+  CalendarDays,
   Image,
   Mail,
-  Pen,
+  Save,
+  ShieldCheck,
   SmileIcon,
   User,
   User2Icon,
   UserPen,
   ViewIcon,
 } from "lucide-react";
-import { getAvatars } from "../lib/axios";
-import toast from "react-hot-toast";
 import { PhotoProvider, PhotoView } from "react-photo-view";
-import "react-photo-view/dist/react-photo-view.css";
 import EmojiPicker from "emoji-picker-react";
+import toast from "react-hot-toast";
+import "react-photo-view/dist/react-photo-view.css";
+import { useAuthStore } from "../store/useAuthStore";
+import { useThemeStore } from "../store/useThemeStore";
+import { getAvatars } from "../lib/axios";
 import BusyOverlay from "../components/common/BusyOverlay";
-import LoadableImage from "../components/common/LoadableImage";
 import SectionLoader from "../components/common/SectionLoader";
+import { AppPage, PageHeader, PageSection } from "../components/layout/AppPage";
+import {
+  Avatar,
+  Badge,
+  Button,
+  Field,
+  Input,
+  Modal,
+  Tooltip,
+} from "../components/ui";
 
 function Profile() {
   const {
@@ -28,38 +40,53 @@ function Profile() {
     updateProfile,
     updateDetails,
   } = useAuthStore();
+  const theme = useThemeStore((state) => state.theme);
   const [selectedImg, setSelectedImg] = useState(null);
   const [avatars, setAvatars] = useState([]);
   const [isAvatarListLoading, setIsAvatarListLoading] = useState(false);
+  const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
   const [showPicker, setShowPicker] = useState("");
   const [profile, setProfile] = useState({
-    fullname: authUser.fullname,
-    bio: authUser.bio,
+    fullname: authUser?.fullname || "",
+    bio: authUser?.bio || "",
   });
 
   const onEmojiClick = (emojiData) => {
-    showPicker == "fullname"
-      ? setProfile({ ...profile, fullname: profile.fullname + emojiData.emoji })
-      : setProfile({ ...profile, bio: profile.bio + emojiData.emoji });
+    const field = showPicker === "fullname" ? "fullname" : "bio";
+    setProfile((current) => ({
+      ...current,
+      [field]: `${current[field]}${emojiData.emoji}`,
+    }));
   };
 
   const loadavatars = async () => {
     if (avatars.length > 0) return;
     try {
       setIsAvatarListLoading(true);
-      const resdata = await getAvatars({ gender: authUser.gender });
-      setAvatars(resdata.avatars);
+      const response = await getAvatars({ gender: authUser?.gender });
+      setAvatars(response.avatars || []);
     } catch (error) {
-      console.log(error);
+      toast.error(error.response?.data?.message || "Unable to load avatars");
     } finally {
       setIsAvatarListLoading(false);
     }
   };
 
-  const handleProfilePic = async (e) => {
-    e.preventDefault();
-    const file = e.target.files[0];
+  const handleProfilePic = async (event) => {
+    event.preventDefault();
+    const file = event.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Select an image file");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > 9 * 1024 * 1024) {
+      toast.error("Image must be smaller than 9 MB");
+      event.target.value = "";
+      return;
+    }
+
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = async () => {
@@ -67,7 +94,7 @@ function Profile() {
       setSelectedImg(base64Image);
       await updateProfile({
         profilePic: base64Image,
-        oldkey: authUser.profilePic?.key ? authUser.profilePic?.key : "",
+        oldkey: authUser?.profilePic?.key || "",
       });
     };
   };
@@ -76,261 +103,228 @@ function Profile() {
     try {
       await updateProfile({ picUrl: avatar });
       setSelectedImg(avatar.url);
+      setIsAvatarPickerOpen(false);
     } catch (error) {
-      toast.error(error.response.data.message);
-      console.log(error);
+      toast.error(error.response?.data?.message || "Unable to update avatar");
     }
   };
 
   const handleProfileUpdate = () => {
-    if (profile.fullname === authUser.fullname && profile.bio === authUser.bio)
-      return;
-    if (!profile.fullname || !profile.bio)
-      return toast.error("Fullname and Bio are required");
-    if (profile.fullname.length > 20)
-      return toast.error("Fullname must be less than 20 characters");
-    if (profile.bio.length > 40)
-      return toast.error("Bio must be less than 40 characters");
+    if (profile.fullname === authUser?.fullname && profile.bio === authUser?.bio) return;
+    if (!profile.fullname || !profile.bio) return toast.error("Full name and bio are required");
+    if (profile.fullname.length > 20) return toast.error("Full name must be less than 20 characters");
+    if (profile.bio.length > 40) return toast.error("Bio must be less than 40 characters");
     updateDetails(profile);
   };
+
+  const profileImage = selectedImg || authUser?.profilePic?.url;
+  const hasProfileChanges =
+    profile.fullname !== authUser?.fullname || profile.bio !== authUser?.bio;
+
   return (
-    <div className="h-screen pt-20">
-      <div className="max-w-2xl mx-auto p-4 py-8">
-        <div className="relative bg-base-300 rounded-xl p-6 space-y-8">
-          <BusyOverlay
-            show={isProfileDetailsUpdating}
-            label="Updating profile..."
-          />
-          <div className="text-center">
-            <h1 className="text-2xl font-semibold ">Profile</h1>
-            <p className="mt-2">Your profile information</p>
-          </div>
+    <PhotoProvider>
+      <AppPage contentClassName="bg-surface">
+      <PageHeader
+        title="Your profile"
+        description="Manage how people see you across Kapota"
+        actions={
+          <Button
+            variant="primary"
+            onClick={handleProfileUpdate}
+            loading={isProfileDetailsUpdating}
+            disabled={!hasProfileChanges || isUpdateProfile}
+          >
+            <Save className="size-4" />
+            Save changes
+          </Button>
+        }
+      />
 
-          {/* avatar upload section */}
-
-          <div className="flex flex-col items-center gap-4">
+      <div className="grid min-h-[calc(100vh-80px)] grid-cols-[320px_minmax(0,1fr)]">
+        <aside className="border-r border-line bg-surface-muted p-8">
+          <div className="sticky top-8 flex flex-col items-center text-center">
             <div className="relative">
               <BusyOverlay
                 show={isProfilePhotoUploading}
                 label="Uploading photo..."
                 className="rounded-full"
               />
-              <LoadableImage
-                src={selectedImg || authUser?.profilePic?.url}
-                alt="Profile"
-                className="size-32 rounded-full object-cover border-4"
-                wrapperClassName="size-32 rounded-full"
-                imgProps={{ loading: "eager", decoding: "async" }}
+              <Avatar
+                src={profileImage}
+                alt={authUser?.fullname || "Profile"}
+                size="2xl"
+                className="ring-2 ring-brand/25 ring-offset-4 ring-offset-surface-muted"
               />
-              <div className="fab">
-                <div
-                  tabIndex={0}
-                  role="button"
-                  className="btn btn-md btn-circle"
+              <Button
+                iconOnly
+                size="sm"
+                variant="primary"
+                className="absolute -bottom-1 -right-1 rounded-full"
+                onClick={() => document.getElementById("profile-photo-upload")?.click()}
+                disabled={isUpdateProfile}
+                aria-label="Upload profile photo"
+              >
+                <Image className="size-4" />
+              </Button>
+              <input
+                id="profile-photo-upload"
+                type="file"
+                className="hidden"
+                accept="image/*"
+                onChange={handleProfilePic}
+                disabled={isUpdateProfile}
+              />
+            </div>
+
+            <h2 className="mt-6 text-lg font-semibold text-ink">{authUser?.fullname}</h2>
+            <p className="mt-1 max-w-60 text-sm leading-6 text-muted">{authUser?.bio}</p>
+            <Badge variant="success" className="mt-4">
+              <ShieldCheck className="size-3.5" /> Active account
+            </Badge>
+
+            <div className="mt-6 flex items-center gap-1">
+              <Tooltip label="View photo" side="bottom">
+                <PhotoView src={profileImage}>
+                  <Button
+                    iconOnly
+                    size="sm"
+                    variant="ghost"
+                    disabled={!profileImage}
+                    aria-label="View profile photo"
+                  >
+                    <ViewIcon className="size-4" />
+                  </Button>
+                </PhotoView>
+              </Tooltip>
+
+              <Tooltip label="Choose avatar" side="bottom">
+                <Button
+                  iconOnly
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setIsAvatarPickerOpen(true);
+                    loadavatars();
+                  }}
+                  aria-label="Choose avatar"
                 >
-                  <UserPen
-                    className={`size-10 text-base-200 
-                  bg-base-content hover:scale-105
-                  p-2 rounded-full cursor-pointer 
-                  transition-all duration-200
-                  ${isUpdateProfile ? "animate-pulse pointer-events-none" : ""}`}
-                  />
-                </div>
-                <div className="flex md:space-x-1 md:space-y-0 space-x-1 space-y-1 md:flex-nowrap flex-wrap absolute left-12 bottom-0">
-                  <PhotoProvider>
-                    <PhotoView src={selectedImg || authUser.profilePic?.url}>
-                      <button className="btn btn-md btn-circle">
-                        <ViewIcon className="size-6" />
-                      </button>
-                    </PhotoView>
-                  </PhotoProvider>
-
-                  <button className="btn btn-md btn-circle">
-                    <label htmlFor="avatar-upload">
-                      <Image className=" size-6" />
-                      <input
-                        type="file"
-                        id="avatar-upload"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleProfilePic}
-                        disabled={isUpdateProfile}
-                      />
-                    </label>
-                  </button>
-                  <div className="dropdown dropdown-end ">
-                    <button
-                      tabIndex={0}
-                      onClick={() => loadavatars()}
-                      role="button"
-                      className="btn btn-md btn-circle"
-                    >
-                      <User2Icon className="size-6" />
-                    </button>
-                    <div
-                      tabIndex={0}
-                      className="dropdown-content rounded-box mt-5 bg-base-200 p-2 border border-primary space-y-5"
-                    >
-                      <label className="text-sm font-medium text-muted-foreground px-1">
-                        Choose an avatar
-                      </label>
-                      <SectionLoader
-                        loading={isAvatarListLoading}
-                        label="Loading avatars..."
-                        minHeight={96}
-                        className="border-none bg-transparent"
-                      >
-                        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar px-1">
-                          {avatars.map((avatar) => (
-                            <button
-                              key={avatar.url}
-                              type="button"
-                              onClick={() => handleProfileAvatar(avatar)}
-                              disabled={isProfilePhotoUploading}
-                              className={`flex-shrink-0 w-14 h-14 rounded-xl transition-all ${
-                                authUser.profilePic?.url === avatar.url
-                                  ? "mt-1 ring-2 ring-primary ring-offset-2 ring-offset-card"
-                                  : "opacity-60 hover:opacity-100"
-                              }`}
-                            >
-                              <LoadableImage
-                                src={avatar.url}
-                                alt="Avatar option"
-                                className="w-full h-full rounded-xl object-cover"
-                                wrapperClassName="w-14 h-14 rounded-xl"
-                                imgProps={{ loading: "lazy", decoding: "async" }}
-                              />
-                            </button>
-                          ))}
-                        </div>
-                      </SectionLoader>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                  <User2Icon className="size-4" />
+                </Button>
+              </Tooltip>
             </div>
-            <p className="text-sm text-zinc-400">
-              {isProfilePhotoUploading
-                ? "Uploading..."
-                : isProfileDetailsUpdating
-                  ? "Saving profile details..."
-                  : "Click the edit icon to update your photo"}
-            </p>
           </div>
+        </aside>
 
-          <div className="space-y-6">
-            <div className="space-y-1.5">
-              <div className="text-sm text-zinc-400 flex items-center gap-2">
-                <User className="w-4 h-4" />
-                Full Name
-              </div>
-              <div className="px-4 flex justify-between py-2.5 bg-base-200 rounded-lg border">
-                <input
-                  type="text"
+        <div className="px-10 py-4">
+          <PageSection
+            title="Profile details"
+            description="Your name and bio are visible to people you message."
+          >
+            <div className="max-w-2xl space-y-5">
+              <Field label="Full name" hint={`${profile.fullname.length}/20 characters`} htmlFor="profile-fullname">
+                <Input
+                  id="profile-fullname"
+                  icon={User}
                   value={profile.fullname}
-                  onChange={(e) => {
-                    setProfile({ ...profile, fullname: e.target.value })
-                  }}
-                  className="w-full bg-inherit focus:outline-none"
+                  maxLength={20}
+                  onChange={(event) => setProfile({ ...profile, fullname: event.target.value })}
+                  trailing={
+                    <Button iconOnly size="xs" variant="ghost" onClick={() => setShowPicker("fullname")} aria-label="Add emoji to name">
+                      <SmileIcon className="size-4" />
+                    </Button>
+                  }
                 />
-                <div className=" flex items-center gap-2">
-                  <SmileIcon
-                    onClick={() => setShowPicker("fullname")}
-                    className="size-5 cursor-pointer"
-                    size={20}
-                  />
-                 <button disabled={authUser.fullname==profile.fullname || isUpdateProfile}>
-                    <Pen
-                      onClick={handleProfileUpdate}
-                      className="size-5 cursor-pointer"
-                    />
-                  </button>
-                </div>
-              </div>
-            </div>
+              </Field>
 
-            <div className="space-y-1.5">
-              <div className="text-sm text-zinc-400 flex items-center gap-2">
-                <UserPen className="w-4 h-4" />
-                Bio
-              </div>
-              <div className="px-4 flex justify-between py-2.5 bg-base-200 rounded-lg border">
-                <input
-                  type="text"
-                  onChange={(e) => {
-                    setProfile({ ...profile, bio: e.target.value })
-                  }}
-                  className="w-full bg-inherit focus:outline-none"
+              <Field label="Bio" hint={`${profile.bio.length}/40 characters`} htmlFor="profile-bio">
+                <Input
+                  id="profile-bio"
+                  icon={UserPen}
                   value={profile.bio}
+                  maxLength={40}
+                  onChange={(event) => setProfile({ ...profile, bio: event.target.value })}
+                  trailing={
+                    <Button iconOnly size="xs" variant="ghost" onClick={() => setShowPicker("bio")} aria-label="Add emoji to bio">
+                      <SmileIcon className="size-4" />
+                    </Button>
+                  }
                 />
-                <div className=" flex items-center gap-2">
-                  <SmileIcon
-                    onClick={() => setShowPicker("bio")}
-                    className="size-5 cursor-pointer"
-                    size={20}
-                  />
-                  <button disabled={authUser.bio==profile.bio || isUpdateProfile}>
-                    <Pen
-                      onClick={handleProfileUpdate}
-                      className="size-5 cursor-pointer"
-                    />
-                  </button>
-                </div>
-              </div>
+              </Field>
             </div>
+          </PageSection>
 
-            <div className="space-y-1.5">
-              <div className="text-sm text-zinc-400 flex items-center gap-2">
-                <Mail className="w-4 h-4" />
-                Email Address
+          <PageSection title="Account information" description="Read-only details associated with this account.">
+            <dl className="max-w-2xl divide-y divide-line rounded-app border border-line">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <Mail className="size-4 text-subtle" />
+                <dt className="w-36 text-sm text-muted">Email address</dt>
+                <dd className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{authUser?.email}</dd>
               </div>
-              <p className="px-4 py-2.5 bg-base-200 rounded-lg border">
-                {authUser?.email}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 bg-base-300 rounded-xl p-6">
-            <h2 className="text-lg font-medium  mb-4">Account Information</h2>
-            <div className="space-y-3 text-sm">
-              <div className="flex items-center justify-between py-2 border-b border-zinc-700">
-                <span>Member Since</span>
-                <span>{authUser.createdAt?.split("T")[0]}</span>
+              <div className="flex items-center gap-3 px-4 py-3">
+                <CalendarDays className="size-4 text-subtle" />
+                <dt className="w-36 text-sm text-muted">Member since</dt>
+                <dd className="text-sm font-medium text-ink">{authUser?.createdAt?.split("T")[0]}</dd>
               </div>
-              <div className="flex items-center justify-between py-2">
-                <span>Account Status</span>
-                <span className="text-green-500">Active</span>
-              </div>
-            </div>
-          </div>
+            </dl>
+          </PageSection>
         </div>
       </div>
-      {showPicker && (
-        <>
-          {/* Dark Backdrop: Closes picker when clicking anywhere else */}
-          <div
-            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
-            onClick={() => setShowPicker("")}
-          />
 
-          {/* Centered Picker Container */}
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
-            <div className="shadow-2xl border border-base-300 rounded-xl overflow-hidden scale-95 md:scale-100 animate-in zoom-in duration-200">
-              <EmojiPicker
-                onEmojiClick={(emojiData, event) => {
-                  onEmojiClick(emojiData, event);
-                }}
-                theme="dark"
-                autoFocusSearch={true}
-                width={window.innerWidth < 450 ? 280 : 350}
-                height={400}
-                lazyLoadEmojis={true}
-              />
-            </div>
+      <Modal
+        open={isAvatarPickerOpen}
+        onClose={() => setIsAvatarPickerOpen(false)}
+        title="Choose an avatar"
+        description="Select a profile image for your Kapota account."
+        size="md"
+      >
+        <SectionLoader
+          loading={isAvatarListLoading}
+          label="Loading avatars..."
+          minHeight={220}
+          className="border-0 bg-transparent"
+        >
+          <div className="grid grid-cols-4 justify-items-center gap-4 py-1">
+            {avatars.map((avatar) => (
+              <button
+                key={avatar.url}
+                type="button"
+                onClick={() => handleProfileAvatar(avatar)}
+                disabled={isProfilePhotoUploading}
+                aria-label="Use this avatar"
+                aria-pressed={authUser?.profilePic?.url === avatar.url}
+                className={`rounded-full border-2 p-1 transition ${
+                  authUser?.profilePic?.url === avatar.url
+                    ? "border-brand bg-brand-soft"
+                    : "border-transparent hover:border-line-strong hover:bg-surface-hover"
+                } disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                <Avatar src={avatar.url} alt="Avatar option" size="lg" />
+              </button>
+            ))}
           </div>
-        </>
-      )}
-    </div>
+        </SectionLoader>
+      </Modal>
+
+      <Modal
+        open={Boolean(showPicker)}
+        onClose={() => setShowPicker("")}
+        title={`Add emoji to ${showPicker === "fullname" ? "name" : "bio"}`}
+        size="sm"
+        className="w-auto"
+      >
+        <div className="overflow-hidden rounded-control border border-line">
+          <EmojiPicker
+            onEmojiClick={onEmojiClick}
+            theme={theme}
+            autoFocusSearch={true}
+            width={350}
+            height={400}
+            lazyLoadEmojis={true}
+          />
+        </div>
+      </Modal>
+      </AppPage>
+    </PhotoProvider>
   );
 }
 

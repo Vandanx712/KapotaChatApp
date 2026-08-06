@@ -1,41 +1,86 @@
 import {
   Clock3,
+  LockKeyhole,
+  Maximize2,
   Mic,
   MicOff,
+  Minimize2,
   PhoneOff,
-  Volume2,
-  VolumeX,
+  Users,
   Video,
   VideoOff,
-  X,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import LoadableImage from "./common/LoadableImage";
 
-const STUN_SERVERS = [
-  {
-    urls: "stun:stun.l.google.com:19302",
-  },
-];
+const splitUrls = (value) =>
+  value
+    ?.split(",")
+    .map((url) => url.trim())
+    .filter(Boolean) || [];
+
+const buildIceServers = () => {
+  const servers = [
+    {
+      urls: splitUrls(import.meta.env.VITE_STUN_URL).length
+        ? splitUrls(import.meta.env.VITE_STUN_URL)
+        : ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"],
+    },
+  ];
+  const turnUrls = splitUrls(import.meta.env.VITE_TURN_URL);
+  if (turnUrls.length) {
+    servers.push({
+      urls: turnUrls,
+      username: import.meta.env.VITE_TURN_USERNAME || "",
+      credential: import.meta.env.VITE_TURN_CREDENTIAL || "",
+    });
+  }
+  return servers;
+};
+
+const ICE_SERVERS = buildIceServers();
+const NO_ANSWER_TIMEOUT_MS = 45_000;
+
+const normalizeId = (value) => value?.toString?.() || "";
 
 const getConversationId = (conversation) =>
-  conversation?.conversationId?.toString?.() ||
-  conversation?._id?.toString?.() ||
-  "";
+  normalizeId(conversation?.conversationId || conversation?._id);
+
+const normalizeProfilePic = (profilePic) => {
+  if (!profilePic) return null;
+  return typeof profilePic === "string" ? { url: profilePic } : profilePic;
+};
+
+const normalizeParticipant = (participant) => {
+  const id = normalizeId(participant?._id || participant?.id);
+  return {
+    ...participant,
+    id,
+    _id: id,
+    displayName:
+      participant?.displayName || participant?.name || participant?.fullname || "Unknown",
+    profilePic: normalizeProfilePic(participant?.profilePic),
+    micOn: participant?.micOn !== false,
+    cameraOn: participant?.cameraOn !== false,
+  };
+};
+
+const serializeDescription = (description) => ({
+  type: description.type,
+  sdp: description.sdp,
+});
 
 const formatDuration = (seconds) => {
-  const hrs = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-
-  if (hrs > 0) {
-    return [hrs, mins, secs]
-      .map((value) => String(value).padStart(2, "0"))
-      .join(":");
-  }
-
-  return [mins, secs].map((value) => String(value).padStart(2, "0")).join(":");
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+  const values = hours > 0
+    ? [hours, minutes, remainingSeconds]
+    : [minutes, remainingSeconds];
+  return values.map((value) => String(value).padStart(2, "0")).join(":");
 };
 
 const getInitials = (name = "") =>
@@ -46,800 +91,759 @@ const getInitials = (name = "") =>
     .map((part) => part[0]?.toUpperCase() || "")
     .join("");
 
-const normalizeProfilePic = (profilePic) => {
-  if (!profilePic) return null;
-  if (typeof profilePic === "string") return { url: profilePic };
-  return profilePic;
-};
+const emitWithAck = (socket, event, payload, timeout = 10_000) =>
+  new Promise((resolve, reject) => {
+    socket.timeout(timeout).emit(event, payload, (timeoutError, response) => {
+      if (timeoutError) {
+        reject(new Error("The call server did not respond"));
+        return;
+      }
+      if (!response?.ok) {
+        const error = new Error(response?.message || "Unable to continue the call");
+        error.code = response?.code;
+        reject(error);
+        return;
+      }
+      resolve(response);
+    });
+  });
 
-const getGridClassName = (count) => {
-  if (count <= 1) return "grid-cols-1";
-  if (count === 2) return "grid-cols-1 md:grid-cols-2";
-  if (count <= 4) return "grid-cols-2";
-  return "grid-cols-2 xl:grid-cols-3";
-};
+function StreamVideo({ stream, muted = false, mirror = false, className = "" }) {
+  const videoRef = useRef(null);
 
-const normalizeId = (value) => {
-  if (!value) return "";
-  return value.toString();
-};
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.srcObject = stream || null;
+    if (stream) video.play().catch(() => {});
+  }, [stream]);
 
-function ControlButton({
-  icon,
-  label,
-  active = false,
-  danger = false,
-  onClick,
-}) {
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      muted={muted}
+      className={`${className} ${mirror ? "[transform:scaleX(-1)]" : ""}`}
+    />
+  );
+}
+
+function ParticipantAvatar({ participant, sizeClass = "size-32" }) {
+  return (
+    <div
+      className={`flex ${sizeClass} items-center justify-center overflow-hidden rounded-full bg-[#2a3942] text-3xl font-semibold text-white ring-1 ring-white/15`}
+    >
+      {participant?.profilePic?.url ? (
+        <LoadableImage
+          src={participant.profilePic.url}
+          alt={participant.displayName}
+          wrapperClassName="h-full w-full"
+          className="h-full w-full object-cover"
+          imgProps={{ loading: "eager", decoding: "async" }}
+        />
+      ) : (
+        <span>{getInitials(participant?.displayName || "User")}</span>
+      )}
+    </div>
+  );
+}
+
+function CallControl({ icon, label, active = false, danger = false, onClick }) {
   const IconComponent = icon;
-  const className = danger
-    ? "bg-error text-error-content hover:bg-error/90"
-    : active
-      ? "bg-primary text-primary-content hover:bg-primary/90"
-      : "bg-base-100/70 text-white hover:bg-base-100/90";
-
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={label}
       title={label}
-      className={`btn btn-circle h-14 w-14 border-0 shadow-lg ${className}`}
+      className={`flex size-12 shrink-0 items-center justify-center rounded-full border transition focus-visible:ring-offset-[#111b21] ${
+        danger
+          ? "border-[#ea5b61] bg-[#ea5b61] text-white hover:bg-[#d94d54]"
+          : active
+            ? "border-white bg-white text-[#111b21] hover:bg-[#e9edef]"
+            : "border-white/15 bg-[#2a3942] text-white hover:bg-[#344651]"
+      }`}
     >
       <IconComponent className="size-5" />
     </button>
   );
 }
 
-function AvatarCircle({
-  participant,
-  sizeClass = "w-24 sm:w-28",
-  roundedClass = "rounded-2xl",
-}) {
+function ParticipantTile({ participant, stream, isSelf, speakerOn }) {
+  const showVideo = Boolean(stream && participant?.cameraOn !== false);
   return (
-    <div className="avatar placeholder">
-      <div
-        className={`${sizeClass} ${roundedClass} bg-base-300 text-2xl font-semibold text-white ring ring-white/10`}
-      >
-        {participant?.profilePic?.url ? (
-          <LoadableImage
-            src={participant.profilePic.url}
-            alt={participant?.displayName || "User"}
-            className="h-full w-full object-cover"
-            imgProps={{ loading: "eager", decoding: "async" }}
-          />
-        ) : (
-          <span>{getInitials(participant?.displayName || "U")}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ParticipantTile({
-  participant,
-  stream,
-  isSelf = false,
-  muted = false,
-  bindVideoRef,
-  fallbackText,
-}) {
-  return (
-    <div className="relative overflow-hidden rounded-[1.4rem] border border-white/10 bg-neutral/70 shadow-xl">
-      {participant?.profilePic?.url && (
-        <LoadableImage
-          src={participant.profilePic.url}
-          alt={participant.displayName}
-          className="absolute inset-0 h-full w-full scale-110 object-cover opacity-15 blur-2xl"
-          wrapperClassName="absolute inset-0"
-          imgProps={{ loading: "eager", decoding: "async" }}
+    <div className="relative min-h-36 overflow-hidden rounded-control bg-[#202c33]">
+      {showVideo ? (
+        <StreamVideo
+          stream={stream}
+          muted={isSelf || !speakerOn}
+          mirror={isSelf}
+          className="h-full w-full object-cover"
         />
+      ) : (
+        <div className="flex h-full min-h-36 items-center justify-center">
+          <ParticipantAvatar participant={participant} sizeClass="size-24" />
+        </div>
       )}
-      <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-black/60" />
-
-      <div className="relative min-h-[210px]">
-        {stream ? (
-          <video
-            ref={bindVideoRef}
-            autoPlay
-            playsInline
-            muted={muted}
-            className={`h-full min-h-[210px] w-full object-cover ${isSelf ? "[transform:scaleX(-1)]" : ""}`}
-          />
-        ) : (
-          <div className="flex h-full min-h-[210px] flex-col items-center justify-center gap-3 px-4 text-center text-white/75">
-            <AvatarCircle participant={participant} />
-            <p className="text-xs">{fallbackText}</p>
-          </div>
-        )}
-      </div>
-
-      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-full bg-black/45 px-3 py-1.5 text-xs text-white/85 backdrop-blur">
-        <span className="truncate">{participant.displayName}</span>
-        <span>{isSelf ? "You" : stream ? "Connected" : "Connecting"}</span>
+      <div className="absolute bottom-2 left-2 flex max-w-[calc(100%-16px)] items-center gap-2 rounded-control bg-black/55 px-2 py-1 text-xs text-white">
+        <span className="truncate">{isSelf ? "You" : participant?.displayName}</span>
+        {participant?.micOn === false && <MicOff className="size-3.5 shrink-0" />}
       </div>
     </div>
   );
 }
 
-function VideoCallModal({
-  conversation,
-  authUser,
-  onlineUsers,
-  socket,
-  mode = "outgoing",
-  incomingSignal = null,
-  onClose,
-}) {
+function VideoCallModal({ call, authUser, socket, updateCall, onClose }) {
+  const rootRef = useRef(null);
+  const localStreamRef = useRef(null);
+  const peersRef = useRef(new Map());
+  const pendingCandidatesRef = useRef(new Map());
+  const makingOfferRef = useRef(new Map());
+  const callIdRef = useRef(call.callId || "");
+  const joinedRef = useRef(false);
+  const closingRef = useRef(false);
+  const noAnswerTimerRef = useRef(null);
+  const reconnectTimerRef = useRef(null);
+
+  const selfId = normalizeId(authUser?._id);
+  const conversation = call.conversation;
   const conversationId = getConversationId(conversation);
   const isGroup = Boolean(conversation?.isgroup);
-  const localVideoRef = useRef(null);
-  const localStreamRef = useRef(null);
-  const peerConnectionsRef = useRef(new Map());
-  const pendingCandidatesRef = useRef(new Map());
-  const remoteVideoRefs = useRef({});
-  const makingOfferRef = useRef(new Map());
+  const selfParticipant = useMemo(
+    () => normalizeParticipant({
+      _id: selfId,
+      displayName: authUser?.fullname || "You",
+      profilePic: authUser?.profilePic,
+      micOn: true,
+      cameraOn: true,
+    }),
+    [authUser?.fullname, authUser?.profilePic, selfId],
+  );
 
+  const [localStream, setLocalStream] = useState(null);
+  const [participants, setParticipants] = useState(() => ({
+    [selfId]: selfParticipant,
+  }));
+  const [remoteStreams, setRemoteStreams] = useState({});
   const [micOn, setMicOn] = useState(true);
   const [cameraOn, setCameraOn] = useState(true);
   const [speakerOn, setSpeakerOn] = useState(true);
+  const [phase, setPhase] = useState(call.phase || "preparing");
   const [duration, setDuration] = useState(0);
-  const [remoteStreams, setRemoteStreams] = useState({});
+  const [isFullscreen, setIsFullscreen] = useState(Boolean(document.fullscreenElement));
 
-  const onlineUsersSet = useMemo(
-    () => new Set((onlineUsers || []).map((id) => id.toString())),
-    [onlineUsers],
-  );
+  const setCallPhase = useCallback((nextPhase) => {
+    setPhase(nextPhase);
+    updateCall({ phase: nextPhase, callId: callIdRef.current });
+  }, [updateCall]);
 
-  const participants = useMemo(() => {
-    if (!conversation || !authUser?._id) return [];
-
-    if (isGroup) {
-      const members = Object.entries(
-        conversation?.groupdetail?.membersDetail || {},
-      ).map(([id, detail]) => ({
-        id: id.toString(),
-        displayName: id === authUser._id ? "You" : detail?.fullname || "Unknown",
-        profilePic: normalizeProfilePic(detail?.profilePic),
-        isSelf: id === authUser._id,
-        isOnline: id === authUser._id || onlineUsersSet.has(id),
-      }));
-
-      if (!members.find((member) => member.id === authUser._id)) {
-        members.unshift({
-          id: authUser._id.toString(),
-          displayName: "You",
-          profilePic: normalizeProfilePic(authUser?.profilePic),
-          isSelf: true,
-          isOnline: true,
-        });
-      }
-
-      return members.sort(
-        (left, right) => Number(right.isSelf) - Number(left.isSelf),
-      );
-    }
-
-    const otherId = normalizeId(conversation?.oruserId);
-    return [
-      {
-        id: authUser._id.toString(),
-        displayName: "You",
-        profilePic: normalizeProfilePic(authUser?.profilePic),
-        isSelf: true,
-        isOnline: true,
+  const upsertParticipant = useCallback((participant) => {
+    const normalized = normalizeParticipant(participant);
+    if (!normalized.id) return;
+    setParticipants((current) => ({
+      ...current,
+      [normalized.id]: {
+        ...current[normalized.id],
+        ...normalized,
       },
-      {
-        id: otherId,
-        displayName: conversation?.name || "Unknown",
-        profilePic: normalizeProfilePic(conversation?.profilePic),
-        isSelf: false,
-        isOnline: onlineUsersSet.has(otherId),
-      },
-    ];
-  }, [authUser, conversation, isGroup, onlineUsersSet]);
-
-  const selfParticipant = useMemo(
-    () => participants.find((participant) => participant.isSelf),
-    [participants],
-  );
-
-  const remoteParticipants = useMemo(
-    () => participants.filter((participant) => !participant.isSelf),
-    [participants],
-  );
-
-  const title = isGroup
-    ? conversation?.groupdetail?.groupname || "Group Call"
-    : remoteParticipants[0]?.displayName || "Call";
-
-  const subtitle = isGroup
-    ? "Group video call"
-    : remoteParticipants[0]?.isOnline
-      ? "Online"
-      : "Connecting";
-
-  const localCallerPayload = useMemo(
-    () => ({
-      _id: authUser?._id?.toString?.() || "",
-      name: authUser?.fullname || "Unknown",
-      fullname: authUser?.fullname || "Unknown",
-      profilePic: normalizeProfilePic(authUser?.profilePic),
-    }),
-    [authUser],
-  );
-
-  const syncLocalTracks = useCallback(() => {
-    const stream = localStreamRef.current;
-    if (!stream) return;
-    const [audioTrack] = stream.getAudioTracks();
-    const [videoTrack] = stream.getVideoTracks();
-    if (audioTrack) audioTrack.enabled = micOn;
-    if (videoTrack) videoTrack.enabled = cameraOn;
-  }, [micOn, cameraOn]);
-
-  const attachRemoteVideo = useCallback(
-    (userId, stream) => {
-      const node = remoteVideoRefs.current[userId];
-      if (!node) return;
-      if (node.srcObject !== stream) {
-        node.srcObject = stream;
-      }
-      node.muted = !speakerOn;
-    },
-    [speakerOn],
-  );
-
-  const enqueueCandidate = useCallback((userId, candidate) => {
-    if (!pendingCandidatesRef.current.has(userId)) {
-      pendingCandidatesRef.current.set(userId, []);
-    }
-    pendingCandidatesRef.current.get(userId).push(candidate);
+    }));
   }, []);
 
-  const flushPendingCandidates = useCallback(async (userId, peer) => {
-    const candidates = pendingCandidatesRef.current.get(userId) || [];
-    if (!candidates.length) return;
-    for (const candidate of candidates) {
-      try {
-        await peer.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (error) {
-        console.log("Failed to add queued ICE candidate", error);
-      }
-    }
-    pendingCandidatesRef.current.delete(userId);
+  const clearNoAnswerTimer = useCallback(() => {
+    clearTimeout(noAnswerTimerRef.current);
+    noAnswerTimerRef.current = null;
   }, []);
 
-  const createPeerConnection = useCallback(
-    (userId) => {
-      const normalizedUserId = normalizeId(userId);
-      if (!normalizedUserId) return null;
-
-      if (peerConnectionsRef.current.has(normalizedUserId)) {
-        return peerConnectionsRef.current.get(normalizedUserId);
-      }
-
-      const peer = new RTCPeerConnection({ iceServers: STUN_SERVERS });
-
-      const localStream = localStreamRef.current;
-      if (localStream) {
-        localStream.getTracks().forEach((track) => {
-          peer.addTrack(track, localStream);
-        });
-      }
-
-      peer.onicecandidate = (event) => {
-        if (!event.candidate || !socket || !authUser?._id) return;
-        socket.emit("ice-candidate", {
-          to: normalizedUserId,
-          from: authUser._id,
-          candidate: event.candidate,
-          conversationId,
-        });
-      };
-
-      peer.ontrack = (event) => {
-        const [stream] = event.streams;
-        if (!stream) return;
-        setRemoteStreams((prev) => ({
-          ...prev,
-          [normalizedUserId]: stream,
-        }));
-      };
-
-      peer.onconnectionstatechange = () => {
-        if (["failed", "closed"].includes(peer.connectionState)) {
-          setRemoteStreams((prev) => {
-            const next = { ...prev };
-            delete next[normalizedUserId];
-            return next;
-          });
-        }
-      };
-
-      peerConnectionsRef.current.set(normalizedUserId, peer);
-      return peer;
-    },
-    [socket, authUser?._id, conversationId],
-  );
-
-  const ensureLocalStream = useCallback(async () => {
-    if (
-      typeof navigator === "undefined" ||
-      !navigator.mediaDevices?.getUserMedia
-    ) {
-      throw new Error("media-not-supported");
+  const closePeerConnection = useCallback((participantId) => {
+    const id = normalizeId(participantId);
+    const peer = peersRef.current.get(id);
+    if (peer) {
+      peer.onicecandidate = null;
+      peer.ontrack = null;
+      peer.onconnectionstatechange = null;
+      peer.close();
+      peersRef.current.delete(id);
     }
-
-    if (!localStreamRef.current) {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: { facingMode: "user" },
-      });
-      localStreamRef.current = stream;
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-    }
-    return localStreamRef.current;
+    pendingCandidatesRef.current.delete(id);
+    makingOfferRef.current.delete(id);
+    setRemoteStreams((current) => {
+      if (!current[id]) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
   }, []);
-
-  const createAndSendOffer = useCallback(
-    async (targetUserId) => {
-      const normalizedTargetId = normalizeId(targetUserId);
-      if (!normalizedTargetId || normalizedTargetId === authUser?._id) return;
-
-      const peer = createPeerConnection(normalizedTargetId);
-      if (!peer || !socket) return;
-
-      try {
-        makingOfferRef.current.set(normalizedTargetId, true);
-        const offer = await peer.createOffer();
-        await peer.setLocalDescription(offer);
-
-        socket.emit("call-user", {
-          to: normalizedTargetId,
-          from: localCallerPayload,
-          offer,
-          conversationId,
-          isGroup,
-          conversation,
-        });
-      } catch (error) {
-        console.log("Failed to create offer", error);
-      } finally {
-        makingOfferRef.current.set(normalizedTargetId, false);
-      }
-    },
-    [
-      authUser?._id,
-      createPeerConnection,
-      socket,
-      localCallerPayload,
-      conversationId,
-      isGroup,
-      conversation,
-    ],
-  );
-
-  const handleIncomingOffer = useCallback(
-    async ({ from, offer }) => {
-      const fromId = normalizeId(from?._id || from);
-      if (!fromId || !offer || fromId === authUser?._id) return;
-
-      const peer = createPeerConnection(fromId);
-      if (!peer || !socket) return;
-
-      const polite = authUser?._id?.toString() > fromId;
-      const makingOffer = makingOfferRef.current.get(fromId);
-      const offerCollision = makingOffer || peer.signalingState !== "stable";
-
-      if (offerCollision && !polite) {
-        return;
-      }
-
-      try {
-        if (offerCollision) {
-          await peer.setLocalDescription({ type: "rollback" });
-        }
-        await peer.setRemoteDescription(new RTCSessionDescription(offer));
-        await flushPendingCandidates(fromId, peer);
-        const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-
-        socket.emit("call-accepted", {
-          to: fromId,
-          from: authUser._id,
-          answer,
-          conversationId,
-        });
-      } catch (error) {
-        console.log("Failed to handle incoming offer", error);
-      }
-    },
-    [
-      authUser?._id,
-      createPeerConnection,
-      socket,
-      flushPendingCandidates,
-      conversationId,
-    ],
-  );
-
-  const handleIncomingAnswer = useCallback(
-    async ({ from, answer }) => {
-      const fromId = normalizeId(from);
-      if (!fromId || !answer) return;
-      const peer = peerConnectionsRef.current.get(fromId);
-      if (!peer) return;
-      try {
-        await peer.setRemoteDescription(new RTCSessionDescription(answer));
-        await flushPendingCandidates(fromId, peer);
-      } catch (error) {
-        console.log("Failed to apply answer", error);
-      }
-    },
-    [flushPendingCandidates],
-  );
-
-  const handleIncomingCandidate = useCallback(
-    async ({ from, candidate }) => {
-      const fromId = normalizeId(from);
-      if (!fromId || !candidate || fromId === authUser?._id) return;
-
-      const peer = peerConnectionsRef.current.get(fromId);
-      if (!peer || !peer.remoteDescription) {
-        enqueueCandidate(fromId, candidate);
-        return;
-      }
-
-      try {
-        await peer.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (error) {
-        console.log("Failed to add ICE candidate", error);
-      }
-    },
-    [authUser?._id, enqueueCandidate],
-  );
 
   const closeAllConnections = useCallback(() => {
-    peerConnectionsRef.current.forEach((peer) => {
-      try {
-        peer.onicecandidate = null;
-        peer.ontrack = null;
-        peer.close();
-      } catch (error) {
-        console.log("Failed to close peer", error);
-      }
-    });
-    peerConnectionsRef.current.clear();
-    pendingCandidatesRef.current.clear();
-    makingOfferRef.current.clear();
-    remoteVideoRefs.current = {};
-    setRemoteStreams({});
-  }, []);
+    [...peersRef.current.keys()].forEach(closePeerConnection);
+  }, [closePeerConnection]);
 
   const stopLocalStream = useCallback(() => {
-    const stream = localStreamRef.current;
-    if (!stream) return;
-    stream.getTracks().forEach((track) => track.stop());
+    localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = null;
-    }
   }, []);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setDuration((value) => value + 1);
-    }, 1000);
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, []);
+  const finishCall = useCallback((notifyServer = true, reason = "left") => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    clearNoAnswerTimer();
+    clearTimeout(reconnectTimerRef.current);
 
-  useEffect(() => {
-    syncLocalTracks();
-  }, [syncLocalTracks]);
-
-  useEffect(() => {
-    Object.entries(remoteStreams).forEach(([userId, stream]) => {
-      attachRemoteVideo(userId, stream);
-    });
-  }, [remoteStreams, attachRemoteVideo]);
-
-  useEffect(() => {
-    if (!speakerOn) {
-      Object.values(remoteVideoRefs.current).forEach((node) => {
-        if (node) node.muted = true;
-      });
-    } else {
-      Object.values(remoteVideoRefs.current).forEach((node) => {
-        if (node) node.muted = false;
-      });
+    if (notifyServer && callIdRef.current && socket?.connected) {
+      socket.emit("call:leave", { callId: callIdRef.current, reason });
     }
-  }, [speakerOn]);
+    joinedRef.current = false;
+    closeAllConnections();
+    stopLocalStream();
+    onClose();
+  }, [clearNoAnswerTimer, closeAllConnections, onClose, socket, stopLocalStream]);
 
-  useEffect(() => {
-    if (!socket || !conversationId || !authUser?._id) return undefined;
-
-    const onIncomingCall = (payload) => {
-      const payloadConversationId = normalizeId(payload?.conversationId);
-      if (payloadConversationId && payloadConversationId !== conversationId) return;
-      handleIncomingOffer(payload);
-    };
-
-    const onCallAccepted = (payload) => {
-      const payloadConversationId = normalizeId(payload?.conversationId);
-      if (payloadConversationId && payloadConversationId !== conversationId) return;
-      handleIncomingAnswer(payload);
-    };
-
-    const onIceCandidate = (payload) => {
-      const payloadConversationId = normalizeId(payload?.conversationId);
-      if (payloadConversationId && payloadConversationId !== conversationId) return;
-      handleIncomingCandidate(payload);
-    };
-
-    socket.on("incoming-call", onIncomingCall);
-    socket.on("call-accepted", onCallAccepted);
-    socket.on("ice-candidate", onIceCandidate);
-
-    return () => {
-      socket.off("incoming-call", onIncomingCall);
-      socket.off("call-accepted", onCallAccepted);
-      socket.off("ice-candidate", onIceCandidate);
-    };
-  }, [
-    socket,
-    conversationId,
-    authUser?._id,
-    handleIncomingOffer,
-    handleIncomingAnswer,
-    handleIncomingCandidate,
-  ]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const start = async () => {
+  const flushPendingCandidates = useCallback(async (participantId, peer) => {
+    const id = normalizeId(participantId);
+    const candidates = pendingCandidatesRef.current.get(id) || [];
+    for (const candidate of candidates) {
       try {
-        await ensureLocalStream();
+        await peer.addIceCandidate(candidate);
       } catch {
-        toast.error("Camera or microphone permission is required");
-        onClose();
+        // A stale candidate can arrive after a peer reconnects.
+      }
+    }
+    pendingCandidatesRef.current.delete(id);
+  }, []);
+
+  const createPeerConnection = useCallback((participantId) => {
+    const id = normalizeId(participantId);
+    if (!id || id === selfId) return null;
+    if (peersRef.current.has(id)) return peersRef.current.get(id);
+
+    const peer = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    localStreamRef.current?.getTracks().forEach((track) => {
+      peer.addTrack(track, localStreamRef.current);
+    });
+
+    peer.onicecandidate = ({ candidate }) => {
+      if (!candidate || !socket?.connected || !callIdRef.current) return;
+      socket.emit("call:ice-candidate", {
+        callId: callIdRef.current,
+        toUserId: id,
+        candidate: candidate.toJSON?.() || candidate,
+      });
+    };
+
+    peer.ontrack = (event) => {
+      const stream = event.streams?.[0] || new MediaStream([event.track]);
+      setRemoteStreams((current) => ({ ...current, [id]: stream }));
+      clearNoAnswerTimer();
+      setCallPhase("active");
+    };
+
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === "connected") {
+        clearNoAnswerTimer();
+        setCallPhase("active");
+      }
+      if (["failed", "closed"].includes(peer.connectionState)) {
+        closePeerConnection(id);
+      }
+    };
+
+    peersRef.current.set(id, peer);
+    return peer;
+  }, [clearNoAnswerTimer, closePeerConnection, selfId, setCallPhase, socket]);
+
+  const sendOffer = useCallback(async (participantId) => {
+    const id = normalizeId(participantId);
+    const peer = createPeerConnection(id);
+    if (!peer || !socket?.connected || peer.signalingState !== "stable") return;
+
+    try {
+      makingOfferRef.current.set(id, true);
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      await emitWithAck(socket, "call:offer", {
+        callId: callIdRef.current,
+        toUserId: id,
+        description: serializeDescription(peer.localDescription),
+      });
+    } catch (error) {
+      if (!closingRef.current && error.message !== "Invalid call offer") {
+        console.error("Unable to create call offer", error);
+      }
+    } finally {
+      makingOfferRef.current.set(id, false);
+    }
+  }, [createPeerConnection, socket]);
+
+  const handleOffer = useCallback(async ({ fromUserId, from, description }) => {
+    const id = normalizeId(fromUserId);
+    if (!id || !description) return;
+    upsertParticipant(from || { _id: id });
+    const peer = createPeerConnection(id);
+    if (!peer) return;
+
+    const offerCollision = makingOfferRef.current.get(id) || peer.signalingState !== "stable";
+    const polite = selfId.localeCompare(id) > 0;
+    if (offerCollision && !polite) return;
+
+    try {
+      if (offerCollision && peer.signalingState !== "stable") {
+        await peer.setLocalDescription({ type: "rollback" });
+      }
+      await peer.setRemoteDescription(description);
+      await flushPendingCandidates(id, peer);
+      const answer = await peer.createAnswer();
+      await peer.setLocalDescription(answer);
+      await emitWithAck(socket, "call:answer", {
+        callId: callIdRef.current,
+        toUserId: id,
+        description: serializeDescription(peer.localDescription),
+      });
+      clearNoAnswerTimer();
+      setCallPhase("connecting");
+    } catch (error) {
+      if (!closingRef.current) console.error("Unable to answer call offer", error);
+    }
+  }, [clearNoAnswerTimer, createPeerConnection, flushPendingCandidates, selfId, setCallPhase, socket, upsertParticipant]);
+
+  const handleAnswer = useCallback(async ({ fromUserId, from, description }) => {
+    const id = normalizeId(fromUserId);
+    const peer = peersRef.current.get(id);
+    if (!peer || !description) return;
+    upsertParticipant(from || { _id: id });
+    try {
+      await peer.setRemoteDescription(description);
+      await flushPendingCandidates(id, peer);
+      clearNoAnswerTimer();
+      setCallPhase("connecting");
+    } catch (error) {
+      if (!closingRef.current) console.error("Unable to apply call answer", error);
+    }
+  }, [clearNoAnswerTimer, flushPendingCandidates, setCallPhase, upsertParticipant]);
+
+  const handleCandidate = useCallback(async ({ fromUserId, candidate }) => {
+    const id = normalizeId(fromUserId);
+    if (!id || !candidate) return;
+    const peer = peersRef.current.get(id);
+    if (!peer?.remoteDescription) {
+      const queued = pendingCandidatesRef.current.get(id) || [];
+      queued.push(candidate);
+      pendingCandidatesRef.current.set(id, queued);
+      return;
+    }
+    try {
+      await peer.addIceCandidate(candidate);
+    } catch {
+      // Ignore candidates from a peer generation that has already closed.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    const isCurrentCall = (payload) => payload?.callId === callIdRef.current;
+
+    const onParticipantJoined = (payload) => {
+      if (!isCurrentCall(payload)) return;
+      upsertParticipant(payload.participant);
+      clearNoAnswerTimer();
+      setCallPhase("connecting");
+    };
+    const onParticipantLeft = (payload) => {
+      if (!isCurrentCall(payload)) return;
+      const id = normalizeId(payload.participantId);
+      closePeerConnection(id);
+      setParticipants((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+    };
+    const onOffer = (payload) => {
+      if (isCurrentCall(payload)) handleOffer(payload);
+    };
+    const onAnswer = (payload) => {
+      if (isCurrentCall(payload)) handleAnswer(payload);
+    };
+    const onCandidate = (payload) => {
+      if (isCurrentCall(payload)) handleCandidate(payload);
+    };
+    const onMediaState = (payload) => {
+      if (!isCurrentCall(payload)) return;
+      const id = normalizeId(payload.participantId);
+      setParticipants((current) => ({
+        ...current,
+        [id]: {
+          ...current[id],
+          id,
+          micOn: payload.micOn,
+          cameraOn: payload.cameraOn,
+        },
+      }));
+    };
+    const onDeclined = (payload) => {
+      if (!isCurrentCall(payload)) return;
+      const name = payload.participant?.name || "Participant";
+      if (isGroup) {
+        toast(`${name} declined the call`);
+      } else {
+        toast(payload.reason === "busy" ? `${name} is busy` : "Call declined");
+        finishCall(false, payload.reason);
+      }
+    };
+    const onEnded = (payload) => {
+      if (!isCurrentCall(payload)) return;
+      if (payload.reason === "expired") toast("Call expired");
+      finishCall(false, payload.reason);
+    };
+    const onDisconnect = () => {
+      if (closingRef.current) return;
+      setCallPhase("reconnecting");
+      reconnectTimerRef.current = setTimeout(() => {
+        toast.error("Call ended because the connection was lost");
+        finishCall(false, "disconnected");
+      }, 10_000);
+    };
+    const onConnect = () => {
+      clearTimeout(reconnectTimerRef.current);
+      if (joinedRef.current) setCallPhase("connecting");
+    };
+
+    socket.on("call:participant-joined", onParticipantJoined);
+    socket.on("call:participant-left", onParticipantLeft);
+    socket.on("call:offer", onOffer);
+    socket.on("call:answer", onAnswer);
+    socket.on("call:ice-candidate", onCandidate);
+    socket.on("call:media-state", onMediaState);
+    socket.on("call:declined", onDeclined);
+    socket.on("call:ended", onEnded);
+    socket.on("disconnect", onDisconnect);
+    socket.on("connect", onConnect);
+
+    return () => {
+      socket.off("call:participant-joined", onParticipantJoined);
+      socket.off("call:participant-left", onParticipantLeft);
+      socket.off("call:offer", onOffer);
+      socket.off("call:answer", onAnswer);
+      socket.off("call:ice-candidate", onCandidate);
+      socket.off("call:media-state", onMediaState);
+      socket.off("call:declined", onDeclined);
+      socket.off("call:ended", onEnded);
+      socket.off("disconnect", onDisconnect);
+      socket.off("connect", onConnect);
+    };
+  }, [clearNoAnswerTimer, closePeerConnection, finishCall, handleAnswer, handleCandidate, handleOffer, isGroup, setCallPhase, socket, upsertParticipant]);
+
+  useEffect(() => {
+    let disposed = false;
+
+    const startCall = async () => {
+      if (!socket?.connected) {
+        toast.error("Connect to Kapota before starting a call");
+        finishCall(false, "offline");
+        return;
+      }
+      if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) {
+        toast.error("Video calls are not supported in this browser");
+        finishCall(false, "unsupported");
         return;
       }
 
-      if (cancelled) return;
-
-      if (mode === "incoming" && incomingSignal?.offer && incomingSignal?.from) {
-        await handleIncomingOffer(incomingSignal);
-      }
-
-      if (isGroup) {
-        const incomingFromId = normalizeId(incomingSignal?.from?._id);
-        const memberIds = Object.keys(conversation?.groupdetail?.membersDetail || {});
-        const targetIds = memberIds
-          .filter((id) => normalizeId(id) !== normalizeId(authUser?._id))
-          .filter((id) => onlineUsersSet.has(normalizeId(id)))
-          .filter((id) => !(mode === "incoming" && id === incomingFromId));
-
-        await Promise.all(targetIds.map((id) => createAndSendOffer(id)));
-      } else if (mode === "outgoing") {
-        const targetId = normalizeId(conversation?.oruserId);
-        if (targetId) {
-          await createAndSendOffer(targetId);
+      try {
+        setCallPhase("preparing");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+          video: {
+            facingMode: "user",
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30, max: 30 },
+          },
+        });
+        if (disposed) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
         }
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+
+        let callId = callIdRef.current;
+        let isExistingCall = false;
+        if (call.mode === "outgoing") {
+          const started = await emitWithAck(socket, "call:start", {
+            conversationId,
+            callType: "video",
+          });
+          callId = started.callId;
+          isExistingCall = Boolean(started.existing);
+          callIdRef.current = callId;
+          updateCall({ callId, phase: "connecting" });
+        }
+        if (!callId) throw new Error("This call is no longer available");
+
+        const joined = await emitWithAck(socket, "call:join", { callId });
+        if (disposed) return;
+        joinedRef.current = true;
+        const existingParticipants = joined.participants || [];
+        existingParticipants.forEach(upsertParticipant);
+
+        socket.emit("call:media-state", {
+          callId,
+          micOn: true,
+          cameraOn: true,
+        });
+
+        setCallPhase(existingParticipants.length ? "connecting" : "ringing");
+        await Promise.all(existingParticipants.map((participant) => sendOffer(participant.id)));
+
+        if (call.mode === "outgoing" && !isExistingCall && !existingParticipants.length) {
+          noAnswerTimerRef.current = setTimeout(() => {
+            toast("No answer");
+            finishCall(true, "no-answer");
+          }, NO_ANSWER_TIMEOUT_MS);
+        }
+      } catch (error) {
+        if (disposed || closingRef.current) return;
+        if (call.mode === "incoming" && callIdRef.current) {
+          socket.emit("call:decline", {
+            callId: callIdRef.current,
+            reason: error.code === "ALREADY_JOINED" ? "answered-elsewhere" : "media-unavailable",
+          });
+        }
+        const permissionDenied = ["NotAllowedError", "PermissionDeniedError"].includes(error.name);
+        toast.error(
+          permissionDenied
+            ? "Allow camera and microphone access to join the call"
+            : error.message || "Unable to start the video call",
+        );
+        finishCall(true, "failed");
       }
     };
 
-    start();
-
+    startCall();
     return () => {
-      cancelled = true;
-      closeAllConnections();
-      stopLocalStream();
+      disposed = true;
     };
-    // This effect intentionally runs once for the lifetime of this modal.
+    // This session is intentionally initialized once for this mounted call.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    const handleEscape = (event) => {
-      if (event.key === "Escape") {
-        onClose();
+    if (phase !== "active") return undefined;
+    const timer = setInterval(() => setDuration((value) => value + 1), 1000);
+    return () => clearInterval(timer);
+  }, [phase]);
+
+  useEffect(() => {
+    const onFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  useEffect(() => () => {
+    clearNoAnswerTimer();
+    clearTimeout(reconnectTimerRef.current);
+    if (!closingRef.current && callIdRef.current && socket?.connected) {
+      socket.emit("call:leave", { callId: callIdRef.current, reason: "closed" });
+    }
+    closeAllConnections();
+    stopLocalStream();
+  }, [clearNoAnswerTimer, closeAllConnections, socket, stopLocalStream]);
+
+  const updateLocalMediaState = (nextMicOn, nextCameraOn) => {
+    upsertParticipant({
+      ...selfParticipant,
+      micOn: nextMicOn,
+      cameraOn: nextCameraOn,
+    });
+    if (joinedRef.current) {
+      socket.emit("call:media-state", {
+        callId: callIdRef.current,
+        micOn: nextMicOn,
+        cameraOn: nextCameraOn,
+      });
+    }
+  };
+
+  const toggleMic = () => {
+    const next = !micOn;
+    localStreamRef.current?.getAudioTracks().forEach((track) => {
+      track.enabled = next;
+    });
+    setMicOn(next);
+    updateLocalMediaState(next, cameraOn);
+  };
+
+  const toggleCamera = () => {
+    const next = !cameraOn;
+    localStreamRef.current?.getVideoTracks().forEach((track) => {
+      track.enabled = next;
+    });
+    setCameraOn(next);
+    updateLocalMediaState(micOn, next);
+  };
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await rootRef.current?.requestFullscreen();
       }
-    };
-
-    window.addEventListener("keydown", handleEscape);
-    return () => {
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [onClose]);
-
-  const handleToggleMic = () => {
-    const nextValue = !micOn;
-    setMicOn(nextValue);
+    } catch {
+      toast.error("Fullscreen is not available");
+    }
   };
 
-  const handleToggleCamera = () => {
-    const nextValue = !cameraOn;
-    setCameraOn(nextValue);
-  };
-
-  const remoteEntries = useMemo(
-    () =>
-      remoteParticipants.map((participant) => ({
-        participant,
-        stream: remoteStreams[participant.id] || null,
-      })),
-    [remoteParticipants, remoteStreams],
-  );
-
-  const groupTiles = useMemo(() => {
-    const selfTile = {
-      participant: selfParticipant,
-      stream: localStreamRef.current,
-      isSelf: true,
-    };
-    return [selfTile, ...remoteEntries];
-  }, [selfParticipant, remoteEntries]);
+  const participantList = Object.values(participants).filter((participant) => participant?.id);
+  const remoteParticipants = participantList.filter((participant) => participant.id !== selfId);
+  const directFallback = normalizeParticipant({
+    _id: conversation?.oruserId,
+    displayName: conversation?.name || "Contact",
+    profilePic: conversation?.profilePic,
+  });
+  const directParticipant = remoteParticipants[0] || directFallback;
+  const directStream = remoteStreams[directParticipant.id] || null;
+  const title = isGroup
+    ? conversation?.groupdetail?.groupname || "Group video call"
+    : directParticipant.displayName;
+  const statusText = {
+    preparing: "Preparing camera",
+    ringing: call.mode === "outgoing" ? "Calling" : "Joining call",
+    connecting: "Connecting",
+    active: "Connected",
+    reconnecting: "Reconnecting",
+  }[phase] || "Connecting";
+  const groupColumns = participantList.length <= 1
+    ? "grid-cols-1"
+    : participantList.length <= 4
+      ? "grid-cols-2"
+      : participantList.length <= 9
+        ? "grid-cols-3"
+        : "grid-cols-4";
 
   return (
-    <div className="fixed inset-0 z-[90] overflow-hidden bg-neutral text-neutral-content">
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.35),rgba(0,0,0,0.85))]" />
+    <div ref={rootRef} className="fixed inset-0 z-[100] flex min-h-[560px] flex-col overflow-hidden bg-[#111b21] text-white">
+      <header className="z-10 flex h-16 shrink-0 items-center justify-between border-b border-white/10 bg-[#202c33] px-5">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-[#071b16]">
+            <Video className="size-4.5" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold">{title}</h2>
+            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-white/60">
+              <LockKeyhole className="size-3" />
+              {statusText}
+            </p>
+          </div>
+        </div>
 
-      <div className="relative flex h-full flex-col px-4 pb-6 pt-5 sm:px-6 sm:pb-8">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs text-white/70">
+          {isGroup && (
+            <span className="flex h-8 items-center gap-1.5 px-2">
+              <Users className="size-4" />
+              {participantList.length}
+            </span>
+          )}
+          <span className="flex h-8 items-center gap-1.5 px-2 font-medium tabular-nums">
+            <Clock3 className="size-4" />
+            {formatDuration(duration)}
+          </span>
           <button
             type="button"
-            onClick={onClose}
-            className="btn btn-circle border-0 bg-black/25 text-white hover:bg-black/40"
+            onClick={toggleFullscreen}
+            className="flex size-9 items-center justify-center rounded-full text-white/75 transition hover:bg-white/10 hover:text-white"
+            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
           >
-            <X className="size-5" />
+            {isFullscreen ? <Minimize2 className="size-4.5" /> : <Maximize2 className="size-4.5" />}
           </button>
-
-          <div className="min-w-0 flex-1 px-2 text-center">
-            <h2 className="truncate text-lg font-semibold text-white sm:text-xl">
-              {title}
-            </h2>
-            <p className="mt-1 truncate text-sm text-white/70">{subtitle}</p>
-          </div>
-
-          <div className="badge border-0 bg-black/30 px-3 py-3 text-white">
-            <Clock3 className="mr-1 size-3.5" />
-            {formatDuration(duration)}
-          </div>
         </div>
+      </header>
 
+      <main className="relative min-h-0 flex-1">
         {!isGroup ? (
-          <div className="relative flex flex-1 items-center justify-center px-2 pb-24 pt-6 sm:px-6">
-            <div className="w-full max-w-4xl">
-              <ParticipantTile
-                participant={remoteEntries[0]?.participant || remoteParticipants[0]}
-                stream={remoteEntries[0]?.stream}
-                bindVideoRef={(node) => {
-                  const remoteId = remoteParticipants[0]?.id;
-                  if (!remoteId) return;
-                  if (!node) {
-                    delete remoteVideoRefs.current[remoteId];
-                    return;
-                  }
-                  remoteVideoRefs.current[remoteId] = node;
-                  const stream = remoteStreams[remoteId];
-                  if (stream && node.srcObject !== stream) {
-                    node.srcObject = stream;
-                  }
-                  node.muted = !speakerOn;
-                }}
-                fallbackText={
-                  remoteParticipants[0]?.isOnline
-                    ? "Waiting for video stream"
-                    : "User is offline"
-                }
+          <>
+            {directStream && directParticipant.cameraOn !== false ? (
+              <StreamVideo
+                stream={directStream}
+                muted={!speakerOn}
+                className="h-full w-full object-contain"
               />
-            </div>
-
-            <div className="absolute bottom-6 right-4 w-28 sm:bottom-8 sm:right-8 sm:w-36">
-              <div className="overflow-hidden rounded-[1.25rem] border border-white/15 bg-black/50 shadow-2xl backdrop-blur">
-                <div className="relative aspect-[3/4] bg-base-300/20">
-                  {localStreamRef.current && cameraOn ? (
-                    <video
-                      ref={(node) => {
-                        localVideoRef.current = node;
-                        if (node && localStreamRef.current) {
-                          node.srcObject = localStreamRef.current;
-                        }
-                      }}
-                      autoPlay
-                      muted
-                      playsInline
-                      className="h-full w-full object-cover [transform:scaleX(-1)]"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center p-3 text-center text-white/75">
-                      <AvatarCircle
-                        participant={selfParticipant}
-                        sizeClass="w-14"
-                        roundedClass="rounded-xl"
-                      />
-                    </div>
-                  )}
-                </div>
-                <div className="border-t border-white/10 px-3 py-2 text-xs text-white/70">
-                  You
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-5 bg-[#182229]">
+                <ParticipantAvatar participant={directParticipant} sizeClass="size-40" />
+                <div className="text-center">
+                  <p className="text-xl font-medium">{directParticipant.displayName}</p>
+                  <p className="mt-2 text-sm text-white/55">{statusText}</p>
                 </div>
               </div>
-            </div>
-          </div>
-        ) : (
-          <div
-            className={`grid flex-1 gap-3 pb-24 pt-6 ${getGridClassName(groupTiles.length)}`}
-          >
-            {groupTiles.map(({ participant, stream, isSelf }) => (
-              <ParticipantTile
-                key={participant?.id}
-                participant={participant}
-                stream={isSelf ? (cameraOn ? localStreamRef.current : null) : stream}
-                isSelf={Boolean(isSelf)}
-                muted={Boolean(isSelf) || !speakerOn}
-                bindVideoRef={(node) => {
-                  if (isSelf) {
-                    localVideoRef.current = node;
-                    if (node && localStreamRef.current) {
-                      node.srcObject = localStreamRef.current;
-                    }
-                    return;
-                  }
+            )}
 
-                  const remoteId = participant?.id;
-                  if (!remoteId) return;
-                  if (!node) {
-                    delete remoteVideoRefs.current[remoteId];
-                    return;
-                  }
-                  remoteVideoRefs.current[remoteId] = node;
-                  const remoteStream = remoteStreams[remoteId];
-                  if (remoteStream && node.srcObject !== remoteStream) {
-                    node.srcObject = remoteStream;
-                  }
-                  node.muted = !speakerOn;
-                }}
-                fallbackText={
-                  participant?.isOnline
-                    ? "Waiting for video stream"
-                    : "User is offline"
-                }
-              />
-            ))}
+            <div className="absolute right-5 top-5 aspect-video w-64 overflow-hidden rounded-control border border-white/15 bg-[#202c33] shadow-2xl">
+              {localStream && cameraOn ? (
+                <StreamVideo
+                  stream={localStream}
+                  muted
+                  mirror
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center">
+                  <ParticipantAvatar participant={selfParticipant} sizeClass="size-20" />
+                </div>
+              )}
+              <span className="absolute bottom-2 left-2 rounded-control bg-black/55 px-2 py-1 text-xs">You</span>
+            </div>
+          </>
+        ) : (
+          <div className={`ui-scrollbar grid h-full auto-rows-[minmax(180px,1fr)] gap-1.5 overflow-y-auto p-1.5 ${groupColumns}`}>
+            {participantList.map((participant) => {
+              const isSelf = participant.id === selfId;
+              return (
+                <ParticipantTile
+                  key={participant.id}
+                  participant={participant}
+                  stream={isSelf ? localStream : remoteStreams[participant.id]}
+                  isSelf={isSelf}
+                  speakerOn={speakerOn}
+                />
+              );
+            })}
           </div>
         )}
+      </main>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-5 flex justify-center px-4">
-          <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-3 rounded-full bg-black/35 px-4 py-3 shadow-2xl backdrop-blur-md">
-            <ControlButton
-              icon={micOn ? Mic : MicOff}
-              label={micOn ? "Mute microphone" : "Turn on microphone"}
-              active={micOn}
-              onClick={handleToggleMic}
-            />
-            <ControlButton
-              icon={cameraOn ? Video : VideoOff}
-              label={cameraOn ? "Turn off camera" : "Turn on camera"}
-              active={cameraOn}
-              onClick={handleToggleCamera}
-            />
-            <ControlButton
-              icon={speakerOn ? Volume2 : VolumeX}
-              label={speakerOn ? "Turn off speaker" : "Turn on speaker"}
-              active={speakerOn}
-              onClick={() => setSpeakerOn((value) => !value)}
-            />
-            <ControlButton icon={PhoneOff} label="End call" danger onClick={onClose} />
-          </div>
-        </div>
-      </div>
+      <footer className="z-10 flex h-20 shrink-0 items-center justify-center gap-3 border-t border-white/10 bg-[#202c33] px-5">
+        <CallControl
+          icon={micOn ? Mic : MicOff}
+          label={micOn ? "Mute microphone" : "Turn on microphone"}
+          active={micOn}
+          onClick={toggleMic}
+        />
+        <CallControl
+          icon={cameraOn ? Video : VideoOff}
+          label={cameraOn ? "Turn off camera" : "Turn on camera"}
+          active={cameraOn}
+          onClick={toggleCamera}
+        />
+        <CallControl
+          icon={speakerOn ? Volume2 : VolumeX}
+          label={speakerOn ? "Mute call audio" : "Unmute call audio"}
+          active={speakerOn}
+          onClick={() => setSpeakerOn((current) => !current)}
+        />
+        <span className="mx-1 h-8 w-px bg-white/15" />
+        <CallControl
+          icon={PhoneOff}
+          label="End call"
+          danger
+          onClick={() => finishCall(true, "ended")}
+        />
+      </footer>
     </div>
   );
 }

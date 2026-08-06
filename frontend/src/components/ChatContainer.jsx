@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
@@ -6,12 +6,35 @@ import MessageSkeleton from "../components/skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
 import MessageItem from "./MessageItem";
 import { Virtuoso } from "react-virtuoso";
-import { ArrowDown, Loader2, Search, X } from "lucide-react";
+import { ArrowDown, Search, X } from "lucide-react";
 import { searchMessages } from "../lib/axios";
-import { formatMessageTime } from "../lib/utils";
+import {
+  formatMessageDate,
+  formatMessageTime,
+  isSameMessageDay,
+} from "../lib/utils";
 import toast from "react-hot-toast";
 import { useCallStore } from "../store/useCallStore";
 import SectionLoader from "./common/SectionLoader";
+import { Button, Input } from "./ui";
+
+const MESSAGE_GROUP_WINDOW = 5 * 60 * 1000;
+
+const canGroupMessages = (first, second) => {
+  if (!first || !second || first.system || second.system) return false;
+  if (first.sender?.toString?.() !== second.sender?.toString?.()) return false;
+  if (!isSameMessageDay(first.createdAt, second.createdAt)) return false;
+
+  const firstTime = new Date(first.createdAt).getTime();
+  const secondTime = new Date(second.createdAt).getTime();
+  const timeGap = secondTime - firstTime;
+  return (
+    Number.isFinite(firstTime) &&
+    Number.isFinite(secondTime) &&
+    timeGap >= 0 &&
+    timeGap <= MESSAGE_GROUP_WINDOW
+  );
+};
 
 function ChatContainer() {
   const {
@@ -257,10 +280,35 @@ function ChatContainer() {
     Typing?.receiverId == selectedConversation?.conversationId &&
     Typing?.userId !== authUser?._id;
 
-  const virtuosoData = useMemo(
-    () => (typingActive ? [...message, { _id: "typing" }] : message),
-    [message, typingActive],
-  );
+  const virtuosoData = useMemo(() => {
+    const datedMessages = message.map((item, index) => {
+      const previousMessage = message[index - 1];
+      const nextMessage = message[index + 1];
+
+      return {
+        message: item,
+        dateLabel:
+          index === 0 ||
+          !isSameMessageDay(item.createdAt, previousMessage?.createdAt)
+            ? formatMessageDate(item.createdAt)
+            : null,
+        isSequenceStart: !canGroupMessages(previousMessage, item),
+        isSequenceEnd: !canGroupMessages(item, nextMessage),
+      };
+    });
+
+    return typingActive
+      ? [
+        ...datedMessages,
+        {
+          message: { _id: "typing" },
+          dateLabel: null,
+          isSequenceStart: true,
+          isSequenceEnd: true,
+        },
+      ]
+      : datedMessages;
+  }, [message, typingActive]);
 
   const scrollToLatest = () => {
     if (!message.length) return;
@@ -285,44 +333,37 @@ function ChatContainer() {
     );
 
   return (
-    <div className="flex-1 bg-base-100 flex flex-col overflow-hidden">
+    <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-surface">
       <ChatHeader
         onStartCall={handleStartCall}
         onToggleSearch={handleToggleSearch}
         showSearch={showSearch}
       />
       {showSearch && (
-        <div className="border-b border-base-300 bg-base-100 p-3">
+        <div className="shrink-0 border-b border-line bg-surface px-4 py-3 animate-ui-in">
           <div className="flex items-center gap-2">
-            <label className="input input-bordered flex items-center gap-2 w-full">
-              <Search className="size-4" />
-              <input
+            <Input
+              icon={Search}
+              trailing={searchQuery ? (
+                <Button iconOnly size="xs" variant="ghost" onClick={() => setSearchQuery("")} aria-label="Clear search">
+                  <X className="size-3.5" />
+                </Button>
+              ) : null}
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search messages"
-                className="w-full bg-transparent outline-none"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="btn btn-ghost btn-xs"
-                >
-                  <X className="size-4" />
-                </button>
-              )}
-            </label>
-            <button
-              type="button"
+            />
+            <Button
+              size="sm"
+              variant="ghost"
               onClick={() => setShowSearch(false)}
-              className="btn btn-ghost btn-sm"
             >
               Close
-            </button>
+            </Button>
           </div>
-          <div className="mt-2 max-h-52 overflow-y-auto">
+          <div className="ui-scrollbar mt-2 max-h-52 overflow-y-auto">
             <SectionLoader
               loading={isSearching}
               label="Searching messages..."
@@ -333,7 +374,7 @@ function ChatContainer() {
                 {!isSearching &&
                   searchQuery.trim().length > 0 &&
                   searchResults.length === 0 && (
-                    <div className="px-1 py-2 text-xs text-base-content/60">
+                    <div className="px-1 py-2 text-xs text-muted">
                       No results found
                     </div>
                   )}
@@ -341,17 +382,17 @@ function ChatContainer() {
                   <button
                     key={msg._id}
                     onClick={() => handleResultClick(msg)}
-                    className="w-full rounded-lg p-2 text-left transition-colors hover:bg-base-200"
+                    className="w-full rounded-control p-2 text-left transition-colors hover:bg-surface-hover"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="truncate text-sm font-medium">
                         {resolveSenderName(msg.sender)}
                       </div>
-                      <div className="text-xs text-base-content/60">
+                      <div className="text-xs text-muted">
                         {formatMessageTime(msg.createdAt)}
                       </div>
                     </div>
-                    <div className="truncate text-xs text-base-content/70">
+                    <div className="truncate text-xs text-muted">
                       {msg.text || "Image"}
                     </div>
                   </button>
@@ -365,14 +406,14 @@ function ChatContainer() {
         style={{
           backgroundImage: `url('${selectedConversation.bgImage?.url}')`,
         }}
-        className={`relative flex-1 min-h-0 ${selectedConversation.bgImage ? `bg-cover bg-center bg-no-repeat` : ""}`}
+        className={`relative min-h-0 flex-1 ${selectedConversation.bgImage ? "bg-cover bg-center bg-no-repeat" : "chat-canvas"}`}
       >
         <Virtuoso
           key={selectedConversation.conversationId}
           ref={virtuosoRef}
           style={{ height: "100%" }}
           data={virtuosoData}
-          computeItemKey={(index, item) => item._id}
+          computeItemKey={(index, item) => item.message._id}
           atBottomThreshold={120}
           atBottomStateChange={setIsAtBottom}
           followOutput="smooth"
@@ -382,46 +423,52 @@ function ChatContainer() {
             Header: () =>
               hasMoreMessages || isMoreMessagesLoading ? (
                 <div className="flex justify-center px-4 py-3">
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
+                    variant="secondary"
                     onClick={loadOlderMessages}
-                    disabled={isMoreMessagesLoading}
-                    className="btn btn-sm btn-ghost"
+                    loading={isMoreMessagesLoading}
                   >
-                    {isMoreMessagesLoading ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        Loading older messages
-                      </>
-                    ) : (
-                      "Load older messages"
-                    )}
-                  </button>
+                    {isMoreMessagesLoading ? "Loading older messages" : "Load older messages"}
+                  </Button>
                 </div>
               ) : null,
           }}
-          itemContent={(index, m) => (
-            <MessageItem
-              m={m}
-              authUser={authUser}
-              selectedConversation={selectedConversation}
-              highlightId={highlightedId}
-            />
+          itemContent={(index, item) => (
+            <>
+              {item.dateLabel && (
+                <div className="flex justify-center px-6 py-2.5">
+                  <span className="rounded-control border border-line bg-surface-raised/90 px-2.5 py-1 text-[11px] font-medium text-muted shadow-control backdrop-blur-sm">
+                    {item.dateLabel}
+                  </span>
+                </div>
+              )}
+              <MessageItem
+                m={item.message}
+                authUser={authUser}
+                selectedConversation={selectedConversation}
+                highlightId={highlightedId}
+                isSequenceStart={item.isSequenceStart}
+                isSequenceEnd={item.isSequenceEnd}
+              />
+            </>
           )}
         />
         {!isAtBottom && message.length > 0 && (
-          <button
-            type="button"
+          <Button
+            iconOnly
+            size="sm"
+            variant="secondary"
             onClick={scrollToLatest}
             aria-label="Jump to latest message"
-            className="btn btn-circle btn-sm absolute bottom-4 right-4 z-20 border border-base-300 bg-base-100 shadow-lg"
+            className="absolute bottom-4 right-4 z-20 shadow-panel"
           >
             <ArrowDown className="size-4" />
-          </button>
+          </Button>
         )}
       </div>
       <MessageInput />
-    </div>
+    </section>
   );
 }
 

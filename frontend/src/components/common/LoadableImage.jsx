@@ -19,7 +19,7 @@ function LoadableImage({
       <div
         className={`relative flex h-full w-full items-center justify-center overflow-hidden ${wrapperClassName}`}
       >
-        {fallback || <div className={`skeleton h-full w-full ${skeletonClassName}`} />}
+        {fallback || <div className={`ui-skeleton h-full w-full ${skeletonClassName}`} />}
       </div>
     );
   }
@@ -27,7 +27,7 @@ function LoadableImage({
   return (
     <div className={`relative h-full w-full overflow-hidden ${wrapperClassName}`}>
       {!isLoaded && (
-        <div className={`absolute inset-0 skeleton ${skeletonClassName}`} />
+        <div className={`ui-skeleton absolute inset-0 ${skeletonClassName}`} />
       )}
       <img
         key={src}

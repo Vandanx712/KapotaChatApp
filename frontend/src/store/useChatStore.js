@@ -11,6 +11,7 @@ import {
   getMessages,
   getOtherUsers,
   getSurroundUsers,
+  reactToMessage as reactToMessageRequest,
   sendMessage,
   updateConBgimage,
   updateGroupDetail,
@@ -23,6 +24,15 @@ import { useAuthStore } from "./useAuthStore";
 const MESSAGE_PAGE_LIMIT = 30;
 const USER_PAGE_LIMIT = 30;
 let latestMessageRequestId = 0;
+
+const getReactionTargetPreview = (message) => {
+  if (message.deletedForEveryone) return "a deleted message";
+  if (message.post?._id) return "a shared post";
+  if (message.image?.url) return message.text?.trim() || "an image";
+
+  const text = message.text?.trim().replace(/\s+/g, " ") || "a message";
+  return text.length > 48 ? `${text.slice(0, 45)}...` : text;
+};
 
 export const useChatStore = create((set, get) => ({
   message: [],
@@ -41,6 +51,7 @@ export const useChatStore = create((set, get) => ({
   conversations: [],
   selectedUser: null,
   selectedConversation: null,
+  replyingTo: null,
   isUsersLoading: false,
   isMoreSurroundingUsersLoading: false,
   isConversationLoading: false,
@@ -357,6 +368,7 @@ export const useChatStore = create((set, get) => ({
       const updatedTargetCon = {
         ...targetCon,
         lastmessage: newMessage,
+        reactionPreview: null,
         unseenMsg: nextUnseen,
       };
       updatedConversations.unshift(updatedTargetCon);
@@ -367,6 +379,7 @@ export const useChatStore = create((set, get) => ({
   setSelectedConversation: (selectedConversation) => {
     set((state) => ({
       selectedConversation,
+      replyingTo: null,
       conversations: state.conversations.map((con) =>
         con.conversationId === selectedConversation.conversationId
           ? { ...con, unseenMsg: 0 }
@@ -382,8 +395,16 @@ export const useChatStore = create((set, get) => ({
       isMessageLoading: false,
       isMoreMessagesLoading: false,
       showInfo: false,
+      replyingTo: null,
     });
   },
+
+  setReplyingTo: (message) => {
+    if (!message || message.system || message.deletedForEveryone) return;
+    set({ replyingTo: message });
+  },
+
+  clearReplyingTo: () => set({ replyingTo: null }),
 
   getSurroundingUsers: async () => {
     try {
@@ -500,7 +521,10 @@ export const useChatStore = create((set, get) => ({
 
   messageUpdate: async (id, data) => {
     try {
-      await updateMessage(id, data);
+      const response = await updateMessage(id, data);
+      if (response.updatedMessage) {
+        get().setMessageUpdated(response.updatedMessage);
+      }
       return true;
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to update message");
@@ -509,44 +533,122 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  setUpdatedMessage: (message) => {
-    const authUser = useAuthStore.getState().authUser;
+  reactToMessage: async (id, emoji) => {
+    const conversationId = get().selectedConversation?.conversationId;
+    if (!conversationId) return false;
+
+    try {
+      const response = await reactToMessageRequest(id, { conversationId, emoji });
+      if (response.updatedMessage) {
+        get().setMessageReaction(response.updatedMessage);
+      }
+      return true;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to update reaction");
+      return false;
+    }
+  },
+
+  setMessageUpdated: (message) => {
+    if (!message?._id) return;
     set((state) => ({
-      conversations: state.conversations.map((con) => {
-        if (con.conversationId !== message.conversationId) {
-          return con;
+      message: state.message.map((current) =>
+        current._id === message._id ? { ...current, ...message } : current,
+      ),
+      conversations: state.conversations.map((conversation) => {
+        if (
+          conversation.conversationId?.toString?.() !==
+          message.conversationId?.toString?.()
+        ) {
+          return conversation;
         }
+
         return {
-          ...con,
-          lastmessage: {
-            ...con.lastmessage,
-            text:
-              message.reacted !== con.lastmessage?.reacted
-                ? con.isgroup
-                  ? authUser._id == message.userId
-                    ? `You reacted ${message?.reacted} to '${message.text}'`
-                    : `${con.groupdetail?.membersDetail?.[message.userId]?.fullname || "Someone"} reacted ${message.reacted} to '${message.text}'`
-                  : authUser._id == message.userId
-                    ? `You reacted ${message?.reacted} to '${message.text}'`
-                    : `${con.name} reacted ${message.reacted} to '${message.text}'`
-                : message.text,
+          ...conversation,
+          lastmessage:
+            conversation.lastmessage?._id === message._id
+              ? { ...conversation.lastmessage, ...message }
+              : conversation.lastmessage,
+          reactionPreview:
+            conversation.reactionPreview?.messageId === message._id
+              ? null
+              : conversation.reactionPreview,
+        };
+      }),
+    }));
+  },
+
+  setMessageReaction: (message) => {
+    if (!message?._id) return;
+    const authUser = useAuthStore.getState().authUser;
+
+    set((state) => ({
+      message: state.message.map((current) =>
+        current._id === message._id
+          ? {
+            ...current,
+            reactions: message.reactions || [],
+            reacted: message.reacted || "",
+          }
+          : current,
+      ),
+      conversations: state.conversations.map((conversation) => {
+        if (conversation.conversationId?.toString?.() !== message.conversationId?.toString?.()) {
+          return conversation;
+        }
+
+        if (message.reaction?.action === "removed") {
+          return conversation.reactionPreview?.messageId === message._id &&
+            conversation.reactionPreview?.actorId ===
+              message.reaction?.userId?.toString?.()
+            ? { ...conversation, reactionPreview: null }
+            : conversation;
+        }
+
+        const actorId = message.reaction?.userId?.toString?.();
+        const actorName =
+          actorId === authUser?._id?.toString?.()
+            ? "You"
+            : conversation.isgroup
+              ? conversation.groupdetail?.membersDetail?.[actorId]?.fullname || "Someone"
+              : conversation.name || "Someone";
+        const emoji = message.reaction?.emoji;
+        if (!emoji) return conversation;
+
+        return {
+          ...conversation,
+          reactionPreview: {
+            messageId: message._id,
+            actorId,
+            text: `${actorName} reacted ${emoji} to '${getReactionTargetPreview(message)}'`,
           },
         };
       }),
     }));
   },
 
-  setReactedMsg: (message) => {
+  setReplyTargetDeleted: ({ conversationId, messageId }) => {
+    if (!conversationId || !messageId) return;
     set((state) => ({
-      message: state.message.map((msg) =>
-        msg._id === message._id
-          ? {
-            ...msg,
-            text: message.text,
-            reacted: message.reacted,
-          }
-          : msg,
-      ),
+      replyingTo:
+        state.replyingTo?._id?.toString?.() === messageId.toString()
+          ? null
+          : state.replyingTo,
+      message:
+        state.selectedConversation?.conversationId === conversationId
+          ? state.message.map((message) =>
+            message.replyTo?.messageId?.toString?.() === messageId.toString()
+              ? {
+                ...message,
+                replyTo: {
+                  ...message.replyTo,
+                  preview: "This message was deleted",
+                  deleted: true,
+                },
+              }
+              : message,
+          )
+          : state.message,
     }));
   },
 
@@ -574,6 +676,7 @@ export const useChatStore = create((set, get) => ({
                     ? "You deleted this message"
                     : "This message was deleted",
                 reacted: message.reacted,
+                reactions: message.reactions || [],
                 image: message.image,
               }
               : msg,
@@ -605,6 +708,10 @@ export const useChatStore = create((set, get) => ({
 
           return {
             ...con,
+            reactionPreview:
+              con.reactionPreview?.messageId === message._id
+                ? null
+                : con.reactionPreview,
             lastmessage: {
               ...con.lastmessage,
               text:
@@ -612,6 +719,7 @@ export const useChatStore = create((set, get) => ({
                   ? "You deleted this message"
                   : "This message was deleted",
               reacted: message.reacted,
+              reactions: message.reactions || [],
               image: message.image,
             },
             unseenMsg: wasUnseen
@@ -649,6 +757,7 @@ export const useChatStore = create((set, get) => ({
           con.conversationId == conversationId
             ? {
               ...con,
+              reactionPreview: null,
               lastmessage: con.lastmessage
                 ? {
                   ...con.lastmessage,
@@ -666,6 +775,7 @@ export const useChatStore = create((set, get) => ({
             message: [],
             messageCursor: null,
             hasMoreMessages: false,
+            replyingTo: null,
           }
           : {}),
       };

@@ -2,12 +2,11 @@ import { create } from "zustand";
 import {
   checkUser,
   contactDetail,
-  deleteAccount as deleteAccountRequest,
   getActiveSessions as getActiveSessionsRequest,
   loginuser,
   logout,
-  logoutOneSession as logoutOneSessionRequest,
-  logoutOtherSessions as logoutOtherSessionsRequest,
+  qrLoginComplete,
+  qrLoginRequest,
   requestForgotPasswordOtp as requestForgotPasswordOtpRequest,
   requestSignupOtp as requestSignupOtpRequest,
   updatePic,
@@ -29,25 +28,22 @@ export const useAuthStore = create((set, get) => ({
   isUpdateProfile: false,
   isProfilePhotoUploading: false,
   isProfileDetailsUpdating: false,
-  isDeletingAccount: false,
   activeSessions: [],
-  canManageDevices: false,
   isSessionsLoading: false,
-  sessionActionId: "",
-  isLoggingOutOthers: false,
   isContactLoading: false,
   isCheckingAuth: true,
   onlineUsers: [],
   socket: null,
+  qrDetail: {},
 
   checkAuth: async () => {
     try {
       const data = await checkUser();
-      set({ authUser: data.user });
+      set({ authUser: data?.user ?? null, activeSessions: [] });
       get().connectSocket();
     } catch (error) {
       console.log("Error in checkAuth:", error);
-      set({ authUser: null, activeSessions: [], canManageDevices: false });
+      set({ authUser: null, activeSessions: [] });
     } finally {
       set({ isCheckingAuth: false });
     }
@@ -72,7 +68,7 @@ export const useAuthStore = create((set, get) => ({
     try {
       const resdata = await verifySignupOtpRequest(data);
       toast.success(resdata.message);
-      set({ authUser: resdata.user, canManageDevices: true });
+      set({ authUser: resdata.user });
       get().connectSocket();
       return true;
     } catch (error) {
@@ -115,11 +111,13 @@ export const useAuthStore = create((set, get) => ({
     set({ isLoggingIng: true });
     try {
       const resdata = await loginuser(data);
-      set({ authUser: resdata.user, activeSessions: [], canManageDevices: false });
+      set({ authUser: resdata.user, activeSessions: [] });
       toast.success(resdata.message);
       get().connectSocket();
+      return true;
     } catch (error) {
-      toast.error(error.response?.data.message);
+      toast.error(error.response?.data?.message || "Unable to log in");
+      return false;
     } finally {
       set({ isLoggingIng: false });
     }
@@ -128,7 +126,7 @@ export const useAuthStore = create((set, get) => ({
   logout: async () => {
     try {
       const data = await logout({});
-      set({ authUser: null, activeSessions: [], canManageDevices: false });
+      set({ authUser: null, activeSessions: [] });
       get().disconnectSocket();
       toast.success(data.message);
     } catch (error) {
@@ -179,88 +177,17 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  deleteAccount: async (data) => {
-    set({ isDeletingAccount: true });
-    try {
-      const resdata = await deleteAccountRequest(data);
-      get().disconnectSocket();
-      set({
-        authUser: null,
-        otherUser: null,
-        activeSessions: [],
-        canManageDevices: false,
-      });
-      toast.success(resdata.message);
-      return true;
-    } catch (error) {
-      toast.error(error?.response?.data?.message);
-      return false;
-    } finally {
-      set({ isDeletingAccount: false });
-    }
-  },
-
   fetchActiveSessions: async () => {
     set({ isSessionsLoading: true });
-    try { 
+    try {
       const resdata = await getActiveSessionsRequest();
       set({
         activeSessions: resdata.sessions || [],
-        canManageDevices: Boolean(resdata.canManageDevices),
       });
     } catch (error) {
       toast.error(error?.response?.data?.message || "Failed to load devices");
     } finally {
       set({ isSessionsLoading: false });
-    }
-  },
-
-  logoutOneSession: async (sessionId) => {
-    const targetSession = get().activeSessions.find(
-      (session) => session._id === sessionId,
-    );
-
-    if (targetSession?.isCurrent) {
-      await get().logout();
-      return true;
-    }
-
-    set({ sessionActionId: sessionId });
-    try {
-      const resdata = await logoutOneSessionRequest(sessionId);
-      set((state) => ({
-        activeSessions: state.activeSessions.filter(
-          (session) => session._id !== sessionId,
-        ),
-      }));
-      toast.success(resdata.message);
-      return true;
-    } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to logout device");
-      return false;
-    } finally {
-      set({ sessionActionId: "" });
-    }
-  },
-  
-  logoutOtherSessions: async () => {
-    set({ isLoggingOutOthers: true });
-    try {
-      const resdata = await logoutOtherSessionsRequest();
-      set((state) => ({
-        activeSessions: state.activeSessions.filter(
-          (session) => session.isCurrent,
-        ),
-      }));
-      toast.success(resdata.message);
-      return true;
-    } catch (error) {
-      toast.error(
-        error?.response?.data?.message || "Failed to logout other devices",
-      );
-      return false;
-    } finally {
-      set({ isLoggingOutOthers: false });
     }
   },
 
@@ -282,7 +209,6 @@ export const useAuthStore = create((set, get) => ({
         authUser: null,
         onlineUsers: [],
         activeSessions: [],
-        canManageDevices: false,
       });
 
       toast.error("You were logged out from this device");
@@ -298,5 +224,30 @@ export const useAuthStore = create((set, get) => ({
   disconnectSocket: () => {
     if (get().socket?.connected) get().socket.disconnect();
     set({ socket: null });
+  },
+  //linked device
+
+  qrRequest: async () => {
+    try {
+      const resdata = await qrLoginRequest();
+      set({ qrDetail: resdata.qr });
+      return resdata.qr;
+    } catch (error) {
+      set({ qrDetail: {} });
+      throw error;
+    }
+  },
+
+  qrComplete: async (data) => {
+    const resdata = await qrLoginComplete(data);
+    if (resdata.status === "completed" && resdata.user) {
+      set({
+        authUser: resdata.user,
+        activeSessions: [],
+        qrDetail: {},
+      });
+      get().connectSocket();
+    }
+    return resdata;
   },
 }));

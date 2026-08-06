@@ -7,6 +7,8 @@ export const verifyjwt = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization || req.headers.Authorization;
     const bearerToken = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7).trim()
+      : null;
     const token = req?.cookies?.token || bearerToken
     if (!token) throw new ApiError(401, "Unauthorized request");
 
@@ -20,7 +22,7 @@ export const verifyjwt = async (req, res, next) => {
       expireAt: { $gt: new Date() },
     }).lean();
     if (!session) throw new ApiError(401, "Session was deleted");
-    
+
     req.user = user;
     req.session = session;
     next();

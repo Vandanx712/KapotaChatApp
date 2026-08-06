@@ -5,6 +5,7 @@ import {
   deleteMessage,
   getMessageImgs,
   getMessages,
+  reactToMessage,
   searchMessages,
   sendMessage,
   updateMessage,
@@ -14,6 +15,7 @@ const messageRoute = Router();
 
 messageRoute.route("/search/:id").get(verifyjwt, searchMessages);
 messageRoute.route("/media/:id").get(verifyjwt, getMessageImgs);
+messageRoute.route("/:id/reaction").put(verifyjwt, reactToMessage);
 messageRoute.route("/:id").get(verifyjwt, getMessages);
 messageRoute.route("/media/:id").get(verifyjwt, getMessageImgs);
 messageRoute.route("/:id").post(verifyjwt, sendMessage);

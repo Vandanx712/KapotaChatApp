@@ -37,6 +37,54 @@ const messageSchema = new mongoose.Schema(
     reacted: {
       type: String,
     },
+    reactions: {
+      type: [
+        new mongoose.Schema(
+          {
+            userId: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "User",
+              required: true,
+            },
+            emoji: {
+              type: String,
+              required: true,
+              trim: true,
+              maxlength: 32,
+            },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
+    replyTo: {
+      type: new mongoose.Schema(
+        {
+          messageId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Message",
+            required: true,
+          },
+          sender: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true,
+          },
+          preview: {
+            type: String,
+            required: true,
+            maxlength: 500,
+          },
+          deleted: {
+            type: Boolean,
+            default: false,
+          },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
     deletedFor: {
       type: [mongoose.Schema.Types.ObjectId],
       ref: "User",

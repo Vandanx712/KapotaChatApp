@@ -1,87 +1,90 @@
 import { Link, NavLink } from "react-router-dom";
-import { Compass, ImagePlus, Settings, User } from "lucide-react";
+import {
+  Compass,
+  ImagePlus,
+  MessageCircle,
+  Moon,
+  Settings,
+  Sun,
+} from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
-import LoadableImage from "./common/LoadableImage";
+import { useThemeStore } from "../store/useThemeStore";
 import Logo from "./common/Logo";
+import { Avatar, Tooltip } from "./ui";
+import { cn } from "../lib/utils";
 
 const Navbar = () => {
   const { authUser } = useAuthStore();
+  const { theme, toggleTheme } = useThemeStore();
   const navLinkClass = ({ isActive }) =>
-    `tooltip tooltip-bottom flex size-9 items-center justify-center rounded-lg transition-colors ${
+    cn(
+      "flex size-10 items-center justify-center rounded-control border transition-colors",
       isActive
-        ? "bg-primary/10 text-primary"
-        : "text-base-content/70 hover:bg-base-200 hover:text-base-content"
-    }`;
+        ? "border-brand/20 bg-brand-soft text-brand-strong"
+        : "border-transparent text-muted hover:bg-surface-hover hover:text-ink",
+    );
+
+  const links = [
+    { to: "/", label: "Chats", icon: <MessageCircle className="size-5" strokeWidth={1.8} />, end: true },
+    { to: "/explore", label: "Explore", icon: <Compass className="size-5" strokeWidth={1.8} /> },
+    { to: "/addpost", label: "Create post", icon: <ImagePlus className="size-5" strokeWidth={1.8} /> },
+    { to: "/setting", label: "Settings", icon: <Settings className="size-5" strokeWidth={1.8} /> },
+  ];
 
   return (
-    <header
-      className="bg-base-100 border-b border-base-300 fixed w-full top-0 z-40 backdrop-blur-xl bg-base-100/80"
-    >
-      <div className="h-[72px] px-5">
-        <div className="flex items-center justify-between h-full">
-          <div className="flex items-center gap-8">
-            <Link to="/" className="flex items-center gap-2.5 hover:opacity-80 transition-all">
-              <Logo />
-              <h1 className="text-lg font-bold">Kapota</h1>
-            </Link>
-          </div>
+    <aside className="fixed inset-y-0 left-0 z-50 flex w-[72px] flex-col items-center border-r border-line bg-surface py-4">
+      <Tooltip label="Kapota" side="right">
+        <Link
+          to="/"
+          aria-label="Kapota chats"
+          className="flex size-11 items-center justify-center rounded-app transition hover:bg-surface-hover"
+        >
+          <Logo size={36} />
+        </Link>
+      </Tooltip>
 
-          <nav aria-label="Primary navigation" className="flex items-center gap-3">
-            {authUser && (
-              <>
-                <NavLink
-                  to="/addpost"
-                  className={navLinkClass}
-                  data-tip="Add post"
-                  aria-label="Add post"
-                >
-                  <ImagePlus className="size-5" />
-                </NavLink>
-                <NavLink
-                  to="/explore"
-                  className={navLinkClass}
-                  data-tip="Explore"
-                  aria-label="Explore"
-                >
-                  <Compass className="size-5" />
-                </NavLink>
-                <NavLink
-                  to="/setting"
-                  className={navLinkClass}
-                  data-tip="Settings"
-                  aria-label="Settings"
-                >
-                  <Settings className="size-5" />
-                </NavLink>
+      <nav aria-label="Primary navigation" className="mt-8 flex flex-col items-center gap-2">
+        {links.map(({ to, label, icon, end }) => (
+          <Tooltip key={to} label={label} side="right">
+            <NavLink to={to} end={end} className={navLinkClass} aria-label={label}>
+              {icon}
+            </NavLink>
+          </Tooltip>
+        ))}
+      </nav>
 
-                <NavLink
-                  to="/profile"
-                  aria-label="Profile"
-                  className={({ isActive }) =>
-                    `block size-10 rounded-full ${
-                      isActive ? "ring-2 ring-primary ring-offset-2 ring-offset-base-100" : ""
-                    }`
-                  }
-                >
-                  <LoadableImage
-                    src={authUser.profilePic?.url}
-                    alt={authUser.fullname || "Profile"}
-                    className="rounded-full size-10 border border-base-200 object-cover"
-                    wrapperClassName=" rounded-full"
-                    fallback={
-                      <div className="flex h-full w-full items-center justify-center rounded-full border border-base-200 bg-base-300 text-base-content/70">
-                        <User className="size-5" />
-                      </div>
-                    }
-                    imgProps={{ loading: "eager", decoding: "async" }}
-                  />
-                </NavLink>
-              </>
-            )}
-          </nav>
-        </div>
+      <div className="mt-auto flex flex-col items-center gap-3">
+        <Tooltip label={theme === "dark" ? "Use light theme" : "Use dark theme"} side="right">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="flex size-10 items-center justify-center rounded-control border border-transparent text-muted transition hover:bg-surface-hover hover:text-ink"
+            aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}
+          >
+            {theme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
+          </button>
+        </Tooltip>
+
+        <Tooltip label="Your profile" side="right">
+          <NavLink
+            to="/profile"
+            aria-label="Your profile"
+            className={({ isActive }) =>
+              cn(
+                "rounded-full border-2 p-0.5 transition",
+                isActive ? "border-brand" : "border-transparent hover:border-line-strong",
+              )
+            }
+          >
+            <Avatar
+              src={authUser?.profilePic?.url}
+              alt={authUser?.fullname || "Profile"}
+              size="md"
+            />
+          </NavLink>
+        </Tooltip>
       </div>
-    </header>
+    </aside>
   );
 };
 export default Navbar;

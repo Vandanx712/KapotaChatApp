@@ -9,7 +9,7 @@ export const generateToken = (userId, sessionId, res) => {
 
   res.cookie("token", token, {
     httpOnly: true,
-    secure: false,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: 15 * 24 * 60 * 60 * 1000,
   });
@@ -23,7 +23,7 @@ export const TRUSTED_DEVICE_COOKIE = "trustedDeviceId";
 export const setTrustedDeviceCookie = (res, trustedDeviceId) => {
   res.cookie(TRUSTED_DEVICE_COOKIE, trustedDeviceId.toString(), {
     httpOnly: true,
-    secure: false,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: 365 * 24 * 60 * 60 * 1000,
   });
@@ -32,7 +32,7 @@ export const setTrustedDeviceCookie = (res, trustedDeviceId) => {
 export const clearTrustedDeviceCookie = (res) => {
   res.clearCookie(TRUSTED_DEVICE_COOKIE, {
     httpOnly: true,
-    secure: false,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
   });
 };
@@ -61,7 +61,10 @@ export const requirePrimaryTrustedDevice = async (req) => {
   const trustedDeviceId = req.session?.trustedDevice;
 
   if (!trustedDeviceId)
-    throw new ApiError(403, "Primary trusted device required");
+    throw new ApiError(
+      403,
+      "Use your primary device in the Kapota app to perform this action",
+    );
 
   const trustedDevice = await TrustedDevice.findOne({
     _id: trustedDeviceId,
@@ -71,7 +74,10 @@ export const requirePrimaryTrustedDevice = async (req) => {
   }).lean();
 
   if (!trustedDevice)
-    throw new ApiError(403, "Only primary device can perform this action");
+    throw new ApiError(
+      403,
+      "Use your primary device in the Kapota app to perform this action",
+    );
 
   return trustedDevice;
 };

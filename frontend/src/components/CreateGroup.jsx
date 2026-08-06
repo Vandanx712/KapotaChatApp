@@ -2,21 +2,21 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  Loader2,
   Image,
   Search,
   SmileIcon,
   X,
 } from "lucide-react";
-import React, { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { createGroup, getAllUsers } from "../lib/axios";
 import { useAuthStore } from "../store/useAuthStore";
 import toast from "react-hot-toast";
 import EmojiPicker from "emoji-picker-react";
 import SectionLoader from "./common/SectionLoader";
-import LoadableImage from "./common/LoadableImage";
 import BusyOverlay from "./common/BusyOverlay";
 import { mergeUniqueById } from "../lib/utils";
+import { Avatar, Badge, Button, Checkbox, Input, Modal } from "./ui";
+import { useThemeStore } from "../store/useThemeStore";
 
 function CreateGroup({ onClose }) {
   const { authUser } = useAuthStore();
@@ -39,6 +39,7 @@ function CreateGroup({ onClose }) {
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [usersCursor, setUsersCursor] = useState(null);
   const [hasMoreUsers, setHasMoreUsers] = useState(false);
+  const theme = useThemeStore((state) => state.theme);
 
   const loadusers = useCallback(async ({ reset = false, cursor = null } = {}) => {
     try {
@@ -138,46 +139,53 @@ function CreateGroup({ onClose }) {
   };
 
   return (
-    <div className="relative flex flex-col">
+    <div className="relative flex h-full flex-col bg-surface">
       <BusyOverlay
         show={isCreatingGroup}
         label="Creating group..."
       />
-      <div className={`${groupForm ? "hidden" : "flex flex-col h-full"}`}>
-        <div className="shrink-0 flex items-center gap-5 p-4 border-b border-base-300">
-          <ArrowLeft onClick={onClose} className="size-5 cursor-pointer" />
-          <h2 className="text-lg font-semibold">Add group members</h2>
-        </div>
-        <div className="shrink-0 p-4">
-          <label className="flex items-center gap-2 input input-bordered w-full">
-            <Search className="size-5" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search Name"
-              className="w-full bg-transparent outline-none"
-            />
-          </label>
+      <div className={`${groupForm ? "hidden" : "flex h-full flex-col"}`}>
+        <header className="flex h-16 shrink-0 items-center gap-3 border-b border-line px-4">
+          <Button iconOnly size="sm" variant="ghost" onClick={onClose} aria-label="Back">
+            <ArrowLeft className="size-5" />
+          </Button>
+          <div>
+            <h2 className="text-sm font-semibold text-ink">Add group members</h2>
+            <p className="mt-0.5 text-xs text-muted">{members.length} selected</p>
+          </div>
+        </header>
+        <div className="shrink-0 px-4 py-3">
+          <Input
+            icon={Search}
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search people"
+          />
         </div>
         {members.length > 0 && (
-          <div className="shrink-0 flex flex-wrap gap-2 px-4 pb-2 max-h-16 overflow-y-auto">
+          <div className="ui-scrollbar flex max-h-20 shrink-0 flex-wrap gap-1.5 overflow-y-auto border-y border-line bg-surface-muted px-4 py-2">
             {members.map((mem) => (
-              <div
+              <Badge
                 key={mem._id}
-                className="bg-base-300 px-3 py-1 rounded-full flex items-center gap-2 text-sm"
+                variant="brand"
+                className="h-7 gap-1.5 pr-1"
               >
-                <span className="truncate max-w-20">{mem.fullname}</span>
-                <X
+                <span className="max-w-24 truncate">{mem.fullname}</span>
+                <button
+                  type="button"
                   onClick={() => removeMember(mem._id)}
-                  className="size-4 cursor-pointer"
-                />
-              </div>
+                  className="flex size-5 items-center justify-center rounded-full hover:bg-brand/15"
+                  aria-label={`Remove ${mem.fullname}`}
+                >
+                  <X className="size-3.5" />
+                </button>
+              </Badge>
             ))}
           </div>
         )}
 
-        <div className="flex-1 max-h-56 overflow-y-auto p-4 space-y-2">
+        <div className="ui-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
           <SectionLoader
             loading={isUsersLoading}
             label="Loading users..."
@@ -185,7 +193,8 @@ function CreateGroup({ onClose }) {
           >
             <>
               {filteredUsers.map((user) => (
-                <div
+                <button
+                  type="button"
                   key={user._id}
                   onClick={() => {
                     if (!members.find((m) => m._id === user._id)) {
@@ -196,134 +205,122 @@ function CreateGroup({ onClose }) {
                       ]);
                     }
                   }}
-                  className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition hover:bg-base-200"
+                  className="flex w-full items-center gap-3 rounded-control p-3 text-left transition hover:bg-surface-hover"
                 >
-                  <div className="avatar">
-                    <div className="w-12 rounded-full bg-base-300">
-                      <LoadableImage
-                        src={user?.profilePic?.url}
-                        alt={user.fullname}
-                        className="rounded-full object-cover"
-                        wrapperClassName="size-12 rounded-full"
-                        imgProps={{ loading: "lazy", decoding: "async" }}
-                      />
-                    </div>
-                  </div>
+                  <Avatar src={user?.profilePic?.url} alt={user.fullname} size="lg" />
 
-                  <div className="flex-1 min-w-0">
-                    <div className="text-base font-medium truncate">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-ink">
                       {user.fullname}
                     </div>
-                    <div className="text-sm text-base-content/70 truncate">
+                    <div className="mt-0.5 truncate text-xs text-muted">
                       {user.bio}
                     </div>
                   </div>
-                </div>
+                  {members.some((member) => member._id === user._id) && <Check className="size-4 text-brand-strong" />}
+                </button>
               ))}
               {hasMoreUsers && (
                 <div className="flex justify-center px-2 py-2">
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() =>
                       loadusers({ cursor: usersCursor, reset: false })
                     }
-                    disabled={isMoreUsersLoading}
-                    className="btn btn-sm btn-outline"
+                    loading={isMoreUsersLoading}
                   >
-                    {isMoreUsersLoading ? "Loading..." : "Load more users"}
-                  </button>
+                    Load more people
+                  </Button>
                 </div>
               )}
             </>
           </SectionLoader>
         </div>
 
-        {/* Footer */}
-        <div className="shrink-0 p-4 border-t border-base-300 flex justify-center">
-          <button
-            className="btn btn-primary btn-circle"
+        <footer className="flex shrink-0 justify-end border-t border-line p-4">
+          <Button
+            variant="primary"
             disabled={members.length === 0}
             onClick={() => setGroupForm(true)}
           >
-            <ArrowRight />
-          </button>
-        </div>
+            Continue <ArrowRight className="size-4" />
+          </Button>
+        </footer>
       </div>
 
-      <div className={`${!groupForm ? "hidden" : "flex flex-col h-full"}`}>
-        <div className="shrink-0 flex items-center gap-5 p-4 border-b border-base-300">
-          <ArrowLeft
+      <div className={`${!groupForm ? "hidden" : "flex h-full flex-col"}`}>
+        <header className="flex h-16 shrink-0 items-center gap-3 border-b border-line px-4">
+          <Button
+            iconOnly
+            size="sm"
+            variant="ghost"
             onClick={() => {
               setGroupForm(false);
               setGroupname("");
               setGroupIcon(null);
               setParticipants([]);
             }}
-            className="size-5 cursor-pointer"
-          />
-          <h2 className="text-lg font-semibold">Add group</h2>
-        </div>
+            aria-label="Back"
+          >
+            <ArrowLeft className="size-5" />
+          </Button>
+          <div>
+            <h2 className="text-sm font-semibold text-ink">Group details</h2>
+            <p className="mt-0.5 text-xs text-muted">Name your new conversation</p>
+          </div>
+        </header>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
+        <div className="ui-scrollbar min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
           <div className="flex justify-center">
-            <div className="w-24 h-24 relative gap-1 text-xs rounded-full bg-base-100 flex flex-col items-center justify-center ">
-              <>
-                <span className={`${groupicon ? "hidden" : ""}`}>
-                  Add group icon
-                </span>
-                <label
-                  htmlFor="create-group-icon-upload"
-                  aria-label="Choose group icon"
-                  className={`btn btn-circle btn-sm ${groupicon ? "-right-1" : "right-1"} absolute bottom-1 cursor-pointer`}
-                >
-                  <Image className="size-5" />
-                  <input
-                    type="file"
-                    id="create-group-icon-upload"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={handleProfilePic}
-                  />
-                </label>
-              </>
-
-              {groupicon && (
-                <LoadableImage
-                  src={groupicon}
-                  alt="Group"
-                  className="size-24 object-cover rounded-full"
-                  wrapperClassName="size-24 rounded-full"
-                  imgProps={{ loading: "eager", decoding: "async" }}
-                />
-              )}
+            <div className="relative">
+              <Avatar src={groupicon} alt="Group" size="xl" />
+              <Button
+                iconOnly
+                size="sm"
+                variant="primary"
+                className="absolute -bottom-1 -right-1 rounded-full"
+                onClick={() => document.getElementById("create-group-icon-upload")?.click()}
+                aria-label="Choose group icon"
+              >
+                <Image className="size-4" />
+              </Button>
+              <input
+                type="file"
+                id="create-group-icon-upload"
+                className="hidden"
+                accept="image/*"
+                onChange={handleProfilePic}
+              />
             </div>
           </div>
 
-          <div>
-            <label className="text-sm text-primary">Group Name</label>
-            <div className=" flex items-center justify-between">
-              <input
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-ink">Group name</label>
+            <Input
                 type="text"
                 value={groupname}
                 onChange={(e) => setGroupname(e.target.value)}
-                className="w-full bg-transparent border-b border-base-300 focus:border-primary outline-none py-2"
-              />
-              <SmileIcon onClick={() => setShowPicker((prev) => !prev)} />
-            </div>
+                placeholder="Enter a group name"
+                trailing={
+                  <Button iconOnly size="xs" variant="ghost" onClick={() => setShowPicker(true)} aria-label="Add emoji">
+                    <SmileIcon className="size-4" />
+                  </Button>
+                }
+            />
           </div>
 
           <div>
-            <p className="font-medium mb-2">Group members</p>
-            <div className="space-y-2 max-h-24 overflow-y-auto">
+            <p className="mb-2 text-sm font-semibold text-ink">Group members</p>
+            <div className="ui-scrollbar max-h-52 space-y-1 overflow-y-auto">
               {members.map((par) => (
                 <div
                   key={par._id}
-                  className="p-2 flex items-center justify-between gap-2 rounded-lg bg-base-300"
+                  className="flex items-center justify-between gap-2 rounded-control bg-surface-muted p-2.5"
                 >
-                  {par.fullname}
-                  <label className="cursor-pointer flex items-center justify-center gap-2">
-                    <input
-                      type="checkbox"
+                  <span className="truncate text-sm font-medium">{par.fullname}</span>
+                  <Checkbox
+                      label="Admin"
                       checked={
                         participants.find((p) => p.userId === par._id)?.role ==
                         "admin"
@@ -340,49 +337,36 @@ function CreateGroup({ onClose }) {
                           ),
                         );
                       }}
-                      className="checkbox checkbox-xs"
-                    />
-                    <span className="text-sm">isAdmin</span>
-                  </label>
+                  />
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="shrink-0 p-4 border-t border-base-300 flex justify-center">
-          <button
+        <footer className="flex shrink-0 justify-end border-t border-line p-4">
+          <Button
             onClick={handleSave}
-            className="btn btn-primary btn-circle"
+            variant="primary"
+            loading={isCreatingGroup}
             disabled={members.length === 0 || isCreatingGroup}
           >
-            {isCreatingGroup ? <Loader2 className="size-4 animate-spin" /> : <Check />}
-          </button>
-        </div>
+            <Check className="size-4" /> Create group
+          </Button>
+        </footer>
       </div>
-      {showPicker && (
-        <>
-          {/* Dark Backdrop: Closes picker when clicking anywhere else */}
-          <div
-            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
-            onClick={() => setShowPicker((prev) => !prev)}
-          />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70]">
-            <div className="shadow-2xl border border-base-300 rounded-xl overflow-hidden scale-95 md:scale-100 animate-in zoom-in duration-200">
+      <Modal open={Boolean(showPicker)} onClose={() => setShowPicker("")} title="Add an emoji" size="sm" className="w-auto">
+            <div className="overflow-hidden rounded-control border border-line">
               <EmojiPicker
-                onEmojiClick={(emojiData, event) => {
-                  onEmojiClick(emojiData, event);
-                }}
-                theme="dark"
+                onEmojiClick={(emojiData) => onEmojiClick(emojiData)}
+                theme={theme}
                 autoFocusSearch={true}
-                width={window.innerWidth < 450 ? 280 : 350}
+                width={350}
                 height={400}
                 lazyLoadEmojis={true}
               />
             </div>
-          </div>
-        </>
-      )}
+      </Modal>
     </div>
   );
 }

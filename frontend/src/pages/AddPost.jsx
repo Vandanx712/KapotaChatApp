@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  ArrowLeft,
+  Check,
   ImagePlus,
-  Loader2,
   MapPin,
   Search,
   Settings2,
@@ -11,23 +12,34 @@ import {
   Type,
   X,
 } from "lucide-react";
-import { useAuthStore } from "../store/useAuthStore";
-import { useThemeStore } from "../store/useThemeStore";
 import Cropper from "react-easy-crop";
+import toast from "react-hot-toast";
+import { useThemeStore } from "../store/useThemeStore";
 import {
   createPost,
   getPlaceDetail,
   getSuggestion,
   searchLocation,
 } from "../lib/axios";
-import toast from "react-hot-toast";
 import SectionLoader from "../components/common/SectionLoader";
 import BusyOverlay from "../components/common/BusyOverlay";
+import { AppPage, PageHeader } from "../components/layout/AppPage";
+import {
+  Badge,
+  Button,
+  Disclosure,
+  EmptyState,
+  Input,
+  SegmentedControl,
+  Switch,
+  Textarea,
+} from "../components/ui";
+import LoadableImage from "../components/common/LoadableImage";
 
 function AddPost() {
-  const { authUser } = useAuthStore();
   const { FILTERS } = useThemeStore();
   const skipAutoSearchRef = useRef(false);
+  const fileInputRef = useRef(null);
 
   const [imagePreview, setImagePreview] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("Original");
@@ -53,9 +65,15 @@ function AddPost() {
   const navigate = useNavigate();
 
   const RATIOS = {
-    square: 1 / 1,
+    square: 1,
     portrait: 4 / 5,
     landscape: 16 / 9,
+  };
+
+  const previewWidths = {
+    square: "min(100%, calc(100vh - 260px), 780px)",
+    portrait: "min(100%, calc((100vh - 260px) * 0.8), 780px)",
+    landscape: "min(100%, calc((100vh - 260px) * 1.7778), 780px)",
   };
 
   useEffect(() => {
@@ -74,14 +92,11 @@ function AddPost() {
       if (selectedLocation?.placeId) {
         setPlaceDetailData(null);
         const detail = await loadPlaceDetail(selectedLocation);
-        if (isMounted) {
-          setPlaceDetailData(detail || null);
-        }
+        if (isMounted) setPlaceDetailData(detail || null);
       } else {
         setPlaceDetailData(null);
       }
     };
-
     fetchDetail();
     return () => {
       isMounted = false;
@@ -90,8 +105,8 @@ function AddPost() {
 
   const loadSuggestions = async () => {
     try {
-      const resdata = await getSuggestion();
-      setLocationSuggestions(resdata.places);
+      const response = await getSuggestion();
+      setLocationSuggestions(response.places || []);
     } catch (error) {
       console.log(error);
     }
@@ -99,7 +114,6 @@ function AddPost() {
 
   const runLocationSearch = async (query) => {
     const trimmedQuery = query.trim();
-
     if (!trimmedQuery) {
       setSearchSuggestions([]);
       setIsSearchingLocations(false);
@@ -108,8 +122,8 @@ function AddPost() {
 
     setIsSearchingLocations(true);
     try {
-      const resdata = await searchLocation(trimmedQuery);
-      setSearchSuggestions(resdata.results || []);
+      const response = await searchLocation(trimmedQuery);
+      setSearchSuggestions(response.results || []);
     } catch (error) {
       console.log(error);
       setSearchSuggestions([]);
@@ -119,16 +133,13 @@ function AddPost() {
   };
 
   useEffect(() => {
-    if (!locationQuery.trim()) return;
+    if (!locationQuery.trim()) return undefined;
     if (skipAutoSearchRef.current) {
       skipAutoSearchRef.current = false;
-      return;
+      return undefined;
     }
 
-    const timeoutId = setTimeout(() => {
-      runLocationSearch(locationQuery);
-    }, 350);
-
+    const timeoutId = setTimeout(() => runLocationSearch(locationQuery), 350);
     return () => clearTimeout(timeoutId);
   }, [locationQuery]);
 
@@ -137,10 +148,10 @@ function AddPost() {
   };
 
   const loadPlaceDetail = async (location) => {
-    if (location.address) return;
+    if (location.address) return undefined;
     try {
-      const resdata = await getPlaceDetail(location.placeId);
-      return resdata?.detail;
+      const response = await getPlaceDetail(location.placeId);
+      return response?.detail;
     } catch (error) {
       console.log(error);
       return null;
@@ -150,22 +161,13 @@ function AddPost() {
   const resolvedSelectedLocation = useMemo(() => {
     if (!selectedLocation) return null;
     if (!selectedLocation.placeId) return selectedLocation;
-
-    return {
-      ...selectedLocation,
-      ...(placeDetailData || {}),
-    };
+    return { ...selectedLocation, ...(placeDetailData || {}) };
   }, [placeDetailData, selectedLocation]);
 
   const locations = useMemo(() => {
     if (resolvedSelectedLocation) return [resolvedSelectedLocation];
     return locationQuery.trim() ? searchSuggestions : locationSuggestions;
-  }, [
-    locationQuery,
-    locationSuggestions,
-    resolvedSelectedLocation,
-    searchSuggestions,
-  ]);
+  }, [locationQuery, locationSuggestions, resolvedSelectedLocation, searchSuggestions]);
 
   const clearSelectedLocation = () => {
     setSelectedLocation(null);
@@ -175,15 +177,21 @@ function AddPost() {
     setPlaceDetailData(null);
   };
 
-  const handleImageChange = (e) => {
-    const file = e.target.files?.[0];
+  const handleImageChange = (event) => {
+    const file = event.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) return toast.error("Select an image file");
-    if (file.size > 9 * 1024 * 1024) return toast.error("Image must be smaller than 9 MB");
+    if (!file.type.startsWith("image/")) {
+      toast.error("Select an image file");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > 9 * 1024 * 1024) {
+      toast.error("Image must be smaller than 9 MB");
+      event.target.value = "";
+      return;
+    }
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result);
-    };
+    reader.onloadend = () => setImagePreview(reader.result);
     reader.readAsDataURL(file);
   };
 
@@ -192,23 +200,22 @@ function AddPost() {
     setAspect(RATIOS[type]);
     setZoom(1);
     setCrop({ x: 0, y: 0 });
+    setCroppedAreaPixels(null);
   };
 
   const getCroppedImage = async () => {
+    if (!croppedAreaPixels) throw new Error("Crop is not ready");
     const image = new Image();
     image.src = imagePreview;
     await new Promise((resolve) => {
       image.onload = resolve;
     });
     const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-
+    const context = canvas.getContext("2d");
     canvas.width = croppedAreaPixels.width;
     canvas.height = croppedAreaPixels.height;
-
-    ctx.filter = FILTERS[selectedFilter](filterStrength);
-
-    ctx.drawImage(
+    context.filter = FILTERS[selectedFilter](filterStrength);
+    context.drawImage(
       image,
       croppedAreaPixels.x,
       croppedAreaPixels.y,
@@ -219,14 +226,12 @@ function AddPost() {
       croppedAreaPixels.width,
       croppedAreaPixels.height,
     );
-
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.9);
-    });
+    return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.9));
   };
 
   const handleSave = async () => {
-    if (!imagePreview) return toast.error("Image must be required");
+    if (!imagePreview) return toast.error("An image is required");
+    if (!croppedAreaPixels) return toast.error("Wait for the image preview to finish");
     const locationSource = placeDetailData ?? selectedLocation;
     try {
       setIsUploadingPost(true);
@@ -249,11 +254,11 @@ function AddPost() {
           isArchived,
         };
         try {
-          const redata = await createPost(post);
-          toast.success(redata.message);
+          const response = await createPost(post);
+          toast.success(response.message);
           navigate("/");
         } catch (error) {
-          (console.log(error), toast.error(error.response?.data?.message));
+          toast.error(error.response?.data?.message || "Unable to create post");
         } finally {
           setIsUploadingPost(false);
         }
@@ -265,404 +270,310 @@ function AddPost() {
     } catch (error) {
       console.log(error);
       setIsUploadingPost(false);
+      toast.error("Could not prepare post image");
     }
   };
 
   const clearImage = () => {
     setImagePreview("");
+    setCroppedAreaPixels(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   return (
-    <div className="relative min-h-screen bg-base-100 pt-20">
-      <BusyOverlay
-        show={isUploadingPost}
-        fixed
-        label="Uploading post..."
-      />
-      <div className="container mx-auto px-4 pb-10">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Create Post</h1>
-            <p className="text-base-content/60">
-              Build your post step by step.
-            </p>
-          </div>
-          <button
-            onClick={() => handleSave()}
-            disabled={isUploadingPost || !imagePreview || !croppedAreaPixels}
-            className="btn btn-primary"
+    <AppPage contentClassName="bg-surface">
+      <BusyOverlay show={isUploadingPost} fixed label="Publishing post..." />
+      <PageHeader
+        title="Create post"
+        description="Edit a photo and choose how it will be shared"
+        backAction={
+          <Button iconOnly size="sm" variant="ghost" onClick={() => navigate(-1)} aria-label="Go back">
+            <ArrowLeft className="size-5" />
+          </Button>
+        }
+        actions={
+          <Button
+            variant="primary"
+            onClick={handleSave}
+            loading={isUploadingPost}
+            disabled={!imagePreview || !croppedAreaPixels}
           >
-            {isUploadingPost ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Sharing...
-              </>
-            ) : (
-              "Share Post"
-            )}
-          </button>
-        </div>
+            Share post
+          </Button>
+        }
+      />
 
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="card border border-base-300 bg-base-200/40">
-            <div className="card-body gap-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Preview</h2>
-
-                {imagePreview && (
-                  <button className="btn btn-ghost btn-xs" onClick={clearImage}>
-                    <Trash2 className="size-4" />
-                    Remove
-                  </button>
-                )}
-              </div>
-
-              {/* Ratio Switch */}
-              {imagePreview && (
-                <div className="flex justify-center">
-                  <div className="join">
-                    <button
-                      onClick={() => changeRatio("square")}
-                      className={`btn btn-xs join-item ${ratioType === "square" ? "btn-primary" : "btn-outline"
-                        }`}
-                    >
-                      1:1
-                    </button>
-
-                    <button
-                      onClick={() => changeRatio("portrait")}
-                      className={`btn btn-xs join-item ${ratioType === "portrait" ? "btn-primary" : "btn-outline"
-                        }`}
-                    >
-                      4:5
-                    </button>
-
-                    <button
-                      onClick={() => changeRatio("landscape")}
-                      className={`btn btn-xs join-item ${ratioType === "landscape"
-                          ? "btn-primary"
-                          : "btn-outline"
-                        }`}
-                    >
-                      16:9
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Preview Area */}
-              <div
-                className={`relative w-full overflow-hidden rounded-xl border border-base-300 bg-base-100 ${ratioType === "square" ? "aspect-square" : ratioType === "landscape" ? "aspect-video" : "aspect-[4/5]"}`}
-              >
-                {imagePreview ? (
-                  <>
-                    <Cropper
-                      image={imagePreview}
-                      crop={crop}
-                      zoom={zoom}
-                      aspect={aspect}
-                      onCropChange={setCrop}
-                      onZoomChange={setZoom}
-                      onCropComplete={(area, pixels) =>
-                        setCroppedAreaPixels(pixels)
-                      }
-                      style={{
-                        containerStyle: {
-                          width: "100%",
-                          height: "100%",
-                          filter: FILTERS[selectedFilter](filterStrength),
-                        },
-                      }}
-                    />
-
-                    {/* Zoom Slider */}
-                    <div className="absolute bottom-2 left-2 right-2 bg-base-200/80 backdrop-blur rounded-lg p-2">
-                      <input
-                        type="range"
-                        min={1}
-                        max={3}
-                        step={0.1}
-                        value={zoom}
-                        onChange={(e) => setZoom(Number(e.target.value))}
-                        className="range range-xs"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-base-content/60">
-                    <div className="rounded-full bg-base-200 p-4">
-                      <ImagePlus className="size-6" />
-                    </div>
-                    <div className="text-sm">Upload a photo to start</div>
-                  </div>
-                )}
-              </div>
-
-              {/* Upload Button */}
-              <label className="btn btn-outline btn-primary">
-                <ImagePlus className="size-4" />
-                Upload Image
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageChange}
-                />
-              </label>
+      <div className="grid h-[calc(100vh-80px)] grid-cols-[minmax(520px,1fr)_430px]">
+        <section className="flex min-w-0 flex-col overflow-hidden border-r border-line bg-canvas p-8">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-ink">Image preview</h2>
+              <p className="mt-1 text-xs text-muted">Drag to reposition, then adjust zoom.</p>
             </div>
+            {imagePreview && (
+              <Button size="sm" variant="dangerGhost" onClick={clearImage}>
+                <Trash2 className="size-4" /> Remove
+              </Button>
+            )}
           </div>
 
-          <div className="space-y-4">
-            <div className="collapse collapse-arrow border border-base-300 bg-base-200/60">
-              <input type="checkbox" defaultChecked />
-              <div className="collapse-title flex items-center gap-2 text-base font-semibold">
-                <SlidersHorizontal className="size-4" />
-                Filters
-              </div>
-              <div className="collapse-content space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {Object.keys(FILTERS).map((name) => (
-                    <div
-                      key={name}
-                      onClick={() => imagePreview && setSelectedFilter(name)}
-                      className="cursor-pointer text-center"
-                    >
-                      <img
-                        src={imagePreview || authUser.profilePic.url}
-                        style={{
-                          filter: FILTERS[name](filterStrength),
-                        }}
-                        className="size-20 rounded-lg object-cover"
-                      />
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <SegmentedControl
+              value={ratioType}
+              onChange={changeRatio}
+              options={[
+                { value: "square", label: "1:1" },
+                { value: "portrait", label: "4:5" },
+                { value: "landscape", label: "16:9" },
+              ]}
+            />
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <ImagePlus className="size-4" />
+              {imagePreview ? "Replace image" : "Upload image"}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageChange}
+            />
+          </div>
 
-                      <p
-                        className={`text-xs mt-2 ${selectedFilter === name ? " rounded-full p-1 bg-primary/40" : ""}`}
-                      >
-                        {name}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-xs text-base-content/60">
-                    <span>Strength</span>
-                    <span>{filterStrength}%</span>
-                  </div>
-                  {selectedFilter !== "Original" && (
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <div
+              style={{ width: previewWidths[ratioType] }}
+              className={`relative max-h-full overflow-hidden rounded-app border border-line bg-surface shadow-control ${
+                ratioType === "square" ? "aspect-square" : ratioType === "landscape" ? "aspect-video" : "aspect-[4/5]"
+              }`}
+            >
+              {imagePreview ? (
+                <>
+                  <Cropper
+                    image={imagePreview}
+                    crop={crop}
+                    zoom={zoom}
+                    aspect={aspect}
+                    onCropChange={setCrop}
+                    onZoomChange={setZoom}
+                    onCropComplete={(area, pixels) => setCroppedAreaPixels(pixels)}
+                    style={{
+                      containerStyle: {
+                        width: "100%",
+                        height: "100%",
+                        filter: FILTERS[selectedFilter](filterStrength),
+                      },
+                    }}
+                  />
+                  <div className="absolute bottom-3 left-3 right-3 flex items-center gap-3 rounded-control border border-white/15 bg-black/55 px-3 py-2 text-white backdrop-blur-sm">
+                    <span className="text-xs font-medium">Zoom</span>
                     <input
                       type="range"
-                      min="0"
-                      max="100"
-                      value={filterStrength}
-                      onChange={(e) =>
-                        setFilterStrength(Number(e.target.value))
-                      }
-                      className="range range-primary"
+                      min={1}
+                      max={3}
+                      step={0.1}
+                      value={zoom}
+                      onChange={(event) => setZoom(Number(event.target.value))}
+                      className="ui-range"
                     />
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="collapse collapse-arrow border border-base-300 bg-base-200/60">
-              <input type="checkbox" defaultChecked />
-              <div className="collapse-title flex items-center gap-2 text-base font-semibold">
-                <Type className="size-4" />
-                Caption
-              </div>
-              <div className="collapse-content space-y-3">
-                <textarea
-                  className="textarea textarea-bordered min-h-[120px] w-full"
-                  placeholder="Write a caption..."
-                  value={caption}
-                  onChange={(e) => setCaption(e.target.value)}
+                    <span className="w-8 text-right text-xs">{zoom.toFixed(1)}x</span>
+                  </div>
+                </>
+              ) : (
+                <EmptyState
+                  icon={ImagePlus}
+                  title="Upload a photo to begin"
+                  description="JPG, PNG, or WebP up to 9 MB."
+                  action={<Button variant="primary" onClick={() => fileInputRef.current?.click()}>Choose image</Button>}
+                  className="h-full"
                 />
-                <div className="text-xs text-base-content/60">
-                  {caption.length}/2,000
-                </div>
-              </div>
-            </div>
-
-            <div className="collapse collapse-arrow border border-base-300 bg-base-200/60">
-              <input type="checkbox" />
-              <div className="collapse-title flex items-center gap-2 text-base font-semibold">
-                <MapPin className="size-4" />
-                Location
-              </div>
-              <div className="collapse-content">
-                <label className="flex items-center gap-2 input input-bordered input-md w-full">
-                  <input
-                    type="text"
-                    placeholder="Add location"
-                    className=" w-full"
-                    value={locationQuery}
-                    onChange={(e) => {
-                      if (selectedLocation) {
-                        setSelectedLocation(null);
-                        setPlaceDetailData(null);
-                      }
-                      setLocationQuery(e.target.value);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleSearch();
-                      }
-                    }}
-                  />
-                  {selectedLocation ? (
-                    <button
-                      type="button"
-                      onClick={clearSelectedLocation}
-                      className="text-base-content/60 transition-colors hover:text-error"
-                    >
-                      <X className="size-5" />
-                    </button>
-                  ) : (
-                    <Search
-                      onClick={handleSearch}
-                      className="size-5 cursor-pointer"
-                    />
-                  )}
-                </label>
-                <div className="mt-3 rounded-lg border border-base-300 bg-base-100">
-                  <div className="flex items-center justify-between px-3 py-2 text-xs text-base-content/60">
-                    <span>
-                      {selectedLocation ? "Selected Location" : "Suggestions"}
-                    </span>
-                    <span>{locations.length}</span>
-                  </div>
-                  <div className="max-h-56 overflow-y-auto overscroll-contain">
-                    <SectionLoader
-                      loading={isSearchingLocations}
-                      label="Searching locations..."
-                      minHeight={120}
-                      className="rounded-none border-none bg-transparent"
-                    >
-                      {locations.length === 0 ? (
-                        <div className="px-3 py-3 text-sm text-base-content/50">
-                          {locationQuery.trim()
-                            ? "No search results found."
-                            : "No nearby location suggestions available."}
-                        </div>
-                      ) : (
-                        <ul className="divide-y divide-base-300">
-                          {locations.map((suggestion, index) => {
-                            const types = Array.isArray(suggestion?.types)
-                              ? suggestion?.types
-                              : [];
-
-                            if (!suggestion) return null;
-
-                            return (
-                              <li
-                                key={`${suggestion.placeId || suggestion.name || "location"}-${index}`}
-                              >
-                                <div
-                                  className={`w-full px-3 py-2 text-left ${selectedLocation ? "" : "hover:bg-base-200/70"}`}
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <div className="text-sm font-medium">
-                                        {suggestion?.name || "Unknown place"}
-                                      </div>
-                                      {suggestion?.address && (
-                                        <div className="text-xs text-base-content/60">
-                                          {suggestion?.address}
-                                        </div>
-                                      )}
-                                    </div>
-                                    {selectedLocation ? (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          clearSelectedLocation();
-                                        }}
-                                        className="text-base-content/50 transition-colors hover:text-error"
-                                      >
-                                        <X className="size-4" />
-                                      </button>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          skipAutoSearchRef.current = true;
-                                          setPlaceDetailData(null);
-                                          setSelectedLocation(suggestion);
-                                          setLocationQuery(suggestion.name || "");
-                                          setSearchSuggestions([]);
-                                        }}
-                                        className="text-xs font-medium text-primary transition-colors hover:text-primary/70"
-                                      >
-                                        Select
-                                      </button>
-                                    )}
-                                  </div>
-                                  {types.length > 0 && (
-                                    <div className="mt-2 flex flex-wrap gap-1">
-                                      {types.slice(0, 4).map((type) => (
-                                        <span
-                                          key={`${type}-${index}`}
-                                          className="badge badge-ghost badge-xs"
-                                        >
-                                          {type.replace(/_/g, " ")}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-                    </SectionLoader>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="collapse collapse-arrow border border-base-300 bg-base-200/60">
-              <input type="checkbox" />
-              <div className="collapse-title flex items-center gap-2 text-base font-semibold">
-                <Settings2 className="size-4" />
-                Post Settings
-              </div>
-              <div className="collapse-content space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Hide like counts</span>
-                  <input
-                    type="checkbox"
-                    className="toggle toggle-primary"
-                    checked={hideLikes}
-                    onChange={(e) => setHideLikes(e.target.checked)}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Disable share</span>
-                  <input
-                    type="checkbox"
-                    className="toggle toggle-primary"
-                    checked={disableShare}
-                    onChange={(e) => setDisableShare(e.target.checked)}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Archive</span>
-                  <input
-                    type="checkbox"
-                    className="toggle toggle-primary"
-                    checked={isArchived}
-                    onChange={(e) => setIsArchived(e.target.checked)}
-                  />
-                </div>
-              </div>
+              )}
             </div>
           </div>
-        </div>
+        </section>
+
+        <aside className="ui-scrollbar min-h-0 overflow-y-auto px-6 pb-10">
+          <Disclosure icon={SlidersHorizontal} title="Filters" description="Adjust the look of your photo" defaultOpen>
+            {!imagePreview ? (
+              <div className="rounded-control border border-dashed border-line-strong bg-surface-muted px-4 py-6 text-center text-sm text-muted">
+                Choose an image to preview filters.
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {Object.keys(FILTERS).map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => setSelectedFilter(name)}
+                    className={`relative overflow-hidden rounded-control border p-1.5 text-left transition ${
+                      selectedFilter === name ? "border-brand bg-brand-soft" : "border-line hover:bg-surface-hover"
+                    }`}
+                  >
+                    <LoadableImage
+                      src={imagePreview}
+                      alt={`${name} filter`}
+                      className="aspect-square w-full rounded-[4px] object-cover"
+                      wrapperClassName="aspect-square w-full rounded-[4px] bg-surface-muted"
+                      imgProps={{ style: { filter: FILTERS[name](filterStrength) } }}
+                    />
+                    <span className="mt-1.5 flex items-center justify-between text-xs font-medium text-ink">
+                      {name}
+                      {selectedFilter === name && <Check className="size-3.5 text-brand-strong" />}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {selectedFilter !== "Original" && (
+              <div className="mt-4">
+                <div className="mb-2 flex items-center justify-between text-xs text-muted">
+                  <span>Strength</span>
+                  <span>{filterStrength}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={filterStrength}
+                  onChange={(event) => setFilterStrength(Number(event.target.value))}
+                  className="ui-range"
+                />
+              </div>
+            )}
+          </Disclosure>
+
+          <Disclosure icon={Type} title="Caption" description="Add context to your post" defaultOpen>
+            <Textarea
+              placeholder="Write a caption..."
+              value={caption}
+              maxLength={2000}
+              onChange={(event) => setCaption(event.target.value)}
+            />
+            <p className="mt-1.5 text-right text-xs text-muted">{caption.length}/2,000</p>
+          </Disclosure>
+
+          <Disclosure icon={MapPin} title="Location" description="Attach an optional place">
+            <Input
+              icon={MapPin}
+              type="text"
+              placeholder="Search for a location"
+              value={locationQuery}
+              onChange={(event) => {
+                if (selectedLocation) {
+                  setSelectedLocation(null);
+                  setPlaceDetailData(null);
+                }
+                setLocationQuery(event.target.value);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleSearch();
+                }
+              }}
+              trailing={
+                selectedLocation ? (
+                  <Button iconOnly size="xs" variant="ghost" onClick={clearSelectedLocation} aria-label="Clear location">
+                    <X className="size-4" />
+                  </Button>
+                ) : (
+                  <Button iconOnly size="xs" variant="ghost" onClick={handleSearch} aria-label="Search location">
+                    <Search className="size-4" />
+                  </Button>
+                )
+              }
+            />
+
+            <div className="mt-3 overflow-hidden rounded-control border border-line">
+              <div className="flex items-center justify-between border-b border-line bg-surface-muted px-3 py-2 text-xs text-muted">
+                <span>{selectedLocation ? "Selected location" : "Suggestions"}</span>
+                <span>{locations.length}</span>
+              </div>
+              <div className="ui-scrollbar max-h-64 overflow-y-auto">
+                <SectionLoader
+                  loading={isSearchingLocations}
+                  label="Searching locations..."
+                  minHeight={120}
+                  className="rounded-none border-0 bg-transparent"
+                >
+                  {locations.length === 0 ? (
+                    <p className="px-3 py-5 text-sm text-muted">
+                      {locationQuery.trim() ? "No search results found." : "No nearby suggestions available."}
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-line">
+                      {locations.map((suggestion, index) => {
+                        if (!suggestion) return null;
+                        const types = Array.isArray(suggestion.types) ? suggestion.types : [];
+                        return (
+                          <li key={`${suggestion.placeId || suggestion.name || "location"}-${index}`} className="p-3 hover:bg-surface-hover">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-ink">{suggestion.name || "Unknown place"}</p>
+                                {suggestion.address && <p className="mt-0.5 text-xs leading-5 text-muted">{suggestion.address}</p>}
+                              </div>
+                              {selectedLocation ? (
+                                <Button iconOnly size="xs" variant="dangerGhost" onClick={clearSelectedLocation} aria-label="Remove location">
+                                  <X className="size-4" />
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="xs"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    skipAutoSearchRef.current = true;
+                                    setPlaceDetailData(null);
+                                    setSelectedLocation(suggestion);
+                                    setLocationQuery(suggestion.name || "");
+                                    setSearchSuggestions([]);
+                                  }}
+                                >
+                                  Select
+                                </Button>
+                              )}
+                            </div>
+                            {types.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {types.slice(0, 4).map((type) => (
+                                  <Badge key={`${type}-${index}`}>{type.replace(/_/g, " ")}</Badge>
+                                ))}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </SectionLoader>
+              </div>
+            </div>
+          </Disclosure>
+
+          <Disclosure icon={Settings2} title="Post settings" description="Control visibility and sharing">
+            <div className="space-y-4">
+              <Switch
+                label="Hide like count"
+                description="People can still like the post."
+                checked={hideLikes}
+                onChange={(event) => setHideLikes(event.target.checked)}
+              />
+              <Switch
+                label="Disable sharing"
+                description="Prevent sending this post into chats."
+                checked={disableShare}
+                onChange={(event) => setDisableShare(event.target.checked)}
+              />
+              <Switch
+                label="Archive post"
+                description="Keep the post hidden from your public profile."
+                checked={isArchived}
+                onChange={(event) => setIsArchived(event.target.checked)}
+              />
+            </div>
+          </Disclosure>
+        </aside>
       </div>
-    </div>
+    </AppPage>
   );
 }
 

@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import toast from "react-hot-toast";
 import { useAuthStore } from "../store/useAuthStore";
 import { useCallStore } from "../store/useCallStore";
 import { useChatStore } from "../store/useChatStore";
@@ -13,49 +12,27 @@ const getConversationId = (conversation) =>
 
 const normalizeProfilePic = (profilePic) => {
   if (!profilePic) return null;
-  if (typeof profilePic === "string") {
-    return { url: profilePic };
-  }
-  return profilePic;
+  return typeof profilePic === "string" ? { url: profilePic } : profilePic;
 };
 
-const normalizeCaller = (from) => ({
-  ...from,
-  profilePic: normalizeProfilePic(from?.profilePic),
+const normalizeCaller = (caller) => ({
+  ...caller,
+  _id: caller?._id?.toString?.() || caller?.id?.toString?.() || "",
+  profilePic: normalizeProfilePic(caller?.profilePic),
 });
 
 const findConversationById = (conversationId, selectedConversation, conversations) => {
   if (!conversationId) return null;
-  if (
-    selectedConversation &&
-    getConversationId(selectedConversation) === conversationId
-  ) {
+  if (getConversationId(selectedConversation) === conversationId) {
     return selectedConversation;
   }
-  return (
-    conversations.find(
-      (conversation) => getConversationId(conversation) === conversationId,
-    ) || null
-  );
-};
-
-const buildFallbackConversation = (payload) => {
-  if (payload?.isGroup) return null;
-  const caller = normalizeCaller(payload?.from);
-  if (!caller?._id) return null;
-  return {
-    conversationId: payload?.conversationId || "",
-    oruserId: caller._id,
-    name: caller?.name || caller?.fullname || "Unknown",
-    profilePic: caller?.profilePic || null,
-    isgroup: false,
-    groupdetail: {},
-    bgImage: {},
-  };
+  return conversations.find(
+    (conversation) => getConversationId(conversation) === conversationId,
+  ) || null;
 };
 
 function CallManager() {
-  const { socket, authUser, onlineUsers } = useAuthStore();
+  const { socket, authUser } = useAuthStore();
   const { selectedConversation, conversations } = useChatStore();
   const {
     incomingCall,
@@ -63,6 +40,7 @@ function CallManager() {
     setIncomingCall,
     clearIncomingCall,
     acceptIncomingCall,
+    updateActiveCall,
     endCall,
   } = useCallStore();
 
@@ -71,141 +49,98 @@ function CallManager() {
 
     const handleIncomingCall = (payload) => {
       const caller = normalizeCaller(payload?.from);
-      if (!caller?._id || caller._id === authUser._id) return;
+      if (!payload?.callId || !caller._id || caller._id === authUser._id) return;
 
-      const conversationId =
-        payload?.conversationId ||
-        getConversationId(payload?.conversation) ||
-        "";
-      if (activeCall?.conversation) {
-        const activeConversationId = getConversationId(activeCall.conversation);
-        if (conversationId && activeConversationId === conversationId) {
-          return;
-        }
+      if (activeCall || (incomingCall && incomingCall.callId !== payload.callId)) {
+        socket.emit("call:decline", {
+          callId: payload.callId,
+          reason: "busy",
+        });
         return;
       }
+
+      const conversationId = payload.conversationId?.toString?.() || "";
       const matchedConversation = findConversationById(
         conversationId,
         selectedConversation,
         conversations,
       );
-      const conversation =
-        matchedConversation ||
-        (payload?.isGroup ? payload?.conversation : null) ||
-        buildFallbackConversation({
-          ...payload,
-          conversationId,
-          from: caller,
-        });
-
+      const conversation = matchedConversation || payload.conversation;
       if (!conversation) return;
 
       setIncomingCall({
-        from: caller,
-        offer: payload?.offer || null,
-        conversationId: conversationId || getConversationId(conversation),
+        callId: payload.callId,
+        callType: payload.callType || "video",
+        conversationId,
         conversation,
-        isGroup: Boolean(payload?.isGroup || conversation?.isgroup),
+        from: caller,
+        isGroup: Boolean(payload.isGroup || conversation.isgroup),
+        startedAt: payload.startedAt || Date.now(),
       });
     };
 
-    const handleCallEnded = ({ conversationId, from }) => {
-      if (!activeCall?.conversation) return;
-      const activeConversationId = getConversationId(activeCall.conversation);
-      if (!conversationId || activeConversationId !== conversationId) return;
-      if (from && from === authUser._id) return;
-      endCall();
-      toast("Call ended");
+    const handleCallEnded = ({ callId }) => {
+      if (incomingCall?.callId === callId) clearIncomingCall();
     };
 
-    const handleCallDeclined = ({ conversationId, from }) => {
-      if (!activeCall?.conversation) return;
-      const activeConversationId = getConversationId(activeCall.conversation);
-      if (!conversationId || activeConversationId !== conversationId) return;
-      if (from && from === authUser._id) return;
-      endCall();
-      toast("Call declined");
+    const handleAnsweredElsewhere = ({ callId }) => {
+      if (incomingCall?.callId === callId) clearIncomingCall();
     };
 
-    socket.on("incoming-call", handleIncomingCall);
-    socket.on("call-ended", handleCallEnded);
-    socket.on("call-declined", handleCallDeclined);
+    socket.on("call:incoming", handleIncomingCall);
+    socket.on("call:ended", handleCallEnded);
+    socket.on("call:answered-elsewhere", handleAnsweredElsewhere);
 
     return () => {
-      socket.off("incoming-call", handleIncomingCall);
-      socket.off("call-ended", handleCallEnded);
-      socket.off("call-declined", handleCallDeclined);
+      socket.off("call:incoming", handleIncomingCall);
+      socket.off("call:ended", handleCallEnded);
+      socket.off("call:answered-elsewhere", handleAnsweredElsewhere);
     };
   }, [
     socket,
     authUser?._id,
+    activeCall,
+    incomingCall,
     selectedConversation,
     conversations,
     setIncomingCall,
-    activeCall?.conversation,
-    endCall,
+    clearIncomingCall,
   ]);
 
   const handleDeclineIncomingCall = () => {
-    if (socket && authUser?._id && incomingCall?.from?._id) {
-      socket.emit("call-declined", {
-        to: incomingCall.from._id,
-        from: authUser._id,
-        conversationId: incomingCall.conversationId,
+    if (socket && incomingCall?.callId) {
+      socket.emit("call:decline", {
+        callId: incomingCall.callId,
+        reason: "declined",
       });
     }
     clearIncomingCall();
   };
 
-  const handleAcceptIncomingCall = () => {
-    const incomingConversation = incomingCall?.conversation;
-    if (!incomingConversation) return;
-    acceptIncomingCall(incomingConversation);
-  };
-
-  const handleCloseActiveCall = () => {
-    const conversation = activeCall?.conversation;
-    if (socket && authUser?._id && conversation) {
-      const conversationId = getConversationId(conversation);
-      const targets = conversation?.isgroup
-        ? Object.keys(conversation?.groupdetail?.membersDetail || {}).filter(
-            (id) => id !== authUser._id,
-          )
-        : [conversation?.oruserId].filter(Boolean);
-
-      socket.emit("call-ended", {
-        to: targets.length > 1 ? targets : targets[0],
-        from: authUser._id,
-        conversationId,
-        isGroup: Boolean(conversation?.isgroup),
-      });
-    }
-    endCall();
-  };
+  const incomingConversationName = incomingCall?.isGroup
+    ? incomingCall?.conversation?.groupdetail?.groupname || "Group call"
+    : incomingCall?.from?.name || incomingCall?.from?.fullname || "Unknown";
 
   return (
     <>
       {incomingCall && !activeCall && (
         <IncomingCallModal
-          callerName={
-            incomingCall?.from?.name || incomingCall?.from?.fullname || "Unknown"
-          }
+          callerName={incomingCall?.from?.name || incomingCall?.from?.fullname || "Unknown"}
           callerProfilePic={incomingCall?.from?.profilePic}
-          isOnline
-          onAccept={handleAcceptIncomingCall}
+          conversationName={incomingConversationName}
+          isGroup={incomingCall.isGroup}
+          onAccept={acceptIncomingCall}
           onDecline={handleDeclineIncomingCall}
         />
       )}
 
       {activeCall?.conversation && (
         <VideoCallModal
+          call={activeCall}
           authUser={authUser}
           socket={socket}
-          conversation={activeCall.conversation}
-          onlineUsers={onlineUsers}
-          mode={activeCall.mode}
-          incomingSignal={activeCall.incomingSignal}
-          onClose={handleCloseActiveCall}
+          updateCall={updateActiveCall}
+          onClose={endCall}
         />
       )}
     </>

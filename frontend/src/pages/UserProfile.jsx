@@ -8,12 +8,15 @@ import {
   ArrowLeft,
   Grid3X3,
   ImagePlus,
-  LoaderCircle,
   MapPin,
   MessageCircle,
+  UserRoundX,
 } from "lucide-react";
 import { useChatStore } from "../store/useChatStore";
 import { mergeUniqueById } from "../lib/utils";
+import { AppPage, PageHeader, PageSection } from "../components/layout/AppPage";
+import { Avatar, Badge, Button, EmptyState, Spinner } from "../components/ui";
+import LoadableImage from "../components/common/LoadableImage";
 
 function UserProfile() {
   const navigate = useNavigate();
@@ -115,142 +118,117 @@ function UserProfile() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-base-100 pt-20">
-        <div className="mx-auto flex min-h-[70vh] max-w-5xl items-center justify-center px-4">
-          <LoaderCircle className="size-8 animate-spin text-base-content/60" />
+      <AppPage contentClassName="bg-surface">
+        <div className="flex min-h-screen items-center justify-center">
+          <Spinner size="lg" />
         </div>
-      </div>
+      </AppPage>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-base-100 pt-20">
-        <div className="mx-auto max-w-5xl px-4 py-10">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="btn btn-ghost btn-sm"
-          >
-            <ArrowLeft className="size-4" />
-            Back
-          </button>
-          <div className="mt-8 rounded-[2rem] border border-dashed border-base-300 bg-base-200/50 px-6 py-14 text-center">
-            <h1 className="text-2xl font-semibold">Profile not found</h1>
-            <p className="mt-2 text-sm text-base-content/60">
-              This user profile could not be loaded.
-            </p>
-          </div>
+      <AppPage contentClassName="bg-surface">
+        <PageHeader
+          title="Profile unavailable"
+          backAction={
+            <Button iconOnly size="sm" variant="ghost" onClick={() => navigate(-1)} aria-label="Go back">
+              <ArrowLeft className="size-5" />
+            </Button>
+          }
+        />
+        <div className="flex min-h-[calc(100vh-80px)] items-center justify-center">
+          <EmptyState
+            icon={UserRoundX}
+            title="Profile not found"
+            description="This user profile could not be loaded."
+          />
         </div>
-      </div>
+      </AppPage>
     );
   }
 
   return (
     <PhotoProvider>
-      <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.10),_transparent_24%),radial-gradient(circle_at_left,_rgba(34,197,94,0.10),_transparent_24%)] pt-20">
-        <div className="mx-auto max-w-5xl px-4 pb-10">
-          <div className="mb-5 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="btn btn-ghost btn-sm"
-            >
-              <ArrowLeft className="size-4" />
-              Back
-            </button>
-
-            <button
-              type="button"
-              onClick={handleMessage}
-              disabled={isStartingChat}
-              className="btn btn-primary btn-sm"
-            >
-              {isStartingChat ? (
-                <LoaderCircle className="size-4 animate-spin" />
-              ) : (
-                <MessageCircle className="size-4" />
-              )}
+      <AppPage contentClassName="bg-surface">
+        <PageHeader
+          title={user.fullname || "Profile"}
+          description="Kapota profile"
+          backAction={
+            <Button iconOnly size="sm" variant="ghost" onClick={() => navigate(-1)} aria-label="Go back">
+              <ArrowLeft className="size-5" />
+            </Button>
+          }
+          actions={
+            <Button variant="primary" onClick={handleMessage} loading={isStartingChat}>
+              <MessageCircle className="size-4" />
               Message
-            </button>
-          </div>
+            </Button>
+          }
+        />
 
-          <section className="rounded-[2rem] border border-base-300 bg-base-100/85 p-6 shadow-xl shadow-base-300/10 backdrop-blur">
-            <div className="flex flex-col gap-6 md:flex-row md:items-start">
-              <div className="mx-auto md:mx-0">
+        <div className="mx-auto max-w-6xl px-10 py-2">
+          <PageSection>
+            <div className="grid grid-cols-[auto_minmax(0,1fr)_260px] items-center gap-8 py-3">
+              <div>
                 <PhotoView src={user.profilePic?.url}>
                   <button
                     type="button"
-                    className="block overflow-hidden rounded-full ring-4 ring-primary/20 ring-offset-4 ring-offset-base-100"
+                    className="block rounded-full ring-2 ring-brand/25 ring-offset-4 ring-offset-surface"
                   >
-                    <img
-                      src={user.profilePic?.url}
-                      alt={user.fullname}
-                      className="size-28 object-cover sm:size-36"
-                    />
+                    <Avatar src={user.profilePic?.url} alt={user.fullname || "Profile"} size="2xl" />
                   </button>
                 </PhotoView>
               </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h1 className="text-3xl font-semibold">{user.fullname}</h1>
-                    <p className="mt-3 max-w-2xl text-sm leading-7 text-base-content/70">
+              <div className="min-w-0">
+                    <h1 className="text-2xl font-semibold text-ink">{user.fullname}</h1>
+                    <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">
                       {user.bio || "No bio added yet."}
                     </p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 text-center sm:min-w-[250px]">
-                    <div className="rounded-2xl bg-base-200/70 px-4 py-4">
-                      <p className="text-xl font-semibold">
-                        {user.postsCount ?? posts.length}
-                      </p>
-                      <p className="text-xs uppercase tracking-[0.18em] text-base-content/55">
-                        Posts
-                      </p>
-                    </div>
-                    <div className="rounded-2xl bg-base-200/70 px-4 py-4">
-                      <p className="text-sm font-semibold">{joinedText}</p>
-                      <p className="text-xs uppercase tracking-[0.18em] text-base-content/55">
-                        Joined
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 flex flex-wrap gap-3 text-sm text-base-content/65">
+                <div className="mt-5 flex flex-wrap gap-2 text-sm text-muted">
                   {user.location?.lat != null && user.location?.lng != null && (
-                    <div className="inline-flex items-center gap-2 rounded-full bg-base-200/70 px-4 py-2">
+                    <Badge>
                       <MapPin className="size-4" />
-                      {user.location.name}
-                    </div>
+                      {user.location.name || "Location shared"}
+                    </Badge>
                   )}
-                  <div className="inline-flex items-center gap-2 rounded-full bg-base-200/70 px-4 py-2">
+                  <Badge>
                     <Grid3X3 className="size-4" />
                     {user.postsCount ?? posts.length} shared moments
-                  </div>
+                  </Badge>
                 </div>
               </div>
-            </div>
-          </section>
 
-          <section className="mt-6 rounded-[2rem] border border-base-300 bg-base-100/85 p-6 shadow-xl shadow-base-300/10 backdrop-blur">
+              <dl className="grid grid-cols-2 divide-x divide-line rounded-app border border-line bg-surface-muted text-center">
+                <div className="px-4 py-5">
+                  <dd className="text-xl font-semibold text-ink">{user.postsCount ?? posts.length}</dd>
+                  <dt className="mt-1 text-xs text-muted">Posts</dt>
+                </div>
+                <div className="px-4 py-5">
+                  <dd className="text-sm font-semibold text-ink">{joinedText}</dd>
+                  <dt className="mt-1 text-xs text-muted">Joined</dt>
+                </div>
+              </dl>
+            </div>
+          </PageSection>
+
+          <PageSection>
             <div className="mb-5 flex items-center gap-3">
-              <div className="rounded-full bg-base-200 p-3">
+              <div className="flex size-9 items-center justify-center rounded-control bg-brand-soft text-brand-strong">
                 <Grid3X3 className="size-5" />
               </div>
               <div>
-                <h2 className="text-2xl font-semibold">Posts</h2>
-                <p className="text-sm text-base-content/60">
-                  A quick look at what {user.fullname.split(" ")[0]} has shared.
+                <h2 className="text-base font-semibold text-ink">Posts</h2>
+                <p className="text-sm text-muted">
+                  Moments shared by {user.fullname?.split(" ")?.[0] || "this user"}.
                 </p>
               </div>
             </div>
 
             {posts.length > 0 ? (
               <>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-3 gap-2 xl:grid-cols-4">
                   {posts.map((post) => {
                     const postImage = getPostImage(post);
 
@@ -259,12 +237,13 @@ function UserProfile() {
                         key={post._id}
                         type="button"
                         onClick={() => navigate(`/post/${post._id}`)}
-                        className="aspect-square overflow-hidden bg-base-200 text-left"
+                        className="group aspect-square overflow-hidden rounded-control bg-surface-muted text-left"
                       >
-                        <img
+                        <LoadableImage
                           src={postImage}
                           alt={post.caption || "Post"}
-                          className="h-full w-full object-cover"
+                          className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.02]"
+                          wrapperClassName="h-full w-full"
                         />
                       </button>
                     );
@@ -272,31 +251,26 @@ function UserProfile() {
                 </div>
                 {hasMorePosts && (
                   <div className="mt-5 flex justify-center">
-                    <button
-                      type="button"
+                    <Button
+                      variant="outline"
                       onClick={loadMorePosts}
-                      disabled={isLoadingMorePosts}
-                      className="btn btn-outline"
+                      loading={isLoadingMorePosts}
                     >
-                      {isLoadingMorePosts ? "Loading..." : "Load more posts"}
-                    </button>
+                      Load more posts
+                    </Button>
                   </div>
                 )}
               </>
             ) : (
-              <div className="rounded-[2rem] border border-dashed border-base-300 bg-base-200/40 px-6 py-12 text-center">
-                <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-base-100">
-                  <ImagePlus className="size-6 text-base-content/55" />
-                </div>
-                <h3 className="mt-4 text-xl font-semibold">No posts yet</h3>
-                <p className="mt-2 text-sm text-base-content/60">
-                  This user has not shared any visible posts yet.
-                </p>
-              </div>
+              <EmptyState
+                icon={ImagePlus}
+                title="No posts yet"
+                description="This user has not shared any visible posts yet."
+              />
             )}
-          </section>
+          </PageSection>
         </div>
-      </div>
+      </AppPage>
     </PhotoProvider>
   );
 }

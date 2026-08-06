@@ -1,9 +1,11 @@
 import { useState } from "react";
-import AuthImagePattern from "../components/AuthImagePattern";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Loader2, Lock, Mail, MessageSquare } from "lucide-react";
-import { useAuthStore } from "../store/useAuthStore";
+import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import toast from "react-hot-toast";
+import { useAuthStore } from "../store/useAuthStore";
+import Logo from "../components/common/Logo";
+import AuthLayout from "../components/auth/AuthLayout";
+import { Button, Field, Input } from "../components/ui";
 
 function ForgetPassword() {
   const [step, setStep] = useState("email");
@@ -25,38 +27,34 @@ function ForgetPassword() {
 
   const validateEmail = () => {
     if (!formData.email.trim()) return toast.error("Email is required");
-    if (!/\S+@\S+\.\S+/.test(formData.email))
-      return toast.error("Invalid email format");
+    if (!/\S+@\S+\.\S+/.test(formData.email)) return toast.error("Invalid email format");
     return true;
   };
 
-  const handleRequestOtp = async (e) => {
-    e.preventDefault();
+  const handleRequestOtp = async (event) => {
+    event.preventDefault();
     if (validateEmail() !== true) return;
 
     const sent = await requestForgotPasswordOtp({
       email: formData.email.trim(),
     });
-
     if (sent) setStep("reset");
   };
 
-  const handleResetPassword = async (e) => {
-    e.preventDefault();
-
+  const handleResetPassword = async (event) => {
+    event.preventDefault();
     if (validateEmail() !== true) return;
     if (!formData.otp.trim()) return toast.error("OTP is required");
-    if (formData.password.length < 6)
-      return toast.error("Password at least 6 characters");
-    if (formData.password !== formData.confirmPassword)
+    if (formData.password.length < 6) return toast.error("Password at least 6 characters");
+    if (formData.password !== formData.confirmPassword) {
       return toast.error("Password and confirm password must be same");
+    }
 
     const updated = await verifyForgotPasswordOtp({
       email: formData.email.trim(),
       otp: formData.otp.trim(),
       password: formData.password,
     });
-
     if (updated) navigate("/login");
   };
 
@@ -64,204 +62,129 @@ function ForgetPassword() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const passwordToggle = (visible, onToggle) => (
+    <Button
+      iconOnly
+      size="xs"
+      variant="ghost"
+      onClick={onToggle}
+      aria-label={visible ? "Hide password" : "Show password"}
+    >
+      {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+    </Button>
+  );
+
   return (
-    <div className="grid min-h-screen pt-10 lg:grid-cols-2">
-      <div className="flex items-center justify-center p-6 sm:p-12">
-        <div className="w-full max-w-md space-y-8">
-          <div className="text-center">
-            <div className="flex flex-col items-center gap-2 group">
-              <div
-                className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 transition-colors 
-              group-hover:bg-primary/20"
-              >
-                <MessageSquare className="h-6 w-6 text-primary" />
-              </div>
-              <h1 className="mt-2 text-2xl font-bold">
-                {step === "email" ? "Reset password" : "Verify your email"}
-              </h1>
-              <p className="text-base-content/60">
-                {step === "email"
-                  ? "We will send a reset code to your email"
-                  : `Enter the code sent to ${formData.email}`}
-              </p>
-            </div>
-          </div>
-
-          {step === "email" ? (
-            <form onSubmit={handleRequestOtp} className="space-y-6">
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">Email</span>
-                </label>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                    <Mail className="h-5 w-5 text-base-content/40" />
-                  </div>
-                  <input
-                    type="email"
-                    className="input input-bordered w-full pl-10"
-                    placeholder="you@example.com"
-                    value={formData.email}
-                    onChange={(e) => updateField("email", e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-primary w-full"
-                disabled={isForgotPasswordLoading}
-              >
-                {isForgotPasswordLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  "Send reset code"
-                )}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleResetPassword} className="space-y-6">
-              <div className="rounded-2xl border border-base-300 bg-base-100 p-4">
-                <p className="text-sm font-medium">Password reset code</p>
-                <p className="mt-1 text-sm leading-6 text-base-content/65">
-                  The code expires soon. Use the latest code if you request
-                  another one.
-                </p>
-              </div>
-
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">OTP Code</span>
-                </label>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                    <Mail className="h-5 w-5 text-base-content/40" />
-                  </div>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    className="input input-bordered w-full pl-10 tracking-[0.4em]"
-                    placeholder="123456"
-                    value={formData.otp}
-                    onChange={(e) =>
-                      updateField("otp", e.target.value.replace(/\D/g, ""))
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">New Password</span>
-                </label>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                    <Lock className="h-5 w-5 text-base-content/40" />
-                  </div>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    className="input input-bordered w-full pl-10"
-                    placeholder="password"
-                    value={formData.password}
-                    onChange={(e) => updateField("password", e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 flex items-center pr-3"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5 text-base-content/40" />
-                    ) : (
-                      <Eye className="h-5 w-5 text-base-content/40" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">
-                    Confirm Password
-                  </span>
-                </label>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                    <Lock className="h-5 w-5 text-base-content/40" />
-                  </div>
-                  <input
-                    type={showConPassword ? "text" : "password"}
-                    className="input input-bordered w-full pl-10"
-                    placeholder="password"
-                    value={formData.confirmPassword}
-                    onChange={(e) =>
-                      updateField("confirmPassword", e.target.value)
-                    }
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 flex items-center pr-3"
-                    onClick={() => setShowConPassword(!showConPassword)}
-                  >
-                    {showConPassword ? (
-                      <EyeOff className="h-5 w-5 text-base-content/40" />
-                    ) : (
-                      <Eye className="h-5 w-5 text-base-content/40" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-primary w-full"
-                disabled={isForgotPasswordLoading}
-              >
-                {isForgotPasswordLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  "Update password"
-                )}
-              </button>
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  disabled={isForgotPasswordLoading}
-                  onClick={handleRequestOtp}
-                >
-                  Resend code
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-link btn-sm"
-                  disabled={isForgotPasswordLoading}
-                  onClick={() => setStep("email")}
-                >
-                  Change email
-                </button>
-              </div>
-            </form>
-          )}
-
-          <div className="text-center">
-            <p className="text-base-content/60">
-              Go back to{" "}
-              <Link to="/login" className="link link-primary">
-                Login
-              </Link>
-            </p>
-          </div>
+    <AuthLayout
+      visualTitle="Return to your conversations securely"
+      visualSubtitle="Verify your email, choose a fresh password, and continue right where you left off."
+    >
+      <div className="mb-9">
+        <div className="flex items-center gap-3">
+          <Logo size={42} />
+          <span className="text-base font-semibold text-ink">Kapota</span>
         </div>
+        <h1 className="mt-10 text-3xl font-semibold text-ink">
+          {step === "email" ? "Reset your password" : "Choose a new password"}
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-muted">
+          {step === "email"
+            ? "We will send a verification code to your email."
+            : `Enter the code sent to ${formData.email}.`}
+        </p>
       </div>
 
-      <AuthImagePattern
-        title="Recover your account"
-        subtitle="Verify your email and choose a fresh password to continue."
-      />
-    </div>
+      {step === "email" ? (
+        <form onSubmit={handleRequestOtp} className="space-y-5">
+          <Field label="Email" htmlFor="reset-email">
+            <Input
+              id="reset-email"
+              icon={Mail}
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={formData.email}
+              onChange={(event) => updateField("email", event.target.value)}
+            />
+          </Field>
+
+          <Button type="submit" variant="primary" className="w-full" loading={isForgotPasswordLoading}>
+            Send reset code
+          </Button>
+        </form>
+      ) : (
+        <form onSubmit={handleResetPassword} className="space-y-4">
+          <div className="rounded-app border border-brand/20 bg-brand-soft p-4">
+            <p className="text-sm font-semibold text-ink">Password reset code</p>
+            <p className="mt-1 text-xs leading-5 text-muted">
+              Use the latest code if you requested more than one.
+            </p>
+          </div>
+
+          <Field label="Verification code" htmlFor="reset-otp">
+            <Input
+              id="reset-otp"
+              icon={Mail}
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              inputClassName="text-center font-semibold"
+              placeholder="123456"
+              value={formData.otp}
+              onChange={(event) => updateField("otp", event.target.value.replace(/\D/g, ""))}
+            />
+          </Field>
+
+          <Field label="New password" hint="Use at least 6 characters." htmlFor="reset-password">
+            <Input
+              id="reset-password"
+              icon={Lock}
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              placeholder="New password"
+              value={formData.password}
+              onChange={(event) => updateField("password", event.target.value)}
+              trailing={passwordToggle(showPassword, () => setShowPassword((visible) => !visible))}
+            />
+          </Field>
+
+          <Field label="Confirm password" htmlFor="reset-confirm-password">
+            <Input
+              id="reset-confirm-password"
+              icon={Lock}
+              type={showConPassword ? "text" : "password"}
+              autoComplete="new-password"
+              placeholder="Repeat new password"
+              value={formData.confirmPassword}
+              onChange={(event) => updateField("confirmPassword", event.target.value)}
+              trailing={passwordToggle(showConPassword, () => setShowConPassword((visible) => !visible))}
+            />
+          </Field>
+
+          <Button type="submit" variant="primary" className="w-full" loading={isForgotPasswordLoading}>
+            Update password
+          </Button>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Button size="sm" variant="ghost" disabled={isForgotPasswordLoading} onClick={handleRequestOtp}>
+              Resend code
+            </Button>
+            <Button size="sm" variant="link" disabled={isForgotPasswordLoading} onClick={() => setStep("email")}>
+              Change email
+            </Button>
+          </div>
+        </form>
+      )}
+
+      <div className="mt-8 border-t border-line pt-6 text-center">
+        <p className="text-sm text-muted">
+          Back to{" "}
+          <Link to="/login" className="font-semibold text-brand-strong hover:underline">
+            sign in
+          </Link>
+        </p>
+      </div>
+    </AuthLayout>
   );
 }
 

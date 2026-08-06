@@ -14,6 +14,143 @@ import {
   processPaginationResults,
 } from "../util/pagination.js";
 
+const getParticipantConversation = async (conversationId, userId, select) => {
+  const conversation = await Conversation.findById(conversationId)
+    .select(select)
+    .lean();
+
+  if (!conversation) throw new ApiError(400, "Conversation not found");
+
+  const isParticipant = conversation.participants.some(
+    (participant) => participant.userId.toString() === userId.toString(),
+  );
+  if (!isParticipant) {
+    throw new ApiError(403, "You are not a member of this conversation");
+  }
+
+  return conversation;
+};
+
+const getReplyPreview = (message) => {
+  if (message.post?._id) return "Shared post";
+  if (message.image?.url) return message.text?.trim() || "Photo";
+  return message.text?.trim() || "Message";
+};
+
+const createReplySnapshot = async (replyToId, conversationId, userId) => {
+  if (!replyToId) return null;
+
+  const target = await Message.findOne({
+    _id: replyToId,
+    conversationId,
+    system: { $ne: true },
+    deletedForEveryone: { $ne: true },
+    deletedFor: { $ne: userId },
+  })
+    .select("_id sender text image post")
+    .lean();
+
+  if (!target) {
+    throw new ApiError(400, "The message you are replying to is unavailable");
+  }
+
+  return {
+    messageId: target._id,
+    sender: target.sender,
+    preview: getReplyPreview(target).slice(0, 500),
+    deleted: false,
+  };
+};
+
+const applyReaction = async ({ conversation, messageId, userId, emoji }) => {
+  const participantIds = new Set(
+    conversation.participants.map((participant) => participant.userId.toString()),
+  );
+  const userIdString = userId.toString();
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const currentMessage = await Message.findOne({
+      _id: messageId,
+      conversationId: conversation._id,
+      system: { $ne: true },
+      deletedForEveryone: { $ne: true },
+      deletedFor: { $ne: userId },
+    }).lean();
+
+    if (!currentMessage) {
+      throw new ApiError(404, "Message not found");
+    }
+
+    const reactions = (currentMessage.reactions || []).filter((reaction) =>
+      participantIds.has(reaction.userId.toString()),
+    );
+    const previousReaction = reactions.find(
+      (reaction) => reaction.userId.toString() === userIdString,
+    );
+
+    let action;
+    let nextReactions;
+
+    if (previousReaction?.emoji === emoji) {
+      action = "removed";
+      nextReactions = reactions.filter(
+        (reaction) => reaction.userId.toString() !== userIdString,
+      );
+    } else if (previousReaction) {
+      action = "replaced";
+      nextReactions = reactions.map((reaction) =>
+        reaction.userId.toString() === userIdString
+          ? { userId, emoji }
+          : reaction,
+      );
+    } else {
+      if (reactions.length >= participantIds.size) {
+        throw new ApiError(409, "Every participant has already reacted");
+      }
+      action = "added";
+      nextReactions = [...reactions, { userId, emoji }];
+    }
+
+    const legacyReaction = nextReactions.at(-1)?.emoji || "";
+
+    const updatedMessage = await Message.findOneAndUpdate(
+      {
+        _id: currentMessage._id,
+        conversationId: conversation._id,
+        __v: currentMessage.__v,
+      },
+      {
+        $set: {
+          reactions: nextReactions,
+          // Retained for clients that have not yet moved to reactions[].
+          reacted: legacyReaction,
+        },
+        $inc: { __v: 1 },
+      },
+      { new: true, runValidators: true },
+    ).lean();
+
+    if (updatedMessage) {
+      return {
+        message: updatedMessage,
+        action,
+        emoji: action === "removed" ? previousReaction?.emoji : emoji,
+      };
+    }
+  }
+
+  throw new ApiError(409, "Reaction changed. Please try again");
+};
+
+const emitReaction = (conversationId, payload) => {
+  io.to(conversationId.toString()).emit("messageReaction", payload);
+  io.to(conversationId.toString()).emit("reacted", {
+    ...payload,
+    userId: payload.reaction.userId,
+    reacted: payload.reacted || "",
+  });
+};
+
 export const getMessages = asynchandller(async (req, res) => {
   const { id } = req.params;
   const { _id } = req.user;
@@ -117,16 +254,24 @@ export const searchMessages = asynchandller(async (req, res) => {
 
 export const sendMessage = asynchandller(async (req, res) => {
   const { id } = req.params;
-  const { text, image, postId } = req.body;
+  const { text, image, postId, replyToId } = req.body;
   const senderId = req.user._id;
+  const messageText = typeof text === "string" ? text.trim() : "";
 
   if (!id) throw new ApiError(401, "Select Conversation");
+  if (!messageText && !image && !postId) {
+    throw new ApiError(400, "A message, image, or post is required");
+  }
 
-  const conversation = await Conversation.findById(id).lean();
-  if (!conversation) throw new ApiError(400, "Conversation not found");
+  const conversation = await getParticipantConversation(
+    id,
+    senderId,
+    "_id participants",
+  );
 
   let messageimage;
   let sharedPost = null;
+  const replyTo = await createReplySnapshot(replyToId, id, senderId);
 
   if (image) {
     const key = StoragePath("", {
@@ -157,9 +302,10 @@ export const sendMessage = asynchandller(async (req, res) => {
   const newMessage = await Message.create({
     conversationId: id,
     sender: senderId,
-    text: postId ? "Send a post" : text,
+    text: postId ? "Send a post" : messageText,
     image: messageimage,
     post: sharedPost,
+    replyTo,
     seenBy: [senderId],
   });
 
@@ -209,42 +355,117 @@ export const updateMsgStatus = async (id, userId) => {
   }
 };
 
+export const reactToMessage = asynchandller(async (req, res) => {
+  const { conversationId, emoji } = req.body;
+  const { id } = req.params;
+  const { _id } = req.user;
+
+  if (!conversationId || typeof emoji !== "string" || !emoji.trim()) {
+    throw new ApiError(400, "A reaction is required");
+  }
+  if (emoji.trim().length > 32) {
+    throw new ApiError(400, "Reaction is too long");
+  }
+
+  const conversation = await getParticipantConversation(
+    conversationId,
+    _id,
+    "_id participants",
+  );
+  const result = await applyReaction({
+    conversation,
+    messageId: id,
+    userId: _id,
+    emoji: emoji.trim(),
+  });
+  const payload = {
+    ...result.message,
+    reaction: {
+      userId: _id.toString(),
+      emoji: result.emoji,
+      action: result.action,
+    },
+  };
+
+  emitReaction(conversation._id, payload);
+
+  return res.status(200).json({
+    success: true,
+    message: result.action === "removed" ? "Reaction removed" : "Reaction updated",
+    reaction: result.action,
+    updatedMessage: payload,
+  });
+});
+
 export const updateMessage = asynchandller(async (req, res) => {
   const { conversationId, text, emoji } = req.body;
   const { id } = req.params;
   const { _id } = req.user;
 
-  if (!conversationId || (!text && !emoji))
+  if (!conversationId || (!text && !emoji)) {
     throw new ApiError(401, "Missing field");
-
-  const conversation = await Conversation.findById(conversationId)
-    .select("_id participants")
-    .lean();
-  if (!conversation) throw new ApiError(400, "Conversation not found");
-
-  let message = {};
-  if (emoji) {
-    message = await Message.findOneAndUpdate(
-      { conversationId: conversation._id, _id: id },
-      { reacted: emoji },
-      { new: true },
-    );
-  } else {
-    message = await Message.findOneAndUpdate(
-      { conversationId: conversation._id, _id: id, isSeen: false },
-      { text: text },
-      { new: true },
-    );
   }
+  if (emoji && (typeof emoji !== "string" || !emoji.trim() || emoji.trim().length > 32)) {
+    throw new ApiError(400, "Reaction is invalid");
+  }
+  if (!emoji && (typeof text !== "string" || !text.trim())) {
+    throw new ApiError(400, "Message text is required");
+  }
+
+  const conversation = await getParticipantConversation(
+    conversationId,
+    _id,
+    "_id participants",
+  );
+
+  if (emoji) {
+    const result = await applyReaction({
+      conversation,
+      messageId: id,
+      userId: _id,
+      emoji: emoji.trim(),
+    });
+    const payload = {
+      ...result.message,
+      reaction: {
+        userId: _id.toString(),
+        emoji: result.emoji,
+        action: result.action,
+      },
+    };
+    emitReaction(conversation._id, payload);
+
+    return res.status(200).json({
+      success: true,
+      message: "Reaction updated",
+      updatedMessage: payload,
+    });
+  }
+
+  const message = await Message.findOneAndUpdate(
+    {
+      conversationId: conversation._id,
+      _id: id,
+      isSeen: false,
+      sender: _id,
+      deletedForEveryone: { $ne: true },
+    },
+    { text: text.trim() },
+    { new: true },
+  ).lean();
   if (!message) throw new ApiError(401, "Message not found");
 
-  const msg = { ...message._doc, userId: _id };
-
-  io.to(conversation._id.toString()).emit("reacted", msg);
+  io.to(conversation._id.toString()).emit("messageUpdated", message);
+  // Existing clients use this event for both edits and reactions.
+  io.to(conversation._id.toString()).emit("reacted", {
+    ...message,
+    userId: _id.toString(),
+  });
 
   return res.status(200).json({
     success: true,
-    message: "Upadte message successfully",
+    message: "Message updated successfully",
+    updatedMessage: message,
   });
 });
 
@@ -254,10 +475,11 @@ export const deleteMessage = asynchandller(async (req, res) => {
   const { _id } = req.user;
 
   if (!conversationId || !deleteType) throw new ApiError(401, "Missing field");
-  const conversation = await Conversation.findById(conversationId)
-    .select("_id participants lastMessage")
-    .lean();
-  if (!conversation) throw new ApiError(400, "Conversation not found");
+  const conversation = await getParticipantConversation(
+    conversationId,
+    _id,
+    "_id participants lastMessage",
+  );
 
   const msg = await Message.findOne({
     conversationId: conversation._id,
@@ -278,20 +500,39 @@ export const deleteMessage = asynchandller(async (req, res) => {
       {
         deletedForEveryone: true,
         reacted: "",
+        reactions: [],
         image: null,
       },
       { new: true },
     );
-    if (conversation.lastMessage.toString() === msg._id.toString()) {
+    if (conversation.lastMessage?.toString() === msg._id.toString()) {
       await Conversation.updateOne(
         { _id: conversation._id },
         { lastMessage: message._id },
       );
     }
+    await Message.updateMany(
+      {
+        conversationId: conversation._id,
+        "replyTo.messageId": msg._id,
+      },
+      {
+        $set: {
+          "replyTo.preview": "This message was deleted",
+          "replyTo.deleted": true,
+        },
+      },
+    );
     msg.image && (await deleteImage(msg.image?.key));
   }
 
   io.to(conversation._id.toString()).emit("delete", message);
+  if (deleteType !== "deleteForMe") {
+    io.to(conversation._id.toString()).emit("replyTargetDeleted", {
+      conversationId: conversation._id.toString(),
+      messageId: msg._id.toString(),
+    });
+  }
 
   return res.status(200).json({
     success: true,

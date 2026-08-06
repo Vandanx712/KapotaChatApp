@@ -1,40 +1,30 @@
-import { MessageSquarePlusIcon, Search, Users } from "lucide-react";
-import React from "react";
+import { Skeleton } from "../ui";
 
 function SidebarSkeleton() {
   const skeletonContacts = Array(8).fill(null);
   return (
     <aside
-      className="h-full w-full lg:w-[350px] border-r border-base-300 
-    flex flex-col transition-all duration-200"
+      className="flex h-full w-full shrink-0 flex-col border-r border-line bg-surface lg:w-[360px]"
     >
-      {/* Header */}
-      <div className="border-b border-base-300 w-full p-5">
+      <div className="w-full border-b border-line px-4 pb-4 pt-5">
         <div className="flex items-center justify-between gap-2">
-          <Users className={`size-6`} />
-          <MessageSquarePlusIcon className={`size-6`} />
+          <div>
+            <Skeleton className="h-5 w-20 rounded-control" />
+            <Skeleton className="mt-2 h-3 w-28 rounded-control" />
+          </div>
+          <Skeleton className="size-10 rounded-control" />
         </div>
-        <div className="mt-6">
-          <label className="flex items-center justify-center gap-2 input input-bordered input-md w-full">
-            <Search className="size-5" />
-            <input type="text" placeholder="Search Conversation" className=" w-full" />
-          </label>
-        </div>
+        <Skeleton className="mt-5 h-10 w-full rounded-control" />
+        <Skeleton className="mt-3 h-10 w-full rounded-control" />
       </div>
 
-      {/* Skeleton Contacts */}
-      <div className="overflow-y-auto w-full py-3">
+      <div className="w-full overflow-y-auto py-2">
         {skeletonContacts.map((_, idx) => (
-          <div key={idx} className="w-full p-3 flex items-center gap-3">
-            {/* Avatar skeleton */}
-            <div className="relative mx-auto lg:mx-0">
-              <div className="skeleton size-12 rounded-full" />
-            </div>
-
-            {/* User info skeleton - only visible on larger screens */}
-            <div className="text-left min-w-0 flex-1">
-              <div className="skeleton h-4 w-32 mb-2" />
-              <div className="skeleton h-3 w-16" />
+          <div key={idx} className="flex w-full items-center gap-3 px-3 py-2.5">
+            <Skeleton className="size-12 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1 border-b border-line py-2">
+              <Skeleton className="mb-2 h-3.5 w-32 rounded-control" />
+              <Skeleton className="h-3 w-20 rounded-control" />
             </div>
           </div>
         ))}

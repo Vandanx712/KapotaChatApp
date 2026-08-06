@@ -1,15 +1,14 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { Loader } from "lucide-react";
-import { Toaster } from "react-hot-toast";
 import Navbar from "./components/Navbar";
 import CallManager from "./components/CallManager";
 import { useAuthStore } from "./store/useAuthStore";
 import { useThemeStore } from "./store/useThemeStore";
+import { Spinner, ToastViewport } from "./components/ui";
+import MobileAppRequired from "./pages/MobileAppRequired";
 
 const Home = lazy(() => import("./pages/Home"));
 const Login = lazy(() => import("./pages/Login"));
-const Signup = lazy(() => import("./pages/Signup"));
 const ForgetPassword = lazy(() => import("./pages/ForgetPassword"));
 const AddPost = lazy(() => import("./pages/AddPost"));
 const Explore = lazy(() => import("./pages/Explore"));
@@ -17,35 +16,57 @@ const PostDetail = lazy(() => import("./pages/PostDetail"));
 const Setting = lazy(() => import("./pages/Setting"));
 const Profile = lazy(() => import("./pages/Profile"));
 const UserProfile = lazy(() => import("./pages/UserProfile"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+const isMobileDevice = () => {
+  if (typeof navigator === "undefined") return false;
+  if (navigator.userAgentData?.mobile) return true;
+
+  return (
+    /Android|iPhone|iPad|iPod|IEMobile|Opera Mini/i.test(
+      navigator.userAgent,
+    ) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+};
 
 function App() {
-  const { authUser, checkAuth, isCheckingAuth } = useAuthStore();
+  const authUser = useAuthStore((state) => state.authUser);
+  const checkAuth = useAuthStore((state) => state.checkAuth);
+  const isCheckingAuth = useAuthStore((state) => state.isCheckingAuth);
   const { theme } = useThemeStore();
+  const mobileDevice = isMobileDevice();
+
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+    if (!mobileDevice) checkAuth();
+  }, [checkAuth, mobileDevice]);
+
+  useLayoutEffect(() => {
+    document.documentElement.setAttribute("data-kapota-theme", theme);
+  }, [theme]);
+
+  if (mobileDevice) return <MobileAppRequired />;
 
   if (isCheckingAuth && !authUser)
     return (
-      <div className=" flex items-center justify-center h-screen">
-        <Loader className=" size-10 animate-spin" />
+      <div className="flex h-screen items-center justify-center bg-canvas">
+        <div className="flex items-center gap-3 text-sm font-medium text-muted">
+          <Spinner size="lg" />
+          Opening Kapota
+        </div>
       </div>
     );
   return (
-    <div data-theme={theme}>
+    <div className="min-h-screen bg-canvas text-ink">
       {authUser && <Navbar />}
       <Suspense
         fallback={
-          <div className="min-h-screen flex items-center justify-center">
-            Loading...
+          <div className="flex min-h-screen items-center justify-center bg-canvas">
+            <Spinner size="lg" />
           </div>
         }
       >
         <Routes>
-          <Route
-            path="/signup"
-            element={!authUser ? <Signup /> : <Navigate to="/" />}
-          />
           <Route
             path="/login"
             element={!authUser ? <Login /> : <Navigate to="/" />}
@@ -80,10 +101,11 @@ function App() {
             path="/profile/:id"
             element={authUser ? <UserProfile /> : <Navigate to="/login" />}
           />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
       {authUser && <CallManager />}
-      <Toaster position="top-center" reverseOrder={false} />
+      <ToastViewport />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { Spinner } from "../ui";
 
 function SectionLoader({
   loading = false,
@@ -11,11 +11,11 @@ function SectionLoader({
 
   return (
     <div
-      className={`w-full rounded-2xl border border-base-300/60 bg-base-200/50 ${className}`}
+      className={`w-full rounded-app border border-line bg-surface-muted ${className}`}
       style={{ minHeight }}
     >
-      <div className="flex h-full w-full items-center justify-center gap-2 px-4 py-6 text-base-content/70">
-        <Loader2 className="size-4 animate-spin" />
+      <div className="flex h-full w-full items-center justify-center gap-2 px-4 py-6 text-muted">
+        <Spinner size="sm" />
         <span className="text-sm">{label}</span>
       </div>
     </div>

@@ -6,7 +6,7 @@ export default function Logo({
 }) {
   return (
     <div
-      className={`rounded-xl overflow-hidden ${className}`}
+      className={`overflow-hidden rounded-app ${className}`}
       style={{ width: size, height: size }}
     >
       <img src={src} alt={alt} className="w-full h-full object-cover" />

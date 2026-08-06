@@ -12,7 +12,10 @@ import { jobsQueue } from "../lib/worker.js";
 import { Session } from "../models/session.model.js";
 import { io } from "../lib/socket.js";
 import { TrustedDevice } from "../models/trustedDevice.model.js";
-import { clearTrustedDeviceCookie } from "../lib/tonken.js";
+import {
+  clearTrustedDeviceCookie,
+  requirePrimaryTrustedDevice,
+} from "../lib/tonken.js";
 import {
   DEFAULT_USERS_LIMIT,
   MAX_USERS_LIMIT,
@@ -106,6 +109,8 @@ export const updateProfile = asynchandller(async (req, res) => {
 export const deleteAccount = asynchandller(async (req, res) => {
   const { password } = req.body;
   const { _id } = req.user;
+
+  await requirePrimaryTrustedDevice(req);
 
   if (!password) throw new ApiError(401, "Password is required");
 

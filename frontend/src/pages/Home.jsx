@@ -9,21 +9,19 @@ function Home() {
   const { selectedConversation, showInfo, setShowInfo } = useChatStore();
 
   return (
-    <div className="h-screen bg-base-200">
-      <div className="h-full pt-[72px]">
-        <div className="flex h-[calc(100vh-72px)]">
-          <Sidebar />
-          {!selectedConversation ? <NoChatSelected /> : <ChatContainer />}
+    <main className="h-screen overflow-hidden bg-canvas pl-[72px]">
+      <div className="mx-auto flex h-full max-w-[1920px] border-r border-line bg-surface shadow-panel">
+        <Sidebar />
+        {!selectedConversation ? <NoChatSelected /> : <ChatContainer />}
 
-          {showInfo && (
-            <InfoDrawer
-              conversation={selectedConversation}
-              onClose={() => setShowInfo(false)}
-            />
-          )}
-        </div>
+        {showInfo && (
+          <InfoDrawer
+            conversation={selectedConversation}
+            onClose={() => setShowInfo(false)}
+          />
+        )}
       </div>
-    </div>
+    </main>
   );
 }
 

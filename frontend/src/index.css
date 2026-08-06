@@ -2,6 +2,178 @@
 @tailwind components;
 @tailwind utilities;
 
+:root,
+[data-kapota-theme="light"] {
+  color-scheme: light;
+  --color-canvas: 242 245 244;
+  --color-surface: 255 255 255;
+  --color-surface-raised: 255 255 255;
+  --color-surface-muted: 246 248 247;
+  --color-surface-hover: 237 242 240;
+  --color-ink: 25 36 32;
+  --color-muted: 91 105 99;
+  --color-subtle: 132 145 139;
+  --color-line: 219 227 223;
+  --color-line-strong: 196 208 202;
+  --color-brand: 0 168 132;
+  --color-brand-strong: 0 126 99;
+  --color-brand-soft: 223 247 240;
+  --color-on-brand: 255 255 255;
+  --color-success: 22 163 74;
+  --color-warning: 202 138 4;
+  --color-danger: 220 38 38;
+  --color-danger-soft: 254 226 226;
+  --color-on-danger: 255 255 255;
+  --color-message-in: 255 255 255;
+  --color-message-out: 217 253 236;
+  --radius-app: 8px;
+  --radius-control: 6px;
+  --shadow-control: 0 1px 2px rgb(15 23 42 / 0.05);
+  --shadow-panel: 0 10px 30px rgb(15 32 26 / 0.08);
+  --shadow-overlay: 0 24px 70px rgb(5 18 14 / 0.24);
+}
+
+[data-kapota-theme="dark"] {
+  color-scheme: dark;
+  --color-canvas: 13 20 18;
+  --color-surface: 20 29 26;
+  --color-surface-raised: 27 38 34;
+  --color-surface-muted: 25 35 32;
+  --color-surface-hover: 35 48 43;
+  --color-ink: 236 243 240;
+  --color-muted: 164 178 172;
+  --color-subtle: 119 136 129;
+  --color-line: 48 62 57;
+  --color-line-strong: 67 82 76;
+  --color-brand: 35 190 151;
+  --color-brand-strong: 74 222 178;
+  --color-brand-soft: 23 68 56;
+  --color-on-brand: 5 28 21;
+  --color-success: 74 222 128;
+  --color-warning: 250 204 21;
+  --color-danger: 248 113 113;
+  --color-danger-soft: 69 28 28;
+  --color-on-danger: 39 10 10;
+  --color-message-in: 31 43 39;
+  --color-message-out: 13 75 61;
+  --shadow-control: 0 1px 2px rgb(0 0 0 / 0.24);
+  --shadow-panel: 0 12px 34px rgb(0 0 0 / 0.22);
+  --shadow-overlay: 0 28px 80px rgb(0 0 0 / 0.48);
+}
+
+@layer base {
+  * {
+    @apply border-line;
+  }
+
+  html {
+    @apply bg-canvas antialiased;
+  }
+
+  body {
+    @apply m-0 min-w-0 bg-canvas font-sans text-ink;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button,
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::selection {
+    @apply bg-brand/20 text-ink;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand/40 ring-offset-2 ring-offset-surface;
+  }
+}
+
+@layer components {
+  .message-composer {
+    transition: border-color 150ms ease;
+  }
+
+  .message-composer:focus-within {
+    border-color: rgb(var(--color-brand));
+  }
+
+  .message-composer input:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
+  .ui-scrollbar {
+    scrollbar-color: rgb(var(--color-line-strong)) transparent;
+    scrollbar-width: thin;
+  }
+
+  .ui-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .ui-scrollbar::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-line-strong;
+  }
+
+  .ui-skeleton {
+    @apply relative overflow-hidden bg-surface-hover;
+  }
+
+  .ui-skeleton::after {
+    content: "";
+    @apply absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-surface/70 to-transparent;
+  }
+
+  .chat-canvas {
+    background-color: rgb(var(--color-canvas));
+    background-image:
+      linear-gradient(rgb(var(--color-line) / 0.22) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--color-line) / 0.22) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  .message-bubble-in::before,
+  .message-bubble-out::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .message-bubble-in::before {
+    left: -7px;
+    border-top: 8px solid rgb(var(--color-message-in));
+    border-left: 8px solid transparent;
+  }
+
+  .message-bubble-out::before {
+    right: -7px;
+    border-top: 8px solid rgb(var(--color-message-out));
+    border-right: 8px solid transparent;
+  }
+
+  .ui-range {
+    @apply h-1.5 w-full cursor-pointer appearance-none rounded-full bg-line-strong accent-brand;
+  }
+
+  .ui-range::-webkit-slider-thumb {
+    @apply size-4 appearance-none rounded-full border-2 border-surface bg-brand shadow-control;
+  }
+
+  .ui-range::-moz-range-thumb {
+    @apply size-4 rounded-full border-2 border-surface bg-brand shadow-control;
+  }
+}
+
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -10,100 +182,3 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
-
-
-.fab {
-    @apply absolute bottom-0 -right-2;
-}
-
-/* Hide children buttons by default */
-.fab> :not([role="button"]) {
-    @apply scale-0 opacity-0 transition-all duration-200 origin-bottom;
-}
-
-/* Show children when the main button is clicked/focused */
-.fab:focus-within> :not([role="button"]) {
-    @apply scale-100 opacity-100;
-}
-
-/* =========================
-   PIGEON FLOATING (MAIN)
-========================= */
-.pigeon-float {
-  animation: pigeonFloat 1.8s ease-in-out infinite;
-}
-
-@keyframes pigeonFloat {
-  0%, 100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-30px) scale(1.03);
-  }
-}
-
-/* =========================
-   WINGS
-========================= */
-.wing-left {
-  transform-origin: 45px 50px;
-  animation: wingLeft 1.8s ease-in-out infinite;
-}
-
-.wing-right {
-  transform-origin: 55px 50px;
-  animation: wingRight 1.8s ease-in-out infinite;
-}
-
-@keyframes wingLeft {
-  0%, 100% {
-    transform: rotate(0deg);
-  }
-  50% {
-    transform: rotate(-75deg);
-  }
-}
-
-@keyframes wingRight {
-  0%, 100% {
-    transform: rotate(0deg);
-  }
-  50% {
-    transform: rotate(75deg);
-  }
-}
-
-/* =========================
-   TEXT BREATHING
-========================= */
-.loading-text {
-  animation: textFade 2.8s ease-in-out infinite;
-}
-
-@keyframes textFade {
-  0%, 100% {
-    opacity: 0.6;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-/* =========================
-   DOTS (LOADING SIGNAL)
-========================= */
-/* .loading-dots {
-  display: inline-block;
-  overflow: hidden;
-  vertical-align: bottom;
-  animation: dots 1.6s steps(4, end) infinite;
-}
-
-@keyframes dots {
-  0% {
-    width: 0ch;
-  }
-  100% {
-    width: 3ch;
-  }
-} */
