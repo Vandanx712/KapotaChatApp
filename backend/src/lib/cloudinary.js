@@ -15,8 +15,8 @@ export const getAvatars = async (path) => {
       .sort_by("created_at", "desc")
       .execute();
 
-    const images = result.resources.map((img)=>({
-        url:img.secure_url
+    const images = result.resources.map((img) => ({
+      url: img.secure_url
     }))
     return images
   } catch (error) {
@@ -24,22 +24,74 @@ export const getAvatars = async (path) => {
   }
 };
 
-export const uploadChatPic = async(path,pic)=>{
+export const uploadChatPic = async (path, pic) => {
   try {
-     const uploadResponse = await cloudinary.uploader.upload(pic,{folder:path});
-     return {
-      key:uploadResponse.public_id,
-      url:uploadResponse.secure_url
-     }
+    const uploadResponse = await cloudinary.uploader.upload(pic, { folder: path });
+    return {
+      key: uploadResponse.public_id,
+      url: uploadResponse.secure_url
+    }
   } catch (error) {
     console.log(`Error in uploadPic: ${error}`)
   }
 }
 
-export const deleteImage = async(oldkey)=>{
+export const deleteImage = async (oldkey) => {
   try {
     await cloudinary.uploader.destroy(oldkey)
   } catch (error) {
     console.log(`Error in deletePic: ${error}`)
   }
 }
+
+export const createUploadSignature = (params) => {
+  return {
+    signature: cloudinary.utils.api_sign_request(
+      params,
+      process.env.CLOUDINARY_API_SECRET,
+    ),
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    cloudName: process.env.CLOUD_NAME,
+  };
+};
+
+export const getCloudinaryAsset = async ({
+  publicId,
+  resourceType,
+  deliveryType,
+}) => {
+  try {
+    return await cloudinary.api.resource(publicId, {
+      resource_type: resourceType,
+      type: deliveryType,
+    });
+  } catch (error) {
+    const statusCode = error?.http_code || error?.error?.http_code;
+
+    if (statusCode === 404) {
+      return null;
+    }
+
+    throw error;
+  }
+};
+
+export const createPrivateMediaUrl = ({
+  publicId,
+  format,
+  resourceType,
+  deliveryType,
+  expiresAt,
+  attachment = false,
+}) => {
+  return cloudinary.utils.private_download_url(
+    publicId,
+    resourceType === "raw" ? null : format,
+    {
+      resource_type: resourceType,
+      type: deliveryType,
+      expires_at: expiresAt,
+      attachment,
+    },
+  );
+};

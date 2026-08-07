@@ -8,6 +8,12 @@ const postSchema = new mongoose.Schema(
       index: true,
     },
 
+    media: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Media",
+      default: null,
+    },
+
     image: {
       type: mongoose.Schema.Types.Mixed,
     },

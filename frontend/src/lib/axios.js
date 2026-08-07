@@ -66,6 +66,29 @@ export const qrLoginComplete = async (data) => {
   return response.data
 }
 
+// media upload part
+
+export const prepareMediaUpload = async (data) => {
+  const response = await api.post("/media/prepare", data);
+  return response.data;
+};
+
+export const completeMediaUpload = async (assetId) => {
+  const response = await api.post("/media/complete", { assetId });
+  return response.data;
+};
+
+export const getMediaAccess = async (
+  mediaId,
+  disposition = "inline",
+) => {
+  const response = await api.get(`/media/${mediaId}/access`, {
+    params: { disposition },
+  });
+
+  return response.data.access;
+};
+
 //profile part
 
 export const getAvatars = async (data) => {

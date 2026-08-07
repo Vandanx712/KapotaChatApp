@@ -1,17 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
-import { Image, Send, SmileIcon, X } from "lucide-react";
+import { Image, FileText, Paperclip, Send, SmileIcon, X } from "lucide-react";
 import toast from "react-hot-toast";
 import EmojiPicker from "emoji-picker-react";
 import { Button, Tooltip } from "./ui";
 import { useThemeStore } from "../store/useThemeStore";
+import { uploadMedia } from "../hooks/uploadMedia"
 
 function MessageInput() {
   const [text, setText] = useState("");
-  const [imagePreview, setImagePreview] = useState(null);
   const [showPicker, setShowPicker] = useState(false);
   const theme = useThemeStore((state) => state.theme);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [preparedMedia, setPreparedMedia] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(null);
+  const [isSending, setIsSending] = useState(false);
+
+  const uploadAbortRef = useRef(null);
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
@@ -24,6 +31,18 @@ function MessageInput() {
   const replyingTo = useChatStore((state) => state.replyingTo);
   const clearReplyingTo = useChatStore((state) => state.clearReplyingTo);
   const authUser = useAuthStore((state) => state.authUser);
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl("");
+      return undefined;
+    }
+
+    const url = URL.createObjectURL(selectedFile);
+    setPreviewUrl(url);
+
+    return () => URL.revokeObjectURL(url);
+  }, [selectedFile]);
 
   useEffect(() => {
     return () => {
@@ -53,27 +72,47 @@ function MessageInput() {
     );
   })();
 
-  const handleimagechange = (e) => {
-    const file = e.target.files[0];
-    if (!file) {
-      return;
-    }
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
-      e.target.value = "";
-      return;
-    }
-    if (file.size > 9 * 1024 * 1024) {
-      toast.error("Image must be smaller than 9 MB");
-      e.target.value = "";
+  const ACCEPTED_TYPES = new Set([
+    "image/jpeg", "image/png", "image/webp", "image/gif",
+    "video/mp4", "video/webm", "video/quicktime",
+    "audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav",
+    "application/pdf", "text/plain", "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ]);
+
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!ACCEPTED_TYPES.has(file.type)) {
+      toast.error("This file type is not supported");
+      event.target.value = "";
       return;
     }
 
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onloadend = () => {
-      setImagePreview(reader.result);
-    };
+    if (file.size > 200 * 1024 * 1024) {
+      toast.error("Attachment must be smaller than 100 MB");
+      event.target.value = "";
+      return;
+    }
+
+    uploadAbortRef.current?.abort();
+    setSelectedFile(file);
+    setPreparedMedia(null);
+    setUploadProgress(null);
+  };
+
+  const removeFile = () => {
+    uploadAbortRef.current?.abort();
+    uploadAbortRef.current = null;
+
+    setSelectedFile(null);
+    setPreparedMedia(null);
+    setUploadProgress(null);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const removeimage = () => {
@@ -81,25 +120,59 @@ function MessageInput() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handlesendmessage = async (e) => {
-    e.preventDefault();
-    if (!text.trim() && !imagePreview) return;
+  const handlesendmessage = async (event) => {
+    event.preventDefault();
+
+    if ((!text.trim() && !selectedFile) || isSending) return;
+
+    setIsSending(true);
+
     try {
+      let media = preparedMedia;
+
+      if (selectedFile && !media) {
+        const controller = new AbortController();
+        uploadAbortRef.current = controller;
+
+        media = await uploadMedia({
+          file: selectedFile,
+          purpose: "chat_attachment",
+          conversationId: selectedConversation.conversationId,
+          signal: controller.signal,
+          onProgress: setUploadProgress,
+        });
+
+        setPreparedMedia(media);
+      }
+
+      setUploadProgress({
+        phase: "sending",
+        percent: 100,
+      });
+
       const sent = await sendMessage({
         text: text.trim(),
-        image: imagePreview,
+        mediaId: media?._id ?? null,
         replyToId: replyingTo?._id,
       });
+
       if (!sent) return;
 
       setText("");
-      setImagePreview(null);
+      removeFile();
       clearReplyingTo();
       stopTypingNow();
-      if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to send message");
-      console.error("Failed to send message:", error);
+      if (error.code !== "ERR_CANCELED") {
+        toast.error(
+          error.response?.data?.message ||
+          error.response?.data?.error?.message ||
+          "Attachment could not be sent",
+        );
+      }
+    } finally {
+      uploadAbortRef.current = null;
+      setIsSending(false);
     }
   };
 
@@ -131,30 +204,63 @@ function MessageInput() {
           </Button>
         </div>
       )}
-      {imagePreview && (
-        <div className="mb-3 flex items-center gap-2 rounded-app border border-line bg-surface p-2 shadow-control">
-          <div className="relative shrink-0">
+
+      {selectedFile && (
+        <div className="mb-3 flex items-center gap-3 rounded-app border border-line bg-surface p-2">
+          {selectedFile.type.startsWith("image/") ? (
             <img
-              src={imagePreview}
-              alt="Preview"
-              className="size-20 rounded-control border border-line object-cover"
+              src={previewUrl}
+              alt=""
+              className="size-20 rounded-control object-cover"
             />
-            <button
-              onClick={removeimage}
-              className="absolute -right-1.5 -top-1.5 flex size-6 items-center justify-center rounded-full border border-line bg-surface-raised text-muted shadow-control hover:text-ink"
-              type="button"
-              aria-label="Remove attachment"
-            >
-              <X className="size-3" />
-            </button>
+          ) : selectedFile.type.startsWith("video/") ? (
+            <video
+              src={previewUrl}
+              muted
+              preload="metadata"
+              className="size-20 rounded-control bg-black object-cover"
+            />
+          ) : (
+            <div className="flex size-20 items-center justify-center rounded-control bg-surface-muted">
+              <FileText className="size-7 text-muted" />
+            </div>
+          )}
+
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-ink">
+              {selectedFile.name}
+            </p>
+
+            <p className="text-xs text-muted">
+              {(selectedFile.size / 1024 / 1024).toFixed(1)} MB
+            </p>
+
+            {uploadProgress && (
+              <div className="mt-2">
+                <div className="h-1 overflow-hidden rounded-full bg-surface-muted">
+                  <div
+                    className="h-full bg-brand transition-[width]"
+                    style={{ width: `${uploadProgress.percent}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-xs capitalize text-muted">
+                  {uploadProgress.phase}
+                </p>
+              </div>
+            )}
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-ink">Image ready to send</p>
-            <p className="mt-0.5 text-xs text-muted">Add a message or send it as is.</p>
-          </div>
+
+          <Button
+            iconOnly
+            size="sm"
+            variant="ghost"
+            onClick={removeFile}
+            aria-label={isSending ? "Cancel upload" : "Remove attachment"}
+          >
+            <X className="size-4" />
+          </Button>
         </div>
       )}
-
       {showPicker && (
         <>
           <div
@@ -182,7 +288,7 @@ function MessageInput() {
               iconOnly
               size="sm"
               variant="ghost"
-              className={imagePreview ? "text-brand-strong" : ""}
+              className={selectedFile ? "text-brand-strong" : ""}
               onClick={() => fileInputRef.current?.click()}
               aria-label="Attach image"
             >
@@ -227,10 +333,10 @@ function MessageInput() {
           />
           <input
             type="file"
-            accept="image/*"
+            accept="image/*,video/mp4,video/webm,video/quicktime,audio/*,.pdf,.txt,.doc,.docx"
             className="hidden"
             ref={fileInputRef}
-            onChange={handleimagechange}
+            onChange={handleFileChange}
           />
         </div>
         <Button
@@ -238,10 +344,11 @@ function MessageInput() {
           iconOnly
           size="lg"
           variant="primary"
-          disabled={!text.trim() && !imagePreview}
+          loading={isSending}
+          disabled={!text.trim() && !selectedFile}
           aria-label="Send message"
         >
-          <Send size={20} />
+          {!isSending && <Send size={20} />}
         </Button>
       </form>
     </div>

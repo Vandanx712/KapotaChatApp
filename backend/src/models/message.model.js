@@ -27,6 +27,11 @@ const messageSchema = new mongoose.Schema(
     text: {
       type: String,
     },
+    media: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Media",
+      default: null,
+    },
     image: {
       type: mongoose.Schema.Types.Mixed,
     },

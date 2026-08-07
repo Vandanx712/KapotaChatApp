@@ -13,6 +13,22 @@ import {
   buildPaginationQuery,
   processPaginationResults,
 } from "../util/pagination.js";
+import mongoose from "mongoose";
+import { Media } from "../models/media.model.js";
+
+const MEDIA_CLIENT_FIELDS = [
+  "_id",
+  "purpose",
+  "resourceType",
+  "originalName",
+  "mimeType",
+  "bytes",
+  "width",
+  "height",
+  "duration",
+  "format",
+  "status",
+].join(" ");
 
 const getParticipantConversation = async (conversationId, userId, select) => {
   const conversation = await Conversation.findById(conversationId)
@@ -33,6 +49,7 @@ const getParticipantConversation = async (conversationId, userId, select) => {
 
 const getReplyPreview = (message) => {
   if (message.post?._id) return "Shared post";
+  if (message.media) return message.text?.trim() || "Attachment";
   if (message.image?.url) return message.text?.trim() || "Photo";
   return message.text?.trim() || "Message";
 };
@@ -47,7 +64,7 @@ const createReplySnapshot = async (replyToId, conversationId, userId) => {
     deletedForEveryone: { $ne: true },
     deletedFor: { $ne: userId },
   })
-    .select("_id sender text image post")
+    .select("_id sender text image media post")
     .lean();
 
   if (!target) {
@@ -156,6 +173,7 @@ export const getMessages = asynchandller(async (req, res) => {
   const { _id } = req.user;
 
   if (!id) throw new ApiError(401, "Select Conversation");
+  await getParticipantConversation(id, _id, "_id participants");
 
   const { cursor, safeLimit } = parsePaginationParams(
     req,
@@ -171,6 +189,10 @@ export const getMessages = asynchandller(async (req, res) => {
   const query = buildPaginationQuery(baseQuery, cursor);
 
   const docs = await Message.find(query)
+    .populate({
+      path: "media",
+      select: MEDIA_CLIENT_FIELDS,
+    })
     .sort({ _id: -1 })
     .limit(safeLimit + 1)
     .lean();
@@ -254,13 +276,17 @@ export const searchMessages = asynchandller(async (req, res) => {
 
 export const sendMessage = asynchandller(async (req, res) => {
   const { id } = req.params;
-  const { text, image, postId, replyToId } = req.body;
+  const { text, image, mediaId, postId, replyToId } = req.body;
   const senderId = req.user._id;
   const messageText = typeof text === "string" ? text.trim() : "";
 
   if (!id) throw new ApiError(401, "Select Conversation");
-  if (!messageText && !image && !postId) {
-    throw new ApiError(400, "A message, image, or post is required");
+  if (!messageText && !image && !mediaId && !postId) {
+    throw new ApiError(400, "A message, attachment, or post is required");
+  }
+
+  if (image && mediaId) {
+    throw new ApiError(400, "Send either legacy image or media, not both");
   }
 
   const conversation = await getParticipantConversation(
@@ -299,17 +325,77 @@ export const sendMessage = asynchandller(async (req, res) => {
     };
   }
 
-  const newMessage = await Message.create({
-    conversationId: id,
-    sender: senderId,
-    text: postId ? "Send a post" : messageText,
-    image: messageimage,
-    post: sharedPost,
-    replyTo,
-    seenBy: [senderId],
-  });
+  const messageId = new mongoose.Types.ObjectId();
+  let claimedMedia = null;
 
-  await Conversation.updateOne({ _id: id }, { lastMessage: newMessage._id });
+  if (mediaId) {
+    claimedMedia = await Media.findOneAndUpdate(
+      {
+        _id: mediaId,
+        owner: senderId,
+        conversationId: conversation._id,
+        purpose: "chat_attachment",
+        status: "ready",
+        attachedToId: null,
+        attachedToModel: null
+      }, {
+      $set: {
+        status: "attached",
+        attachedToModel: "Message",
+        attachedToId: messageId,
+      }
+    }, { new: true }
+    )
+
+    if (!claimedMedia) throw new ApiError(400, "Attachment is invalid or already used")
+  }
+
+  let createdMessage;
+
+  try {
+    createdMessage = await Message.create({
+      _id: messageId,
+      conversationId: conversation._id,
+      sender: senderId,
+      text: postId ? "Send a post" : messageText,
+      image: messageimage,
+      media: claimedMedia?._id ?? null,
+      post: sharedPost,
+      replyTo,
+      seenBy: [senderId],
+    });
+  } catch (error) {
+    if (claimedMedia) {
+      await Media.updateOne(
+        {
+          _id: claimedMedia._id,
+          attachedToId: messageId,
+        },
+        {
+          $set: {
+            status: "ready",
+            attachedToModel: null,
+            attachedToId: null,
+          },
+        },
+      );
+    }
+
+    throw error;
+  }
+
+  const newMessage = await Message.findById(createdMessage._id)
+    .populate({
+      path: "media",
+      select: MEDIA_CLIENT_FIELDS,
+    })
+    .lean();
+
+  if (!newMessage) {
+    throw new ApiError(500, "Created message could not be loaded");
+  }
+
+  await Conversation.updateOne({ _id: id }, { lastMessage: createdMessage._id });
 
   io.to(conversation._id.toString()).emit("newmessage", newMessage);
 

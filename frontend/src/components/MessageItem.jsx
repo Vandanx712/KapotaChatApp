@@ -28,6 +28,7 @@ import {
   MenuSeparator,
   Modal,
 } from "./ui";
+import MediaAttachment from "./common/MediaAttachment";
 import { useThemeStore } from "../store/useThemeStore";
 
 const MessageItem = memo(
