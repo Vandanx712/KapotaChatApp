@@ -8,7 +8,10 @@ import { Post } from "../models/post.model.js";
 import { Like } from "../models/like.model.js";
 import { Conversation } from "../models/conversation.model.js";
 import { Message } from "../models/message.model.js";
-import { jobsQueue } from "../lib/worker.js";
+import {
+  enqueueLegacyAssetDeletion,
+  scheduleMediaDeletion,
+} from "../lib/jobsQueue.js";
 import { Session } from "../models/session.model.js";
 import { io } from "../lib/socket.js";
 import { TrustedDevice } from "../models/trustedDevice.model.js";
@@ -28,7 +31,7 @@ const queueAssetCleanup = async ({ keys = [], messages = [] }) => {
   const filteredKeys = [...new Set(keys.filter(Boolean))];
   if (filteredKeys.length === 0 && messages.length === 0) return;
 
-  await jobsQueue.add("delete-msg-Img", {
+  await enqueueLegacyAssetDeletion({
     keys: filteredKeys,
     messages,
   });
@@ -120,7 +123,9 @@ export const deleteAccount = asynchandller(async (req, res) => {
   const isPasswordValid = await bcrypt.compare(password, user.password);
   if (!isPasswordValid) throw new ApiError(400, "Invalid password");
 
-  const userPosts = await Post.find({ user: _id }).select("_id image").lean();
+  const userPosts = await Post.find({ user: _id })
+    .select("_id image media")
+    .lean();
   const postIds = userPosts.map((post) => post._id);
 
   const conversations = await Conversation.find({
@@ -147,15 +152,19 @@ export const deleteAccount = asynchandller(async (req, res) => {
   ];
 
   const mediaMessages = [];
+  const mediaIdsToDelete = userPosts.map((post) => post.media).filter(Boolean);
 
   if (directConversationIds.length > 0) {
     const directMessages = await Message.find({
       conversationId: { $in: directConversationIds },
     })
-      .select("image")
+      .select("image media")
       .lean();
 
     mediaMessages.push(...directMessages);
+    mediaIdsToDelete.push(
+      ...directMessages.map((message) => message.media).filter(Boolean),
+    );
 
     await Message.deleteMany({
       conversationId: { $in: directConversationIds },
@@ -180,10 +189,13 @@ export const deleteAccount = asynchandller(async (req, res) => {
       const groupMessages = await Message.find({
         conversationId: conversation._id,
       })
-        .select("image")
+        .select("image media")
         .lean();
 
       mediaMessages.push(...groupMessages);
+      mediaIdsToDelete.push(
+        ...groupMessages.map((message) => message.media).filter(Boolean),
+      );
 
       await Message.deleteMany({ conversationId: conversation._id });
       await Conversation.deleteOne({ _id: conversation._id });
@@ -208,6 +220,14 @@ export const deleteAccount = asynchandller(async (req, res) => {
   }
 
   if (postIds.length > 0) {
+    await Message.updateMany(
+      { "post._id": { $in: postIds } },
+      {
+        $set: { "post.unavailable": true },
+        $unset: { "post.image": "", "post.media": "" },
+      },
+    );
+
     await Like.deleteMany({
       $or: [{ user: _id }, { post: { $in: postIds } }],
     });
@@ -225,6 +245,10 @@ export const deleteAccount = asynchandller(async (req, res) => {
   await Session.deleteMany({ user: user._id });
   await TrustedDevice.deleteMany({ user: user._id });
   clearTrustedDeviceCookie(res);
+
+  if (mediaIdsToDelete.length > 0) {
+    await scheduleMediaDeletion({ _id: { $in: mediaIdsToDelete } });
+  }
 
   await User.deleteOne({ _id });
   await queueAssetCleanup({

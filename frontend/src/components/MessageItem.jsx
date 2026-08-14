@@ -217,7 +217,7 @@ const MessageItem = memo(
     const hasTextContent = Boolean(
       m.text && (!isSharedPost || m.deletedForEveryone),
     );
-    const showTimeOverMedia = Boolean(m.image && !hasTextContent);
+    const showTimeOverMedia = Boolean((m.image || m.media) && !hasTextContent);
 
     const replySenderId = m.replyTo?.sender?.toString?.() || m.replyTo?.sender;
     const replySenderName =
@@ -396,6 +396,13 @@ const MessageItem = memo(
                   </PhotoProvider>
                 )}
 
+                {m.media?._id && !m.deletedForEveryone && (
+                  <MediaAttachment
+                    media={m.media}
+                    reserveTime={!hasTextContent}
+                  />
+                )}
+
                 {isSharedPost && !m.deletedForEveryone && (
                   <button
                     type="button"
@@ -405,7 +412,7 @@ const MessageItem = memo(
                     }}
                     className="mb-3 overflow-hidden rounded-control border border-line bg-surface text-left transition hover:bg-surface-hover"
                   >
-                    {m.post?.image?.url && (
+                    {m.post?.image?.url && !m.post?.unavailable && (
                       <img
                         src={m.post.image.url}
                         alt={m.post.caption || "Shared post"}
@@ -413,8 +420,14 @@ const MessageItem = memo(
                       />
                     )}
                     <div className="p-2.5">
-                      <p className="line-clamp-2 text-sm text-ink">{m.post?.caption || m.text || "Shared post"}</p>
-                      <p className="mt-2 text-xs font-semibold text-brand-strong">Open post</p>
+                      <p className="line-clamp-2 text-sm text-ink">
+                        {m.post?.unavailable
+                          ? "This post is no longer available"
+                          : m.post?.caption || m.text || "Shared post"}
+                      </p>
+                      {!m.post?.unavailable && (
+                        <p className="mt-2 text-xs font-semibold text-brand-strong">Open post</p>
+                      )}
                     </div>
                   </button>
                 )}

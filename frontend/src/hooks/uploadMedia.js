@@ -55,6 +55,7 @@ export const uploadMedia = async ({
 
     formData.append("file", file);
     formData.append("api_key", ticket.apiKey);
+    formData.append("signature", ticket.signature);
 
     Object.entries(ticket.uploadParams).forEach(([key, value]) => {
         formData.append(key, String(value));

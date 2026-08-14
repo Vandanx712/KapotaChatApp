@@ -6,7 +6,10 @@ import { ApiError } from "../util/apierror.js";
 import { deleteImage, uploadChatPic } from "../lib/cloudinary.js";
 import { StoragePath } from "../util/filepath.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
-import { jobsQueue } from "../lib/worker.js";
+import {
+  enqueueLegacyAssetDeletion,
+  scheduleMediaDeletion,
+} from "../lib/jobsQueue.js";
 import {
   DEFAULT_USERS_LIMIT,
   MAX_USERS_LIMIT,
@@ -139,7 +142,10 @@ export const getConversation = asynchandller(async (req, res) => {
     "participants.userId": { $eq: _id },
   })
     .select("participants groupname bgImage groupIcon lastMessage")
-    .populate("lastMessage", "text image sender deletedFor deletedForEveryone")
+    .populate(
+      "lastMessage",
+      "text image media post sender deletedFor deletedForEveryone",
+    )
     .populate({
       path: "participants.userId",
       select: "_id fullname profilePic",
@@ -277,6 +283,7 @@ export const deleteConversation = asynchandller(async (req, res) => {
   const user = conversation.participants.find(
     (u) => u.userId.toString() == _id.toString(),
   );
+  if (!user) throw new ApiError(403, "You are not a member of this conversation");
   if (user.role !== "admin" && conversation.groupname)
     throw new ApiError(400, "you can't perform this action");
 
@@ -294,7 +301,13 @@ export const deleteConversation = asynchandller(async (req, res) => {
   }
 
   await Message.deleteMany({ conversationId: conversation._id });
-  await jobsQueue.add("delete-msg-Img", { keys, messages });
+
+  const mediaIds = messages.map((message) => message.media).filter(Boolean);
+  if (mediaIds.length > 0) {
+    await scheduleMediaDeletion({ _id: { $in: mediaIds } });
+  }
+
+  await enqueueLegacyAssetDeletion({ keys, messages });
 
   emitRefresh("DELETE_CONVERSATION", conversation);
 
