@@ -68,7 +68,14 @@ const mediaSchema = new mongoose.Schema(
 
         status: {
             type: String,
-            enum: ["pending", "ready", "attached", "failed", "deleted"],
+            enum: [
+                "pending",
+                "ready",
+                "attached",
+                "deleting",
+                "failed",
+                "deleted",
+            ],
             default: "pending",
             index: true,
         },

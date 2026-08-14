@@ -1,8 +1,10 @@
 import { Media } from "../models/media.model.js";
 import { Conversation } from "../models/conversation.model.js";
+import { Message } from "../models/message.model.js";
 import { createUploadSignature, getCloudinaryAsset, createPrivateMediaUrl } from "../lib/cloudinary.js";
 import { asynchandller } from "../util/asynchandller.js";
 import { ApiError } from "../util/apierror.js";
+import mongoose from "mongoose";
 
 const MB = 1024 * 1024;
 
@@ -59,6 +61,35 @@ const rawExtensions = {
         "docx",
 };
 
+const expectedFormats = {
+    "image/jpeg": ["jpg", "jpeg"],
+    "image/png": ["png"],
+    "image/webp": ["webp"],
+    "image/gif": ["gif"],
+    "video/mp4": ["mp4"],
+    "video/webm": ["webm"],
+    "video/quicktime": ["mov"],
+    "audio/mpeg": ["mp3"],
+    "audio/mp4": ["m4a", "mp4"],
+    "audio/ogg": ["ogg"],
+    "audio/wav": ["wav"],
+};
+
+const mediaForClient = (media) => ({
+    _id: media._id,
+    purpose: media.purpose,
+    resourceType: media.resourceType,
+    mimeType: media.mimeType,
+    originalName: media.originalName,
+    bytes: media.bytes,
+    width: media.width,
+    height: media.height,
+    duration: media.duration,
+    format: media.format,
+    status: media.status,
+    url: media.deliveryType === "upload" ? media.secureUrl : null,
+});
+
 export const prepareMediaUpload = asynchandller(async (req, res) => {
     const { purpose, conversationId, originalName, mimeType, bytes } = req.body;
     const userId = req.user._id;
@@ -82,7 +113,7 @@ export const prepareMediaUpload = asynchandller(async (req, res) => {
     }
 
     if (purpose === "chat_attachment") {
-        if (!conversationId) {
+        if (!conversationId || !mongoose.isValidObjectId(conversationId)) {
             throw new ApiError(400, "Conversation is required");
         }
 
@@ -100,6 +131,17 @@ export const prepareMediaUpload = asynchandller(async (req, res) => {
     const deliveryType =
         purpose === "chat_attachment" ? "authenticated" : "upload";
 
+    const safeOriginalName = originalName
+        .split(/[\\/]/)
+        .pop()
+        .replace(/[\u0000-\u001f\u007f]/g, "")
+        .trim()
+        .slice(0, 255);
+
+    if (!safeOriginalName) {
+        throw new ApiError(400, "Invalid file name");
+    }
+
     const media = new Media({
         owner: userId,
         conversationId:
@@ -107,7 +149,7 @@ export const prepareMediaUpload = asynchandller(async (req, res) => {
         purpose,
         resourceType,
         deliveryType,
-        originalName: originalName.trim().slice(0, 255),
+        originalName: safeOriginalName,
         mimeType,
         bytes: fileSize,
         status: "pending",
@@ -146,7 +188,7 @@ export const completeMediaUpload = asynchandller(async (req, res) => {
     const { assetId } = req.body;
     const userId = req.user._id;
 
-    if (!assetId) {
+    if (!assetId || !mongoose.isValidObjectId(assetId)) {
         throw new ApiError(400, "Media asset is required");
     }
 
@@ -162,12 +204,7 @@ export const completeMediaUpload = asynchandller(async (req, res) => {
     if (media.status === "ready") {
         return res.status(200).json({
             success: true,
-            media: {
-                _id: media._id,
-                purpose: media.purpose,
-                resourceType: media.resourceType,
-                status: media.status,
-            },
+            media: mediaForClient(media),
         });
     }
 
@@ -197,7 +234,12 @@ export const completeMediaUpload = asynchandller(async (req, res) => {
         remoteAsset.bytes > 0 &&
         remoteAsset.bytes <= policy.maxBytes;
 
-    if (!identityMatches || !validSize) {
+    const allowedFormats = expectedFormats[media.mimeType];
+    const validFormat =
+        media.resourceType === "raw" ||
+        (allowedFormats && allowedFormats.includes(remoteAsset.format));
+
+    if (!identityMatches || !validSize || !validFormat) {
         media.status = "failed";
         await media.save();
 
@@ -218,21 +260,7 @@ export const completeMediaUpload = asynchandller(async (req, res) => {
 
     return res.status(200).json({
         success: true,
-        media: {
-            _id: media._id,
-            purpose: media.purpose,
-            resourceType: media.resourceType,
-            mimeType: media.mimeType,
-            originalName: media.originalName,
-            bytes: media.bytes,
-            width: media.width,
-            height: media.height,
-            duration: media.duration,
-            format: media.format,
-            status: media.status,
-
-            url: media.deliveryType === "upload" ? media.secureUrl : null,
-        },
+        media: mediaForClient(media),
     });
 });
 
@@ -240,6 +268,10 @@ export const getMediaAccess = asynchandller(async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;
     const attachment = req.query.disposition === "attachment";
+
+    if (!mongoose.isValidObjectId(id)) {
+        throw new ApiError(404, "Media is unavailable");
+    }
 
     const media = await Media.findOne({
         _id: id,

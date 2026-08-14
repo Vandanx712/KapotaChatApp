@@ -28,6 +28,9 @@ let latestMessageRequestId = 0;
 const getReactionTargetPreview = (message) => {
   if (message.deletedForEveryone) return "a deleted message";
   if (message.post?._id) return "a shared post";
+  if (message.media?._id || message.media) {
+    return message.text?.trim() || "an attachment";
+  }
   if (message.image?.url) return message.text?.trim() || "an image";
 
   const text = message.text?.trim().replace(/\s+/g, " ") || "a message";
@@ -170,7 +173,9 @@ export const useChatStore = create((set, get) => ({
         },
       );
 
-      const imageUrls = resdata.messages.map((msg) => msg.image);
+      const imageUrls = resdata.messages
+        .map((msg) => msg.media || msg.image)
+        .filter(Boolean);
 
       set((state) => ({
         mediaImgs: [...imageUrls, ...state.mediaImgs],
@@ -678,6 +683,7 @@ export const useChatStore = create((set, get) => ({
                 reacted: message.reacted,
                 reactions: message.reactions || [],
                 image: message.image,
+                media: message.media,
               }
               : msg,
           ),
@@ -721,6 +727,7 @@ export const useChatStore = create((set, get) => ({
               reacted: message.reacted,
               reactions: message.reactions || [],
               image: message.image,
+              media: message.media,
             },
             unseenMsg: wasUnseen
               ? Math.max(0, (con.unseenMsg || 0) - 1)

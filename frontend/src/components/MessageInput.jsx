@@ -1,12 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
-import { Image, FileText, Paperclip, Send, SmileIcon, X } from "lucide-react";
+import { FileText, Paperclip, Send, SmileIcon, X } from "lucide-react";
 import toast from "react-hot-toast";
 import EmojiPicker from "emoji-picker-react";
 import { Button, Tooltip } from "./ui";
 import { useThemeStore } from "../store/useThemeStore";
-import { uploadMedia } from "../hooks/uploadMedia"
+import { uploadMedia } from "../hooks/uploadMedia";
+
+const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
+const ACCEPTED_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/ogg",
+  "audio/wav",
+  "application/pdf",
+  "text/plain",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
 
 function MessageInput() {
   const [text, setText] = useState("");
@@ -46,6 +65,7 @@ function MessageInput() {
 
   useEffect(() => {
     return () => {
+      uploadAbortRef.current?.abort();
       clearTimeout(typingTimeoutRef.current);
       if (isTypingRef.current) {
         setStopTyping(selectedConversation);
@@ -72,14 +92,6 @@ function MessageInput() {
     );
   })();
 
-  const ACCEPTED_TYPES = new Set([
-    "image/jpeg", "image/png", "image/webp", "image/gif",
-    "video/mp4", "video/webm", "video/quicktime",
-    "audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav",
-    "application/pdf", "text/plain", "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ]);
-
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -90,7 +102,7 @@ function MessageInput() {
       return;
     }
 
-    if (file.size > 200 * 1024 * 1024) {
+    if (file.size > MAX_ATTACHMENT_BYTES) {
       toast.error("Attachment must be smaller than 100 MB");
       event.target.value = "";
       return;
@@ -115,11 +127,6 @@ function MessageInput() {
     }
   };
 
-  const removeimage = () => {
-    setImagePreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
   const handlesendmessage = async (event) => {
     event.preventDefault();
 
@@ -142,6 +149,7 @@ function MessageInput() {
           onProgress: setUploadProgress,
         });
 
+        if (controller.signal.aborted) return;
         setPreparedMedia(media);
       }
 
@@ -156,7 +164,10 @@ function MessageInput() {
         replyToId: replyingTo?._id,
       });
 
-      if (!sent) return;
+      if (!sent) {
+        setUploadProgress({ phase: "ready to retry", percent: 100 });
+        return;
+      }
 
       setText("");
       removeFile();
@@ -189,7 +200,10 @@ function MessageInput() {
               Replying to {replySenderName}
             </p>
             <p className="mt-0.5 truncate text-sm text-muted">
-              {replyingTo.deleted ? "This message was deleted" : replyingTo.text || (replyingTo.image ? "Photo" : "Message")}
+              {replyingTo.deleted
+                ? "This message was deleted"
+                : replyingTo.text ||
+                  (replyingTo.media ? "Attachment" : replyingTo.image ? "Photo" : "Message")}
             </p>
           </div>
           <Button
@@ -282,7 +296,7 @@ function MessageInput() {
 
       <form onSubmit={handlesendmessage} className="flex items-end gap-2">
         <div className="message-composer flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-app border border-line bg-surface px-1.5 shadow-control">
-          <Tooltip label="Attach image" side="top">
+          <Tooltip label="Attach file" side="top">
             <Button
               type="button"
               iconOnly
@@ -290,9 +304,9 @@ function MessageInput() {
               variant="ghost"
               className={selectedFile ? "text-brand-strong" : ""}
               onClick={() => fileInputRef.current?.click()}
-              aria-label="Attach image"
+              aria-label="Attach file"
             >
-              <Image className="size-5" />
+              <Paperclip className="size-5" />
             </Button>
           </Tooltip>
           <Tooltip label="Emoji" side="top">
