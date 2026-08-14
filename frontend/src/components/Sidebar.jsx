@@ -351,6 +351,8 @@ function Sidebar() {
                               : "This message was deleted"
                             : conversation.lastmessage?.image
                               ? "Image"
+                              : conversation.lastmessage?.media
+                                ? "Attachment"
                               : conversation?.lastmessage?.deletedFor?.includes(
                                 authUser._id,
                               )

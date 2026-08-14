@@ -1,4 +1,4 @@
-import { deleteImage, uploadChatPic } from "../lib/cloudinary.js";
+import { uploadChatPic } from "../lib/cloudinary.js";
 import { Conversation } from "../models/conversation.model.js";
 import { Message } from "../models/message.model.js";
 import { Post } from "../models/post.model.js";
@@ -15,6 +15,10 @@ import {
 } from "../util/pagination.js";
 import mongoose from "mongoose";
 import { Media } from "../models/media.model.js";
+import {
+  enqueueLegacyAssetDeletion,
+  scheduleMediaDeletion,
+} from "../lib/jobsQueue.js";
 
 const MEDIA_CLIENT_FIELDS = [
   "_id",
@@ -216,18 +220,30 @@ export const getMessageImgs = asynchandller(async (req, res) => {
   const { _id } = req.user;
 
   if (!id) throw new ApiError(401, "Select Conversation");
+  await getParticipantConversation(id, _id, "_id participants");
 
   const { cursor, safeLimit } = parsePaginationParams(req, 5, 5);
 
   const baseQuery = {
     conversationId: id,
     deletedFor: { $ne: _id },
-    "image.url": { $exists: true },
+    deletedForEveryone: { $ne: true },
+    $or: [
+      { "image.url": { $exists: true } },
+      { media: { $ne: null } },
+    ],
   };
 
   const query = buildPaginationQuery(baseQuery, cursor);
 
-  const docs = await Message.find(query).sort({ _id: -1 }).limit(safeLimit + 1).lean();
+  const docs = await Message.find(query)
+    .populate({
+      path: "media",
+      select: MEDIA_CLIENT_FIELDS,
+    })
+    .sort({ _id: -1 })
+    .limit(safeLimit + 1)
+    .lean();
 
   const { page: messages, hasMore, nextCursor } = processPaginationResults(
     docs,
@@ -250,6 +266,7 @@ export const searchMessages = asynchandller(async (req, res) => {
 
   if (!id) throw new ApiError(401, "Select Conversation");
   if (!q || q.trim().length === 0) throw new ApiError(401, "Missing field");
+  await getParticipantConversation(id, _id, "_id participants");
 
   const { safeLimit } = parsePaginationParams(req, 20, 50);
 
@@ -289,6 +306,10 @@ export const sendMessage = asynchandller(async (req, res) => {
     throw new ApiError(400, "Send either legacy image or media, not both");
   }
 
+  if (mediaId && !mongoose.isValidObjectId(mediaId)) {
+    throw new ApiError(400, "Attachment is invalid");
+  }
+
   const conversation = await getParticipantConversation(
     id,
     senderId,
@@ -310,7 +331,9 @@ export const sendMessage = asynchandller(async (req, res) => {
   }
 
   if (postId) {
-    const post = await Post.findById(postId).select("image").lean();
+    const post = await Post.findById(postId)
+      .select("image media caption disableShare isArchived")
+      .lean();
 
     if (!post) throw new ApiError(400, "Post not found");
     if (post.disableShare)
@@ -322,6 +345,8 @@ export const sendMessage = asynchandller(async (req, res) => {
     sharedPost = {
       _id: post._id,
       image: post.image,
+      media: post.media,
+      caption: post.caption,
     };
   }
 
@@ -560,7 +585,9 @@ export const deleteMessage = asynchandller(async (req, res) => {
   const { conversationId, deleteType } = req.body;
   const { _id } = req.user;
 
-  if (!conversationId || !deleteType) throw new ApiError(401, "Missing field");
+  if (!conversationId || !["deleteForMe", "deleteForEveryone"].includes(deleteType)) {
+    throw new ApiError(400, "Invalid delete request");
+  }
   const conversation = await getParticipantConversation(
     conversationId,
     _id,
@@ -581,6 +608,10 @@ export const deleteMessage = asynchandller(async (req, res) => {
       { new: true },
     );
   } else {
+    if (msg.sender?.toString() !== _id.toString()) {
+      throw new ApiError(403, "You cannot delete this message for everyone");
+    }
+
     message = await Message.findOneAndUpdate(
       { conversationId: conversation._id, _id: id },
       {
@@ -588,6 +619,7 @@ export const deleteMessage = asynchandller(async (req, res) => {
         reacted: "",
         reactions: [],
         image: null,
+        media: null,
       },
       { new: true },
     );
@@ -609,7 +641,17 @@ export const deleteMessage = asynchandller(async (req, res) => {
         },
       },
     );
-    msg.image && (await deleteImage(msg.image?.key));
+    if (msg.media) {
+      await scheduleMediaDeletion({
+        _id: msg.media,
+        attachedToModel: "Message",
+        attachedToId: msg._id,
+      });
+    }
+
+    if (msg.image?.key) {
+      await enqueueLegacyAssetDeletion({ keys: [msg.image.key] });
+    }
   }
 
   io.to(conversation._id.toString()).emit("delete", message);
@@ -631,8 +673,11 @@ export const clearChat = asynchandller(async (req, res) => {
   const { _id } = req.user;
 
   if (!id) throw new ApiError(401, "Missing field");
-  const conversation = await Conversation.findById(id).select("_id").lean();
-  if (!conversation) throw new ApiError(400, "Conversation not found");
+  const conversation = await getParticipantConversation(
+    id,
+    _id,
+    "_id participants",
+  );
 
   await Message.updateMany(
     { conversationId: id },

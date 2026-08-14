@@ -35,6 +35,7 @@ import {
   Textarea,
 } from "../components/ui";
 import LoadableImage from "../components/common/LoadableImage";
+import { uploadMedia } from "../hooks/uploadMedia";
 
 function AddPost() {
   const { FILTERS } = useThemeStore();
@@ -52,6 +53,7 @@ function AddPost() {
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [isSearchingLocations, setIsSearchingLocations] = useState(false);
   const [isUploadingPost, setIsUploadingPost] = useState(false);
+  const [uploadPhase, setUploadPhase] = useState("");
   const [hideLikes, setHideLikes] = useState(false);
   const [disableShare, setDisableShare] = useState(false);
   const [isArchived, setIsArchived] = useState(false);
@@ -226,7 +228,16 @@ function AddPost() {
       croppedAreaPixels.width,
       croppedAreaPixels.height,
     );
-    return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.9));
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error("Could not create cropped image"));
+        },
+        "image/jpeg",
+        0.9,
+      );
+    });
   };
 
   const handleSave = async () => {
@@ -235,42 +246,45 @@ function AddPost() {
     const locationSource = placeDetailData ?? selectedLocation;
     try {
       setIsUploadingPost(true);
+      setUploadPhase("Preparing image");
       const blob = await getCroppedImage();
-      const reader = new FileReader();
-      reader.readAsDataURL(blob);
-      reader.onload = async () => {
-        const post = {
-          image: reader.result,
-          caption,
-          location: locationSource
-            ? {
-              name: locationSource.name,
-              type: "Point",
-              coordinates: [locationSource.lat, locationSource.lng],
-            }
-            : null,
-          hideLikes,
-          disableShare,
-          isArchived,
-        };
-        try {
-          const response = await createPost(post);
-          toast.success(response.message);
-          navigate("/");
-        } catch (error) {
-          toast.error(error.response?.data?.message || "Unable to create post");
-        } finally {
-          setIsUploadingPost(false);
-        }
-      };
-      reader.onerror = () => {
-        setIsUploadingPost(false);
-        toast.error("Could not prepare post image");
-      };
+      const file = new File([blob], `kapota-post-${Date.now()}.jpg`, {
+        type: "image/jpeg",
+      });
+
+      const media = await uploadMedia({
+        file,
+        purpose: "post",
+        onProgress: ({ phase, percent }) => {
+          const label = phase === "uploading" ? `Uploading ${percent}%` : phase;
+          setUploadPhase(label);
+        },
+      });
+
+      setUploadPhase("Publishing post");
+      const response = await createPost({
+        mediaId: media._id,
+        caption,
+        location: locationSource
+          ? {
+            name: locationSource.name,
+            type: "Point",
+            coordinates: [locationSource.lng, locationSource.lat],
+          }
+          : null,
+        hideLikes,
+        disableShare,
+        isArchived,
+      });
+
+      toast.success(response.message);
+      navigate("/");
     } catch (error) {
       console.log(error);
+      toast.error(error.response?.data?.message || "Unable to publish post");
+    } finally {
       setIsUploadingPost(false);
-      toast.error("Could not prepare post image");
+      setUploadPhase("");
     }
   };
 
@@ -282,7 +296,11 @@ function AddPost() {
 
   return (
     <AppPage contentClassName="bg-surface">
-      <BusyOverlay show={isUploadingPost} fixed label="Publishing post..." />
+      <BusyOverlay
+        show={isUploadingPost}
+        fixed
+        label={uploadPhase || "Publishing post"}
+      />
       <PageHeader
         title="Create post"
         description="Edit a photo and choose how it will be shared"

@@ -44,6 +44,20 @@ export const deleteImage = async (oldkey) => {
   }
 }
 
+export const deleteCloudinaryAsset = async ({
+  publicId,
+  resourceType,
+  deliveryType,
+}) => {
+  if (!publicId) return null;
+
+  return cloudinary.uploader.destroy(publicId, {
+    resource_type: resourceType,
+    type: deliveryType,
+    invalidate: true,
+  });
+};
+
 export const createUploadSignature = (params) => {
   return {
     signature: cloudinary.utils.api_sign_request(

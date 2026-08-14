@@ -35,6 +35,7 @@ import {
 } from "./ui";
 import { useThemeStore } from "../store/useThemeStore";
 import { useCallStore } from "../store/useCallStore";
+import MediaAttachment from "./common/MediaAttachment";
 
 const cardClass = "border-t border-line p-5";
 
@@ -115,19 +116,23 @@ function MediaSlider({ mediaFiles, getImgMessages = () => { } }) {
           ref={sliderRef}
           className="no-scrollbar mt-3 flex gap-2 overflow-x-auto scroll-smooth"
         >
-          <PhotoProvider>
-            {mediaFiles.map((file) => (
-              <PhotoView key={file?.key || file?.url} src={file?.url}>
-                <img
-                  src={file?.url}
-                  alt=""
-                  className="size-20 shrink-0 cursor-pointer rounded-control border border-line object-cover"
-                  loading="lazy"
-                  decoding="async"
-                />
-              </PhotoView>
-            ))}
-          </PhotoProvider>
+          {mediaFiles.map((file) =>
+            file?._id ? (
+              <MediaAttachment key={file._id} media={file} />
+            ) : (
+              <PhotoProvider key={file?.key || file?.url}>
+                <PhotoView src={file?.url}>
+                  <img
+                    src={file?.url}
+                    alt=""
+                    className="size-20 shrink-0 cursor-pointer rounded-control border border-line object-cover"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </PhotoView>
+              </PhotoProvider>
+            ),
+          )}
         </div>
       ) : (
         <EmptyState

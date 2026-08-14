@@ -5,6 +5,13 @@ import { uploadChatPic } from "../lib/cloudinary.js";
 import { Post } from "../models/post.model.js";
 import { Like } from "../models/like.model.js";
 import { io } from "../lib/socket.js";
+import mongoose from "mongoose";
+import { Media } from "../models/media.model.js";
+import { Message } from "../models/message.model.js";
+import {
+  enqueueLegacyAssetDeletion,
+  scheduleMediaDeletion,
+} from "../lib/jobsQueue.js";
 import {
   DEFAULT_POSTS_LIMIT,
   MAX_POSTS_LIMIT,
@@ -18,11 +25,26 @@ const EARTH_RADIUS_METERS = 6378137;
 
 export const createPost = asynchandller(async (req, res) => {
   const user = req.user;
-  const { image, caption, location, hideLikes, disableShare, isArchived } =
-    req.body;
+  const {
+    image,
+    mediaId,
+    caption,
+    location,
+    hideLikes,
+    disableShare,
+    isArchived,
+  } = req.body;
 
-  if (!image) {
-    throw new ApiError(401, "Image must be required");
+  if (!image && !mediaId) {
+    throw new ApiError(400, "Post media is required");
+  }
+
+  if (image && mediaId) {
+    throw new ApiError(400, "Send either legacy image or media, not both");
+  }
+
+  if (mediaId && !mongoose.isValidObjectId(mediaId)) {
+    throw new ApiError(400, "Post media is invalid");
   }
 
   let userlocation = location;
@@ -43,21 +65,80 @@ export const createPost = asynchandller(async (req, res) => {
     includePostFolder: true,
   });
 
-  const img = await uploadChatPic(path, image);
+  const postId = new mongoose.Types.ObjectId();
+  let claimedMedia = null;
+  let postImage = null;
 
-  await Post.create({
-    user: user._id,
-    image: img,
-    location: userlocation,
-    caption: caption ?? null,
-    hideLike: hideLikes,
-    disableShare: disableShare,
-    isArchived: isArchived,
-  });
+  if (mediaId) {
+    claimedMedia = await Media.findOneAndUpdate(
+      {
+        _id: mediaId,
+        owner: user._id,
+        purpose: "post",
+        deliveryType: "upload",
+        status: "ready",
+        secureUrl: { $type: "string", $ne: "" },
+        attachedToId: null,
+        attachedToModel: null,
+      },
+      {
+        $set: {
+          status: "attached",
+          attachedToModel: "Post",
+          attachedToId: postId,
+        },
+      },
+      { new: true },
+    );
 
-  return res.status(200).json({
+    if (!claimedMedia?.secureUrl) {
+      throw new ApiError(400, "Post media is invalid or already used");
+    }
+
+    postImage = {
+      key: claimedMedia.publicId,
+      url: claimedMedia.secureUrl,
+    };
+  } else {
+    postImage = await uploadChatPic(path, image);
+    if (!postImage?.url) {
+      throw new ApiError(502, "Post image could not be uploaded");
+    }
+  }
+
+  try {
+    await Post.create({
+      _id: postId,
+      user: user._id,
+      media: claimedMedia?._id ?? null,
+      image: postImage,
+      location: userlocation,
+      caption: caption ?? null,
+      hideLike: Boolean(hideLikes),
+      disableShare: Boolean(disableShare),
+      isArchived: Boolean(isArchived),
+    });
+  } catch (error) {
+    if (claimedMedia) {
+      await Media.updateOne(
+        { _id: claimedMedia._id, attachedToId: postId },
+        {
+          $set: {
+            status: "ready",
+            attachedToModel: null,
+            attachedToId: null,
+          },
+        },
+      );
+    }
+
+    throw error;
+  }
+
+  return res.status(201).json({
     success: true,
-    message: "Post create successfully",
+    message: "Post created successfully",
+    postId,
   });
 });
 
@@ -90,10 +171,29 @@ export const deletePost = asynchandller(async (req, res) => {
     throw new ApiError(401, "First select post");
   }
 
-  const post = await Post.findOne({ user: _id, _id: id });
+  const post = await Post.findOne({ user: _id, _id: id }).lean();
   if (!post) throw new ApiError(400, "Post not found");
 
   await Post.deleteOne({ user: _id, _id: post._id });
+  await Like.deleteMany({ post: post._id });
+
+  await Message.updateMany(
+    { "post._id": post._id },
+    {
+      $set: { "post.unavailable": true },
+      $unset: { "post.image": "", "post.media": "" },
+    },
+  );
+
+  if (post.media) {
+    await scheduleMediaDeletion({
+      _id: post.media,
+      attachedToModel: "Post",
+      attachedToId: post._id,
+    });
+  } else if (post.image?.key) {
+    await enqueueLegacyAssetDeletion({ keys: [post.image.key] });
+  }
 
   return res.status(200).json({
     success: true,
