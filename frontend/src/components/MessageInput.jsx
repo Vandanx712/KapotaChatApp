@@ -7,6 +7,7 @@ import EmojiPicker from "emoji-picker-react";
 import { Button, Tooltip } from "./ui";
 import { useThemeStore } from "../store/useThemeStore";
 import { uploadMedia } from "../hooks/uploadMedia";
+import { saveMediaToCache } from "../lib/mediaCache";
 
 const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 const ACCEPTED_TYPES = new Set([
@@ -167,6 +168,15 @@ function MessageInput() {
       if (!sent) {
         setUploadProgress({ phase: "ready to retry", percent: 100 });
         return;
+      }
+
+      if (media?._id && selectedFile) {
+        saveMediaToCache(media._id, {
+          blob: selectedFile,
+          mimeType: selectedFile.type,
+          name: selectedFile.name,
+          size: selectedFile.size,
+        });
       }
 
       setText("");
