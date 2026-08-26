@@ -106,6 +106,11 @@ export const updateProfile = async (data) => {
   return response.data
 }
 
+export const updateMediaSettings = async (data) => {
+  const response = await api.put('/user/media-settings', data)
+  return response.data
+}
+
 // explore part
 
 export const getSurroundUsers = async (params = {}) => {

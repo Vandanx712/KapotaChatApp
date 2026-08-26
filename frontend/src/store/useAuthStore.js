@@ -11,6 +11,7 @@ import {
   requestSignupOtp as requestSignupOtpRequest,
   updatePic,
   updateProfile,
+  updateMediaSettings as updateMediaSettingsRequest,
   verifyForgotPasswordOtp as verifyForgotPasswordOtpRequest,
   verifySignupOtp as verifySignupOtpRequest,
 } from "../lib/axios";
@@ -28,6 +29,7 @@ export const useAuthStore = create((set, get) => ({
   isUpdateProfile: false,
   isProfilePhotoUploading: false,
   isProfileDetailsUpdating: false,
+  isMediaSettingsUpdating: false,
   activeSessions: [],
   isSessionsLoading: false,
   isContactLoading: false,
@@ -161,6 +163,22 @@ export const useAuthStore = create((set, get) => ({
       console.log(error);
     } finally {
       set({ isUpdateProfile: false, isProfileDetailsUpdating: false });
+    }
+  },
+
+  updateMediaSettings: async (data) => {
+    set({ isMediaSettingsUpdating: true });
+    try {
+      const resdata = await updateMediaSettingsRequest(data);
+      set({ authUser: resdata.user });
+      toast.success(resdata.message || "Media settings updated");
+      return true;
+    } catch (error) {
+      console.log(error);
+      toast.error(error?.response?.data?.message || "Failed to update media settings");
+      return false;
+    } finally {
+      set({ isMediaSettingsUpdating: false });
     }
   },
 

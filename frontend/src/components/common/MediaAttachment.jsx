@@ -13,7 +13,7 @@ import { PhotoProvider, PhotoView } from "react-photo-view";
 import { Button } from "../ui";
 import { getMediaAccess } from "../../lib/axios";
 import { getCachedMedia, saveMediaToCache } from "../../lib/mediaCache";
-
+import { useAuthStore } from "../../store/useAuthStore";
 
 const formatBytes = (bytes = 0) => {
     if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
@@ -36,6 +36,10 @@ export default function MediaAttachment({ media, reserveTime = false }) {
     const [progress, setProgress] = useState(0);
     const abortRef = useRef(null);
 
+    const authUser = useAuthStore((state) => state.authUser);
+    const autoDownload = authUser?.mediaSettings?.autoDownload ?? true;
+    const maxAutoDownloadBytes = authUser?.mediaSettings?.maxAutoDownloadBytes ?? (10 * 1024 * 1024);
+
     const mimeType = media?.mimeType || "";
     const kind = mimeType.startsWith("image/")
         ? "image"
@@ -44,42 +48,6 @@ export default function MediaAttachment({ media, reserveTime = false }) {
             : mimeType.startsWith("audio/")
                 ? "audio"
                 : "file";
-
-    useEffect(() => {
-        let isMounted = true;
-
-        const checkCache = async () => {
-            if (!media?._id) {
-                setIsCheckingCache(false);
-                return;
-            }
-
-            try {
-                const cached = await getCachedMedia(media._id);
-                if (cached?.blob && isMounted) {
-                    const objectUrl = URL.createObjectURL(cached.blob);
-                    setLocalUrl(objectUrl);
-                }
-            } catch (err) {
-                console.error("Cache check failed", err);
-            } finally {
-                if (isMounted) setIsCheckingCache(false);
-            }
-        };
-
-        checkCache();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [media?._id]);
-
-    useEffect(() => {
-        return () => {
-            abortRef.current?.abort();
-            if (localUrl) URL.revokeObjectURL(localUrl);
-        };
-    }, [localUrl]);
 
     const loadMedia = async ({ download = false } = {}) => {
         if (loading) return;
@@ -140,6 +108,57 @@ export default function MediaAttachment({ media, reserveTime = false }) {
             setLoading(false);
         }
     };
+
+    const loadMediaRef = useRef(loadMedia);
+    useEffect(() => {
+        loadMediaRef.current = loadMedia;
+    });
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const checkCache = async () => {
+            if (!media?._id) {
+                setIsCheckingCache(false);
+                return;
+            }
+
+            try {
+                const cached = await getCachedMedia(media._id);
+                if (cached?.blob && isMounted) {
+                    const objectUrl = URL.createObjectURL(cached.blob);
+                    setLocalUrl(objectUrl);
+                    setIsCheckingCache(false);
+                    return;
+                }
+
+                // Check auto-download based on user mediaSettings
+                const fileSize = media.bytes || 0;
+                if (autoDownload && fileSize <= maxAutoDownloadBytes && isMounted) {
+                    setIsCheckingCache(false);
+                    loadMediaRef.current({ download: false });
+                    return;
+                }
+            } catch (err) {
+                console.error("Cache check failed", err);
+            } finally {
+                if (isMounted) setIsCheckingCache(false);
+            }
+        };
+
+        checkCache();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [media?._id, autoDownload, maxAutoDownloadBytes, media?.bytes]);
+
+    useEffect(() => {
+        return () => {
+            abortRef.current?.abort();
+            if (localUrl) URL.revokeObjectURL(localUrl);
+        };
+    }, [localUrl]);
 
     if (isCheckingCache) {
         return (
