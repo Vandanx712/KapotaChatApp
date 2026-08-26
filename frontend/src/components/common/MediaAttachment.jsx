@@ -12,7 +12,8 @@ import toast from "react-hot-toast";
 import { PhotoProvider, PhotoView } from "react-photo-view";
 import { Button } from "../ui";
 import { getMediaAccess } from "../../lib/axios";
-
+import { getCachedMedia, saveMediaToCache } from "../../lib/mediaCache";
+import { useAuthStore } from "../../store/useAuthStore";
 
 const formatBytes = (bytes = 0) => {
     if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
@@ -31,8 +32,13 @@ const saveFile = (url, name) => {
 export default function MediaAttachment({ media, reserveTime = false }) {
     const [localUrl, setLocalUrl] = useState("");
     const [loading, setLoading] = useState(false);
+    const [isCheckingCache, setIsCheckingCache] = useState(true);
     const [progress, setProgress] = useState(0);
     const abortRef = useRef(null);
+
+    const authUser = useAuthStore((state) => state.authUser);
+    const autoDownload = authUser?.mediaSettings?.autoDownload ?? true;
+    const maxAutoDownloadBytes = authUser?.mediaSettings?.maxAutoDownloadBytes ?? (10 * 1024 * 1024);
 
     const mimeType = media?.mimeType || "";
     const kind = mimeType.startsWith("image/")
@@ -42,13 +48,6 @@ export default function MediaAttachment({ media, reserveTime = false }) {
             : mimeType.startsWith("audio/")
                 ? "audio"
                 : "file";
-
-    useEffect(() => {
-        return () => {
-            abortRef.current?.abort();
-            if (localUrl) URL.revokeObjectURL(localUrl);
-        };
-    }, [localUrl]);
 
     const loadMedia = async ({ download = false } = {}) => {
         if (loading) return;
@@ -81,11 +80,20 @@ export default function MediaAttachment({ media, reserveTime = false }) {
                 },
             });
 
-            const objectUrl = URL.createObjectURL(response.data);
+            const blob = response.data;
+
+            await saveMediaToCache(media._id, {
+                blob,
+                mimeType: media.mimeType,
+                name: media.originalName,
+                size: media.bytes,
+            });
+
+            const objectUrl = URL.createObjectURL(blob);
 
             if (download) {
                 saveFile(objectUrl, media.originalName);
-                window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+                setLocalUrl(objectUrl);
             } else {
                 setLocalUrl(objectUrl);
             }
@@ -100,6 +108,72 @@ export default function MediaAttachment({ media, reserveTime = false }) {
             setLoading(false);
         }
     };
+
+    const loadMediaRef = useRef(loadMedia);
+    useEffect(() => {
+        loadMediaRef.current = loadMedia;
+    });
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const checkCache = async () => {
+            if (!media?._id) {
+                setIsCheckingCache(false);
+                return;
+            }
+
+            try {
+                const cached = await getCachedMedia(media._id);
+                if (cached?.blob && isMounted) {
+                    const objectUrl = URL.createObjectURL(cached.blob);
+                    setLocalUrl(objectUrl);
+                    setIsCheckingCache(false);
+                    return;
+                }
+
+                // Check auto-download based on user mediaSettings
+                const fileSize = media.bytes || 0;
+                if (autoDownload && fileSize <= maxAutoDownloadBytes && isMounted) {
+                    setIsCheckingCache(false);
+                    loadMediaRef.current({ download: false });
+                    return;
+                }
+            } catch (err) {
+                console.error("Cache check failed", err);
+            } finally {
+                if (isMounted) setIsCheckingCache(false);
+            }
+        };
+
+        checkCache();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [media?._id, autoDownload, maxAutoDownloadBytes, media?.bytes]);
+
+    useEffect(() => {
+        return () => {
+            abortRef.current?.abort();
+            if (localUrl) URL.revokeObjectURL(localUrl);
+        };
+    }, [localUrl]);
+
+    if (isCheckingCache) {
+        return (
+            <div className="flex h-14 w-[280px] max-w-full items-center gap-3 rounded-control border border-line bg-surface/40 
+  p-2.5">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-control bg-surface-muted">
+                    <Loader2 className="size-4 animate-spin text-muted" />
+                </span>
+                <div className="flex-1 space-y-1">
+                    <div className="h-3 w-3/4 rounded bg-surface-muted" />
+                    <div className="h-2 w-1/2 rounded bg-surface-muted" />
+                </div>
+            </div>
+        );
+    }
 
     if (localUrl) {
         return (

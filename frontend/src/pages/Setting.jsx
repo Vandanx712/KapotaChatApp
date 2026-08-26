@@ -2,16 +2,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
   Check,
+  ChevronDown,
   CircleQuestionMark,
   Clock3,
   EllipsisVertical,
+  FileText,
+  HardDrive,
   Heart,
+  Image as ImageIcon,
   Key,
   Laptop2,
   LogOut,
   MapPin,
   MessageCircle,
   Moon,
+  Music,
   RefreshCw,
   Send,
   Settings2,
@@ -19,6 +24,7 @@ import {
   ShieldCheck,
   Sun,
   Trash2,
+  Video,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
@@ -28,6 +34,7 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
 import { AppPage, PageSection } from "../components/layout/AppPage";
 import LoadableImage from "../components/common/LoadableImage";
+import { getMediaCacheStats, clearAllMediaCache } from "../lib/mediaCache";
 import {
   Avatar,
   Badge,
@@ -37,6 +44,7 @@ import {
   EmptyState,
   Input,
   Modal,
+  Select,
   Skeleton,
   Spinner,
   Switch,
@@ -63,6 +71,12 @@ const settingsItems = [
     icon: MessageCircle,
     label: "Chats",
     description: "Appearance and message preview",
+  },
+  {
+    id: "media",
+    icon: HardDrive,
+    label: "Media & Storage",
+    description: "Auto-download rules and storage limits",
   },
   {
     id: "help",
@@ -92,6 +106,15 @@ const previewMessages = [
   { id: 2, content: "Looking good. I will send it over today.", sent: true },
 ];
 
+const AUTO_DOWNLOAD_OPTIONS = [
+  { value: 2 * 1024 * 1024, label: "2 MB", description: "Low data usage • Best for mobile networks", badge: "Low" },
+  { value: 5 * 1024 * 1024, label: "5 MB", description: "Standard quality photos & voice notes", badge: "Balanced" },
+  { value: 10 * 1024 * 1024, label: "10 MB", description: "High-resolution photos & audio", badge: "Recommended" },
+  { value: 25 * 1024 * 1024, label: "25 MB", description: "HD Photos, larger voice & audio files", badge: "HD" },
+  { value: 50 * 1024 * 1024, label: "50 MB", description: "High-speed Wi-Fi • Short clips & documents", badge: "Fast" },
+  { value: 100 * 1024 * 1024, label: "100 MB", description: "Maximum — Auto-download all media", badge: "Max" },
+];
+
 function SettingsHeader({ item }) {
   const Icon = item.icon;
   return (
@@ -116,6 +139,19 @@ function Setting() {
   const [postToDelete, setPostToDelete] = useState(null);
   const [postCursor, setPostCursor] = useState(null);
   const [hasMorePosts, setHasMorePosts] = useState(false);
+  const [mediaStats, setMediaStats] = useState({
+    count: 0,
+    formatted: "0 KB",
+    breakdown: {
+      images: { count: 0, formatted: "0 KB" },
+      audios: { count: 0, formatted: "0 KB" },
+      videos: { count: 0, formatted: "0 KB" },
+      documents: { count: 0, formatted: "0 KB" },
+    },
+  });
+  const [showClearMediaModal, setShowClearMediaModal] = useState(false);
+  const [isClearingCache, setIsClearingCache] = useState(false);
+  const [isRefreshingStats, setIsRefreshingStats] = useState(false);
   const [postSummary, setPostSummary] = useState({
     total: 0,
     archived: 0,
@@ -128,6 +164,8 @@ function Setting() {
     authUser,
     fetchActiveSessions,
     isSessionsLoading,
+    isMediaSettingsUpdating,
+    updateMediaSettings,
     logout,
   } = useAuthStore();
   const navigate = useNavigate();
@@ -136,6 +174,13 @@ function Setting() {
     () => settingsItems.find((item) => item.id === activeSection) || settingsItems[0],
     [activeSection],
   );
+
+  const fetchMediaStats = useCallback(async () => {
+    setIsRefreshingStats(true);
+    const stats = await getMediaCacheStats();
+    setMediaStats(stats);
+    setIsRefreshingStats(false);
+  }, []);
 
   const loadMyPosts = useCallback(async ({ reset = false, cursor = null } = {}) => {
     try {
@@ -166,6 +211,34 @@ function Setting() {
   useEffect(() => {
     if (activeSection === "account") fetchActiveSessions();
   }, [activeSection, fetchActiveSessions]);
+
+  useEffect(() => {
+    if (activeSection === "media") {
+      fetchMediaStats();
+    }
+  }, [activeSection, fetchMediaStats]);
+
+  const handleClearCache = async () => {
+    setIsClearingCache(true);
+    const success = await clearAllMediaCache();
+    if (success) {
+      setMediaStats({
+        count: 0,
+        formatted: "0 KB",
+        breakdown: {
+          images: { count: 0, formatted: "0 KB" },
+          audios: { count: 0, formatted: "0 KB" },
+          videos: { count: 0, formatted: "0 KB" },
+          documents: { count: 0, formatted: "0 KB" },
+        },
+      });
+      setShowClearMediaModal(false);
+      toast.success("Media cache cleared successfully");
+    } else {
+      toast.error("Could not clear media cache");
+    }
+    setIsClearingCache(false);
+  };
 
   useEffect(() => {
     if (activeSection !== "posts") return;
@@ -421,6 +494,194 @@ function Setting() {
     </div>
   );
 
+  const renderMediaSection = () => {
+    const currentLimit = authUser?.mediaSettings?.maxAutoDownloadBytes ?? (10 * 1024 * 1024);
+    const isAutoDownload = authUser?.mediaSettings?.autoDownload ?? true;
+
+    return (
+      <div className="mx-auto max-w-5xl px-8 py-4 space-y-6">
+        <PageSection
+          title="Auto-Download Preferences"
+          description="Configure automatic media downloading and file size limits across all your devices."
+        >
+          <div className="space-y-5 rounded-app border border-line bg-surface p-5">
+            <Switch
+              label="Auto-download incoming media"
+              description="Automatically download and cache media files within your chosen size limit when viewing chats."
+              checked={isAutoDownload}
+              disabled={isMediaSettingsUpdating}
+              onChange={(e) => {
+                updateMediaSettings({
+                  autoDownload: e.target.checked,
+                  maxAutoDownloadBytes: currentLimit,
+                });
+              }}
+            />
+
+            {isAutoDownload && (
+              <div className="border-t border-line pt-5 space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-ink">
+                    Maximum Auto-Download File Size Limit
+                  </label>
+                  <p className="mt-0.5 text-xs text-muted">
+                    Media files larger than this threshold will show a download button and won't download automatically.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {AUTO_DOWNLOAD_OPTIONS.map((opt) => {
+                    const isSelected = currentLimit === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          if (isMediaSettingsUpdating || isSelected) return;
+                          updateMediaSettings({
+                            autoDownload: true,
+                            maxAutoDownloadBytes: opt.value,
+                          });
+                        }}
+                        disabled={isMediaSettingsUpdating}
+                        className={cn(
+                          "group relative flex flex-col justify-between rounded-control border p-3.5 text-left transition-all",
+                          isSelected
+                            ? "border-brand bg-brand-soft/40 shadow-control ring-2 ring-brand/25"
+                            : "border-line bg-surface hover:border-line-strong hover:bg-surface-hover",
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-base font-bold text-ink">
+                            {opt.label}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            {opt.badge && (
+                              <Badge variant={isSelected ? "brand" : "default"}>
+                                {opt.badge}
+                              </Badge>
+                            )}
+                            {isSelected && (
+                              <span className="flex size-5 items-center justify-center rounded-full bg-brand text-on-brand shadow-sm">
+                                <Check className="size-3" strokeWidth={3} />
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <p className="mt-2 text-xs leading-relaxed text-muted">
+                          {opt.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </PageSection>
+
+        <PageSection
+          title="Browser Storage & Offline Cache"
+          description="Manage media files stored locally on your device for fast offline access."
+          action={
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={fetchMediaStats}
+              loading={isRefreshingStats}
+              aria-label="Refresh storage stats"
+            >
+              <RefreshCw className={cn("size-3.5", isRefreshingStats && "animate-spin")} /> Refresh
+            </Button>
+          }
+        >
+          <div className="space-y-4">
+            <div className="flex flex-col gap-4 rounded-app border border-line bg-surface p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3.5">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-control bg-brand-soft text-brand-strong">
+                  <HardDrive className="size-5" />
+                </span>
+                <div>
+                  <h4 className="text-sm font-semibold text-ink">Total Cached Storage</h4>
+                  <p className="mt-0.5 text-xs text-muted">
+                    {mediaStats.count} {mediaStats.count === 1 ? "file" : "files"} stored offline ({mediaStats.formatted})
+                  </p>
+                  <p className="mt-1 text-xs text-subtle">
+                    Permanently stored in browser database (IndexedDB) for zero-latency viewing.
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                variant="danger"
+                size="sm"
+                disabled={mediaStats.count === 0 || isClearingCache}
+                onClick={() => setShowClearMediaModal(true)}
+                className="shrink-0"
+              >
+                <Trash2 className="size-4" /> Clear Cache
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-control border border-line bg-surface p-3 text-left">
+                <div className="flex items-center gap-2 text-muted">
+                  <ImageIcon className="size-4 text-brand-strong" />
+                  <span className="text-xs font-semibold text-ink">Photos</span>
+                </div>
+                <p className="mt-2 text-sm font-bold text-ink">
+                  {mediaStats.breakdown?.images?.formatted || "0 KB"}
+                </p>
+                <p className="text-xs text-muted">
+                  {mediaStats.breakdown?.images?.count || 0} items
+                </p>
+              </div>
+
+              <div className="rounded-control border border-line bg-surface p-3 text-left">
+                <div className="flex items-center gap-2 text-muted">
+                  <Music className="size-4 text-brand-strong" />
+                  <span className="text-xs font-semibold text-ink">Audio & Voice</span>
+                </div>
+                <p className="mt-2 text-sm font-bold text-ink">
+                  {mediaStats.breakdown?.audios?.formatted || "0 KB"}
+                </p>
+                <p className="text-xs text-muted">
+                  {mediaStats.breakdown?.audios?.count || 0} items
+                </p>
+              </div>
+
+              <div className="rounded-control border border-line bg-surface p-3 text-left">
+                <div className="flex items-center gap-2 text-muted">
+                  <Video className="size-4 text-brand-strong" />
+                  <span className="text-xs font-semibold text-ink">Videos</span>
+                </div>
+                <p className="mt-2 text-sm font-bold text-ink">
+                  {mediaStats.breakdown?.videos?.formatted || "0 KB"}
+                </p>
+                <p className="text-xs text-muted">
+                  {mediaStats.breakdown?.videos?.count || 0} items
+                </p>
+              </div>
+
+              <div className="rounded-control border border-line bg-surface p-3 text-left">
+                <div className="flex items-center gap-2 text-muted">
+                  <FileText className="size-4 text-brand-strong" />
+                  <span className="text-xs font-semibold text-ink">Documents</span>
+                </div>
+                <p className="mt-2 text-sm font-bold text-ink">
+                  {mediaStats.breakdown?.documents?.formatted || "0 KB"}
+                </p>
+                <p className="text-xs text-muted">
+                  {mediaStats.breakdown?.documents?.count || 0} items
+                </p>
+              </div>
+            </div>
+          </div>
+        </PageSection>
+      </div>
+    );
+  };
+
   const renderHelpSection = () => (
     <div className="mx-auto max-w-5xl px-8 py-4">
       <PageSection
@@ -621,6 +882,8 @@ function Setting() {
         return renderPostSection();
       case "chats":
         return renderChatsSection();
+      case "media":
+        return renderMediaSection();
       case "help":
         return renderHelpSection();
       default:
@@ -711,6 +974,32 @@ function Setting() {
         }
       >
         <p className="text-sm text-muted">The image, caption, likes, and shares will all be removed.</p>
+      </Modal>
+
+      <Modal
+        open={showClearMediaModal}
+        onClose={() => setShowClearMediaModal(false)}
+        title="Clear Offline Media Cache?"
+        description="This will remove all downloaded media files from your local browser storage to free up disk space."
+        size="sm"
+        footer={
+          <>
+            <Button onClick={() => setShowClearMediaModal(false)} disabled={isClearingCache}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleClearCache}
+              loading={isClearingCache}
+            >
+              Clear {mediaStats.formatted}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted">
+          Your messages and media will remain safe on the server and you can re-download them anytime while viewing your chats.
+        </p>
       </Modal>
 
     </AppPage>

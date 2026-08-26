@@ -20,6 +20,10 @@ import {
 } from "../lib/axios";
 import { mergeUniqueById } from "../lib/utils";
 import { useAuthStore } from "./useAuthStore";
+import {
+  deleteMediaFromCache,
+  deleteMultipleMediaFromCache,
+} from "../lib/mediaCache";
 
 const MESSAGE_PAGE_LIMIT = 30;
 const USER_PAGE_LIMIT = 30;
@@ -659,6 +663,11 @@ export const useChatStore = create((set, get) => ({
 
   messageDelete: async (id, data) => {
     try {
+      const target = get().message.find((m) => m._id === id);
+      const mediaId = target?.media?._id || target?.media;
+      if (mediaId) {
+        deleteMediaFromCache(mediaId);
+      }
       await deleteMessage(id, data);
     } catch (error) {
       toast.error(error.response?.data.message);
@@ -668,6 +677,15 @@ export const useChatStore = create((set, get) => ({
 
   setDeletedMessage: (message) => {
     const authUser = useAuthStore.getState().authUser;
+    const mediaId = message?.media?._id || message?.media;
+    if (
+      mediaId &&
+      (message.deletedForEveryone ||
+        message.deletedFor?.includes(authUser._id))
+    ) {
+      deleteMediaFromCache(mediaId);
+    }
+
     set((state) => {
       if (message.deletedForEveryone) {
         return {
@@ -755,6 +773,13 @@ export const useChatStore = create((set, get) => ({
     const conversationId = conversation?._id || conversation?.conversationId;
     if (!conversationId) return;
 
+    const mediaIdsToPurge = get().message
+      .map((m) => m.media?._id || m.media)
+      .filter(Boolean);
+    if (mediaIdsToPurge.length > 0) {
+      deleteMultipleMediaFromCache(mediaIdsToPurge);
+    }
+
     set((state) => {
       const isSelected =
         state.selectedConversation?.conversationId == conversationId;
@@ -795,6 +820,13 @@ export const useChatStore = create((set, get) => ({
 
   setDeleteChat: async (id) => {
     try {
+      const mediaIdsToPurge = get().message
+        .map((m) => m.media?._id || m.media)
+        .filter(Boolean);
+      if (mediaIdsToPurge.length > 0) {
+        deleteMultipleMediaFromCache(mediaIdsToPurge);
+      }
+
       const resdata = await deleteConversation(id);
       toast.success(resdata.message);
       latestMessageRequestId += 1;

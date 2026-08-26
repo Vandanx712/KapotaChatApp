@@ -42,6 +42,16 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    mediaSettings: {
+      autoDownload: {
+        type: Boolean,
+        default: true
+      },
+      maxAutoDownloadBytes: {
+        type: Number,
+        default: 10 * 1024 * 1024 //10mb 
+      }
+    }
   },
   { timestamps: true },
 );

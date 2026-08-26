@@ -368,3 +368,27 @@ export const getUserById = asynchandller(async (req, res) => {
     hasMore,
   });
 });
+
+//media setting part 
+
+export const updateMediaSettings = asynchandller(async (req, res) => {
+  const { _id } = req.user
+  const { autoDownload, maxAutoDownloadBytes } = req.body;
+
+  const user = await User.findByIdAndUpdate(
+    _id,
+    {
+      $set: {
+        "mediaSettings.autoDownload": autoDownload ?? true,
+        "mediaSettings.maxAutoDownloadBytes": Number(maxAutoDownloadBytes) || (10 * 1024 * 1024)
+      }
+    },
+    { new: true }
+  ).select("-password")
+
+  return res.status(200).json({
+    success: true,
+    message: "Media settings updated successfully",
+    user
+  })
+})

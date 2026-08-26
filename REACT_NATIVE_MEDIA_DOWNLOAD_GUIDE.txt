@@ -1,0 +1,348 @@
+# ================================================================================
+# KAPOTA CHAT APP - REACT NATIVE FULL APP REDESIGN MASTER PROMPT
+# ================================================================================
+# Use this comprehensive prompt to redesign, rebuild, and modernize the entire
+# Kapota React Native (Android & iOS) mobile application from scratch.
+# ================================================================================
+
+You are a World-Class Mobile Solutions Architect and Senior React Native Engineer specializing in high-performance, 60/120 FPS iOS and Android applications.
+
+### YOUR MISSION:
+Completely redesign, modernize, and rebuild the **Kapota React Native application** (Android & iOS) from the ground up. Turn an outdated, clunky, half-built mobile codebase into a premier, ultra-sleek, buttery-smooth mobile application that combines:
+1. **WhatsApp-Grade Messaging, Calling & Storage Architecture** (Fast messaging, voice notes with waveforms, WebRTC audio/video calls, local filesystem media storage, linked devices QR scanner, group management).
+2. **Instagram-Grade Explore & Creator Experience** (Vertical full-screen video/reel infinite scroll feed, double-tap floating heart animations, comments bottom sheets, multi-media post creator with crop/filters/location, profile grid).
+3. **State-of-the-Art Design System** (Deep Obsidian Dark / Crisp Porcelain Light themes, fluid gestures, glassmorphism blur, haptic feedback, Material 3 / iOS native ergonomics).
+
+---
+
+## 1. SOURCE CODEBASE CONTEXT & BUSINESS LOGIC
+All backend routes, MongoDB schemas, controller logic, and socket events are implemented in the `KapotaChatApp` repository folder:
+- **Backend Directory**: `KapotaChatApp/backend/`
+  - Routes: `backend/src/routes/` (`auth.route.js`, `message.route.js`, `user.route.js`, `post.route.js`, `media.route.js`)
+  - Controllers: `backend/src/controllers/`
+  - Models: `backend/src/models/` (`user.model.js`, `message.model.js`, `conversation.model.js`, `post.model.js`, `media.model.js`)
+  - Socket.IO Events: `backend/src/socket.js` (online/offline users, typing status, message send/receive, reactions, message editing, message delete, clear chat, WebRTC call signaling, post explore events)
+- **Frontend Directory**: `KapotaChatApp/frontend/`
+  - Inspect `frontend/src/lib/axios.js` and `frontend/src/store/` (`useAuthStore.js`, `useChatStore.js`, `useCallStore.js`, `useThemeStore.js`) for API endpoints, payload contracts, query parameters, and data models.
+- **IMPORTANT ARCHITECTURAL RULE**:
+  - **Read the web codebase ONLY for business logic, APIs, and data structures. DO NOT copy the Web UI!**
+  - Web UI is designed for desktop browsers (mouse clicks, browser IndexedDB, desktop layouts).
+  - The React Native app MUST be 100% native mobile-first, adhering to touch targets, native gestures, mobile hardware storage, and platform design guidelines.
+
+---
+
+## 2. SIX CORE MOBILE ENGINEERING PILLARS (MANDATORY STANDARDS)
+
+### Pillar 1: High-Performance Rendering
+- **Virtualization Engine**: Use `@shopify/flash-list` (or `legend-list`) for ALL lists (Conversations, Chat Messages, Group Members, Post Sharing Picker, Comments, Contacts, Post Grids). Never use raw unoptimized `FlatList` or `ScrollView`.
+- **Zero Render Cascades**: Wrap all list items and reusable components in `React.memo` with strict custom equality comparisons or stable primitive props.
+- **Stable References**: Every callback passed down props MUST use `useCallback`. Every transformed object/array MUST use `useMemo`.
+- **Isolated Leaf State**: Rapidly updating state (audio playback scrubbers, typing indicators, upload/download progress bars, video timers) must be strictly isolated inside dedicated leaf components so the parent screen or message list never re-renders during playback/typing.
+
+### Pillar 2: Native Gestures (RNGH v2 API)
+- Utilize `react-native-gesture-handler` v2 (`Gesture.Pan()`, `Gesture.Tap()`, `Gesture.LongPress()`, `Gesture.Pinch()`) with `react-native-reanimated` (v3+).
+- **Swipe-to-Reply**: WhatsApp-style left/right swipe on message bubbles with elastic spring resistance, haptic feedback trigger, and smooth reply bar reveal.
+- **Double-Tap to Like**: Instagram-style double-tap gesture on Explore reels and post images with an animated floating, scaling, and fading heart icon.
+- **Contextual Action Sheets**: Long-press on message bubbles to present an iOS/Material floating reaction emoji picker and action sheet (Reply, Copy Text, Edit, Forward, Star, Delete for Me, Delete for Everyone).
+- **Interactive Bottom Sheets**: Use `@gorhom/bottom-sheet` for Comments, Share dialogs, Attachment pickers, Media info, and Settings modals with fluid spring physics.
+
+### Pillar 3: Performance & Memory Management
+- **Reel / Video Feed Memory Recycling**: In the Explore feed, strictly recycle video components. ONLY the currently visible active video plays. Off-screen videos must immediately pause, detach players, and free hardware decoders to prevent Out-Of-Memory (OOM) crashes.
+- **Optimized Image Pipeline**: Use `react-native-fast-image` or `expo-image` with aggressive disk caching, priority queues, and blurhash / color placeholder backgrounds.
+- **Audio Stream Buffering**: Lightweight background streaming audio manager with waveform rendering and 1.5x / 2x speed multipliers.
+- **Hermes JS Optimization**: Ensure all data structures and transforms are optimized for the Hermes engine.
+
+### Pillar 4: Navigation Lifecycle & Focus Handling
+- **React Navigation**: Use `@react-navigation/native-stack` for smooth native transitions and `@react-navigation/bottom-tabs` for the main shell.
+- **Lifecycle Cleanups with `useFocusEffect` & `useIsFocused`**:
+  - Immediately pause video playback and audio when navigating away or switching tabs.
+  - Deactivate camera hardware session (`react-native-vision-camera` / `expo-camera`) when the scanner or camera screen loses focus to conserve battery.
+- **Android Hardware Back Handling**: Pressing hardware back must close open bottom sheets, image viewers, and modals in reverse order before navigating back or exiting.
+
+### Pillar 5: Platform-Specific Behavior (iOS vs Android)
+- **iOS Implementation**:
+  - Glassmorphic translucent blur headers and toolbars using `@react-native-community/blur` or `expo-blur`.
+  - Native haptic feedback using `react-native-haptic-feedback` on message long-press, swipe-to-reply trigger, and double-tap like.
+  - Safe Area insets (`react-native-safe-area-context`) accounting for Dynamic Island, Notch, and Home Indicator bar.
+  - Natural iOS momentum scrolling with bounce physics.
+- **Android Implementation**:
+  - Material 3 fluid ripples on all touchables (`Pressable` with `android_ripple={{ color: 'rgba(255,255,255,0.08)' }}`).
+  - Edge-to-edge transparent status bar and gesture navigation bar.
+  - Android 13+ Scoped Storage and runtime permissions (`READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO`, `POST_NOTIFICATIONS`).
+
+### Pillar 6: Native Constraints
+- **Keyboard Handling**: Zero-jump, jitter-free Keyboard Accessory View for chat inputs using `react-native-keyboard-controller` or `react-native-keyboard-aware-scroll-view`.
+- **Foreground & Background File Transfers**: Resumable file downloads using `react-native-fs` or `react-native-blob-util` streaming directly to disk.
+
+---
+
+## 3. COMPREHENSIVE KEY FEATURE SPECIFICATIONS & UI/UX FLOWS
+
+### A. Authentication, Email Verification, Password Recovery & Linked Devices
+- **Mobile Sign Up Flow (2-Step Email Verification)**:
+  - **Step 1: Account Information & Geolocation**:
+    - User inputs Full Name, Email address, Password (min 6 characters with live strength meter), Gender (`male` / `female` / `other`).
+    - Obtains device GPS coordinates (`location: { lat, lng }`) via `@react-native-community/geolocation` or `expo-location` (required for proximity & local experiences).
+    - User presses "Continue / Request Code".
+    - Calls `POST /api/auth/signup/request-otp` with `{ fullname, email, password, gender, location }`.
+    - Server verifies email uniqueness and sends a 6-digit OTP to the user's email.
+  - **Step 2: 6-Digit Email Verification Screen**:
+    - Seamlessly transitions to the Email Verification step with a clean 6-digit pin input (`inputMode="numeric"`, auto-focus, paste OTP support).
+    - Countdown timer (60s) with "Resend verification code" button calling `POST /api/auth/signup/request-otp`.
+    - "Edit signup details" link allowing user to correct typos in their email or name.
+    - User submits 6-digit OTP.
+    - Calls `POST /api/auth/signup/verify` with `{ fullname, email, password, gender, location, otp }`.
+    - On success: MongoDB account is created, JWT tokens are issued, user is authenticated into global state, and navigated directly to the main app!
+- **Mobile Login Flow**:
+  - Email and Password with smooth floating labels (`POST /api/auth/login`).
+  - Biometric quick-unlock (FaceID / Fingerprint) using `react-native-keychain` / `expo-local-authentication`.
+  - **CRITICAL**: Do NOT display a QR Code on the mobile login screen. QR Code display is strictly for Web desktop login (`/login` on desktop browsers).
+- **Forgot Password Flow**:
+  - Step 1: User enters email $\rightarrow$ Calls `POST /api/auth/forgot-password/request-otp`.
+  - Step 2: 6-digit OTP verification screen with countdown resend timer.
+  - Step 3: Enter new password and confirm $\rightarrow$ Calls `POST /api/auth/forgot-password/verify` with `{ email, otp, newPassword }`.
+- **Linked Devices Feature (WhatsApp Style)**:
+  - Settings -> **Linked Devices** screen (`GET /api/auth/sessions`):
+    - Displays all active web desktop sessions with OS, browser, IP address, network, and last active timestamp.
+    - Individual remote logout (`DELETE /api/auth/sessions/:id`) and "Log out from all other devices" (`DELETE /api/auth/sessions/others`).
+  - Large **"Link a Device"** primary action button:
+    - Opens native camera scanner (`react-native-vision-camera` or `expo-camera`).
+    - Pointing at the QR code on the Kapota Web Login page parses the `qrToken`.
+    - Calls `POST /api/auth/qr-login/scan` with `{ qrToken }`.
+    - Prompts instant biometric confirmation ("Confirm linking Web session") and calls `POST /api/auth/qr-login/complete` to log the web desktop in immediately!
+
+### B. Chats, Conversations & Group Management (WhatsApp Style UI/UX)
+- **Main Chat List Screen**:
+  - **Filter Segment Tabs**: `All Chats`, `Unread`, `Groups`, `Personal / Direct`.
+  - Search conversations by contact name or group name.
+  - Conversation Cards:
+    - Avatar with live green online status dot.
+    - Group avatar with group icon indicator.
+    - Name and last message preview with delivery status ticks: Single gray tick = Sent, Double Green/Blue tick = Seen.
+    - Unread message count badge pill and timestamp.
+  - Swipe Left Action on conversation item to reveal quick "Delete Chat" action.
+  - Floating Action Button (FAB) at bottom-right for "New Chat" and "New Group".
+- **New Chat & Contact Picker**:
+  - Alphabetical sticky header index (A-Z) with fast-scroll index.
+  - Search contacts by name or username.
+  - "New Group" option at the top.
+  - Tapping a contact creates or navigates to the 1-on-1 conversation (`creteConversation(userId)`).
+- **New Group Creation Wizard**:
+  - Step 1: Multi-select member picker with search, checkboxes, and top scrollable chips list of selected members with `x` remove button.
+  - Step 2: Group Info screen (Group Name with emoji picker, Group Icon upload from camera/gallery with circular crop, Member list with Creator as Admin), calls `POST /api/message/creategroup`.
+- **Chat Room Screen**:
+  - **Header**: Avatar, Name, live online status / "typing..." indicator with animated bouncing dots, Video Call button, 3-dots Menu (Contact Info, Search, Wallpaper, Clear Chat, Delete chat).
+  - **Canvas**: Custom chat wallpaper background (supports preset patterns and custom photos).
+  - **Message Bubbles Layout**:
+    - Sender (Brand tint with rounded corners + right tail) vs Receiver (Surface tint + left tail).
+    - System messages in centered rounded pill (e.g., "John created group", "You were added", "Sarah left").
+    - Timestamps and delivery ticks inside the bubble.
+    - Group seen receipt info: Tapping/long-pressing message shows `seenByCount` and exact member names who read the message (`seenByNames`).
+    - `(edited)` tag when `m.isEdited` is true.
+  - **Message Interaction & Actions**:
+    - **Swipe-to-Reply**: WhatsApp-style smooth swipe-to-reply gesture with spring resistance, triggering haptic feedback and revealing the reply bar above input.
+    - **Reply Quote Box**: Clicking a quoted reply scrolls/jumps the list straight to the original message with an animated pulse highlight (`isHighlighted`).
+    - **Long-Press Reaction Floating Bar**: Quick emojis (👍, ❤️, 😂, 😮, 😢, 🙏) + `+` button opening the complete searchable Emoji Picker grid bottom sheet.
+    - **Contextual Action Sheet**: Reply, Copy Text, Edit Message (available within 10 minutes if not seen and not a shared post), Delete for Me (anytime), Delete for Everyone (available within 24 hours).
+  - **In-Bubble Audio Voice Notes**:
+    - Interactive audio scrubber waveform visualization, Play/Pause button, live timer, and `1x / 1.5x / 2x` speed toggle.
+  - **Shared Post Card Attachment**:
+    - Embedded post card with thumbnail preview, author avatar, author name, caption preview, and tap to view the full post.
+  - **In-Bubble Media Attachments (Images, Videos, Documents)**:
+    - Images: High-resolution zoomable lightbox with gestures (`PhotoView`).
+    - Videos: Native player with progress slider, fullscreen toggle, and audio mute button.
+    - Documents: File type icon, file name, byte size badge, and tap to open in system viewer.
+  - **Message Input Dock**:
+    - Multi-line auto-expanding input field.
+    - Emoji picker toggle button.
+    - Attachment paperclip menu (Gallery, Camera, Audio, Documents, Contact, Location).
+    - Audio Record button: Tap to toggle recording or hold to record with live waveform, lock recording slider, live timer, and slide-to-cancel.
+    - Dynamic Send button (Paper plane icon when typing, Mic icon when input is empty).
+
+### C. Audio & Video Calling (WebRTC System)
+- Full WebRTC socket signaling (`call:invite`, `call:accept`, `call:reject`, `call:end`, `call:busy`, `call:signal`).
+- **Incoming Call Screen / Notification**: High-res caller avatar, caller name, call type badge (Video / Audio), animated green Accept button and red Decline button with ringtone & vibration.
+- **Active Call Screen**:
+  - Fullscreen remote video stream.
+  - Draggable Picture-in-Picture (PiP) local camera stream.
+  - Control bar: Mic Mute toggle, Camera Flip toggle, Video Off toggle, Speakerphone toggle, and End Call button.
+
+### D. Contact Info & Group Info (InfoDrawer / Info Screen)
+- **Contact Info Screen**:
+  - Fullscreen Avatar view with zoom.
+  - Full Name, Bio, Email, Common Groups.
+  - Quick Action tiles: Message, Audio Call, Video Call.
+  - Shared Media Slider: Tabbed carousel (Photos, Videos, Audio, Documents) with count and thumbnail preview.
+  - Custom Chat Wallpaper selector.
+  - Clear Chat (with confirm dialog), Delete Chat.
+- **Group Info Screen**:
+  - Group Avatar (view full screen or edit by admin with crop).
+  - Group Name (edit with emoji picker by admin).
+  - Shared Media carousel.
+  - Notifications: Mute toggle.
+  - Group Members Section:
+    - Total member count and search member bar.
+    - Admin badges (`Admin`).
+    - "Add Participants" row.
+    - Member action sheet: "Make Group Admin", "Dismiss as Admin", "Remove from Group", "View Profile".
+  - Danger Actions: "Exit Group" (for members) and "Delete Group" (for admins in red).
+
+### E. Media & Storage Architecture (WhatsApp-Style Local Storage)
+- **DO NOT use browser IndexedDB for mobile**. Store all media files directly on the native device filesystem!
+- **Directory Hierarchy**:
+  - **Android**: `/storage/emulated/0/Android/media/com.kapotachatapp/Kapota/Media/`
+    - `Kapota Images/`
+    - `Kapota Video/`
+    - `Kapota Audio/`
+    - `Kapota Documents/`
+  - **iOS**: `Documents/Kapota Media/`
+- **Auto-Download Logic**:
+  - Connected to backend API `PUT /api/user/media-settings` and `authUser.mediaSettings`:
+    - `autoDownload`: Boolean (True / False)
+    - `maxAutoDownloadBytes`: Number (e.g. 10MB default)
+  - When a message with media arrives:
+    - If `autoDownload === true` AND `media.bytes <= maxAutoDownloadBytes` $\rightarrow$ automatically download in background and save to local folder.
+    - If `autoDownload === false` OR `media.bytes > maxAutoDownloadBytes` $\rightarrow$ show blurred thumbnail with circular download arrow button and file size badge (e.g. "⬇ 14 MB").
+- **Sender-Side Instant Caching**:
+  - When the sender picks a file from gallery/camera to send, instantly copy it into `Kapota/Media/` so the sender never has to download their own media.
+- **Media Cache Cleanup (Feature 2 & 3)**:
+  - When a message is deleted for everyone or deleted for the user, purge the local file from disk.
+  - When a chat is cleared, bulk delete all associated local files.
+
+### F. Explore / Reels Section (Instagram Style Feed)
+- **Full-Screen Vertical Paging Feed**:
+  - Paging FlatList/FlashList with vertical snap (`snapToInterval={SCREEN_HEIGHT}`, `decelerationRate="fast"`).
+  - **Recycled Video Engine**: Only the index equal to `currentVisibleIndex` has an active `<Video>` player playing. Previous and next indexes render only blurred thumbnail poster images.
+  - Realtime Socket integration: Emits `joinPost` on viewport enter, `leavePost` on viewport exit; listens for `post_liked` and `post_shared`.
+- **Interactive UI Overlay**:
+  - Right Action Bar:
+    - Author Avatar with "+" Follow button(to create conversation but not rediect).
+    - Like Button: Heart icon with animated like count (toggles `/api/post/:id/like`).
+    - Share Button: Paper plane icon (opens `SharePostDialog` to select up to 5 Kapota conversations and send post into chats).
+  - Bottom Overlay:
+    - Author `@username` with verified badge.
+    - Caption with auto-truncated 2-line preview and "more" toggle.
+  - Gesture Interactions:
+    - Tap anywhere on screen to Play/Pause with central animated icon.
+    - Double-tap anywhere to trigger high-energy bouncing heart particle animation.
+
+### G. Create & Upload Post (Instagram Style)
+- **Multi-Media Selector**:
+  - Native gallery picker with multi-select (up to 10 photos/videos) + instant Camera capture button.
+  - Media editor preview: Aspect ratio toggle (1:1 Square, 4:5 Portrait, 16:9 Landscape) with interactive zoom & pan crop.
+  - Photo Filters: Presets (Original, Vivid, Warm, Cool, Noir, Vintage, etc.) with filter intensity slider (0-100%).
+  - Location Search: Autocomplete search with Google Places / OpenStreetMap, nearby place suggestions, and place tags.
+- **Post Details Screen**:
+  - Thumbnail preview with caption textarea (`#hashtags` and `@mentions` support).
+  - Advanced Toggle Switches:
+    - "Hide Likes and Views Count on this post" (`hideLike`)
+    - "Disable Comments and Sharing" (`disableShare`)
+    - "Archive immediately upon creation" (`isArchived`)
+  - "Share Post" primary action calling direct Cloudinary upload + `POST /api/post/create`.
+  - Shows floating progress bar in top status bar during background upload.
+
+### H. User Profile & My Profile (WhatsApp + Instagram Hybrid)
+- **My Profile Screen (WhatsApp Style Editor)**:
+  - Full Name: Editable with max 15 characters limit, live character indicator, emoji picker support.
+  - Bio: Editable with max 30 characters limit, live character indicator, emoji picker support.
+  - Profile Picture: View high-res photo in fullscreen, choose from gender-based preset avatars (`getAvatars`), or upload custom photo from camera/gallery.
+  - Read-only information: Email, Member Since / Joined Date, Gender.
+- **User Profile View Screen (Instagram Style)**:
+  - Header: Avatar with story ring, Stats row (Total Posts count, Joined Date), Name, Bio.
+  - "Message" button (creates or navigates directly to 1-on-1 chat).
+  - 3-column Grid of user's public posts with infinite scroll pagination.
+  - Tapping any post opens the full Post Detail screen.
+
+### I. Settings (WhatsApp Style Categorized Hub)
+- **Account**: Security info, Linked Devices / Active Sessions manager (with remote logout per device & logout all), Change Password (old, new, confirm with validation), Delete Account (permanent removal).
+- **Posts (My Posts Management)**: Summary counters (Total posts, Archived posts, Likes hidden, Sharing disabled), post list with toggles to change archive/like/share settings or delete posts.
+- **Chats**: Theme selector (Deep Dark / Crisp Light), Live conversation message preview, Custom Chat Wallpaper picker.
+- **Media & Storage (Feature 1, 2, 3)**:
+  - Auto-Download Rules: Master Switch + 6 Limit cards (2MB, 5MB, 10MB, 25MB, 50MB, 100MB) synced with MongoDB `PUT /api/user/media-settings`.
+  - Offline Media Storage: Category breakdown cards (Photos, Audio/Voice, Videos, Documents), Refresh stats button, and Safe Clear Media Cache confirmation bottom sheet.
+- **Linked Devices**: WhatsApp-style QR Scanner to scan Web login QR code (`POST /api/auth/qr-login/scan`) with biometric confirmation and list of linked sessions.
+- **Help and Feedback**: Support email (`support@kapota.app`), Contact support, Help FAQ topics, App version.
+
+---
+
+## 4. MODERN DESIGN SYSTEM & COLOR PALETTE
+Replace any outdated or inconsistent colors with this cohesive, modern luxury palette:
+
+```typescript
+export const Theme = {
+  dark: {
+    background: '#0B0F19',       // Deep Midnight Canvas
+    surface: '#111827',          // Dark Obsidian Surface
+    surfaceElevated: '#1F2937',  // Elevated Card / Modal
+    surfaceHover: '#374151',     // Active / Press state
+    border: '#1F2937',           // Subtle Divider line
+    borderStrong: '#374151',     // Active border
+    
+    brand: '#6366F1',            // Electric Indigo
+    brandStrong: '#4F46E5',      // Deep Indigo
+    brandSoft: 'rgba(99, 102, 241, 0.15)',
+    onBrand: '#FFFFFF',
+
+    chatBubbleOut: '#4F46E5',    // Sender message bubble
+    chatBubbleIn: '#1F2937',     // Receiver message bubble
+    chatSeenTick: '#10B981',     // Emerald Green ticks
+
+    textPrimary: '#F9FAFB',      // 95% White
+    textSecondary: '#9CA3AF',    // Muted Gray
+    textSubtle: '#6B7280',       // Dark Muted
+    
+    danger: '#EF4444',           // Coral Red (Delete / Unlike)
+    warning: '#F59E0B',          // Amber
+    success: '#10B981',          // Emerald Green
+  },
+  light: {
+    background: '#F8FAFC',       // Clean Slate White
+    surface: '#FFFFFF',          // Pure White
+    surfaceElevated: '#F1F5F9',  // Light Gray Card
+    surfaceHover: '#E2E8F0',     // Press state
+    border: '#E2E8F0',           // Light divider
+    borderStrong: '#CBD5E1',     // Focused border
+    
+    brand: '#4F46E5',            // Deep Indigo
+    brandStrong: '#4338CA',      // Rich Indigo
+    brandSoft: 'rgba(79, 70, 229, 0.10)',
+    onBrand: '#FFFFFF',
+
+    chatBubbleOut: '#4F46E5',    // Sender message bubble
+    chatBubbleIn: '#FFFFFF',     // Receiver message bubble
+    chatSeenTick: '#10B981',     // Emerald Green ticks
+
+    textPrimary: '#0F172A',      // Slate 900
+    textSecondary: '#475569',    // Slate 600
+    textSubtle: '#94A3B8',       // Slate 400
+    
+    danger: '#EF4444',
+    warning: '#F59E0B',
+    success: '#10B981',
+  }
+};
+```
+
+---
+
+## 5. PROJECT DIRECTORY ARCHITECTURE
+
+Follow the current clean architecture established in your mobile project:
+- Keep all API services grouped in `src/api/` (matching backend routes).
+- Keep state stores in `src/store/` (`useAuthStore`, `useChatStore`, `useCallStore`, `useThemeStore`).
+- Keep background native services in `src/services/` (`mediaStorageService`, `socketService`, `audioService`).
+- Keep modular screens in `src/screens/` and reusable atomic components in `src/components/`.
+
+---
+
+## 6. STEP-BY-STEP EXECUTION INSTRUCTIONS
+
+When implementing this prompt on your project:
+1. **Dependencies**: Install and link `@shopify/flash-list`, `react-native-reanimated`, `react-native-gesture-handler`, `@gorhom/bottom-sheet`, `react-native-fast-image` (or `expo-image`), `react-native-vision-camera` (or `expo-camera`), `react-native-fs` (or `react-native-blob-util`), `react-native-track-player` / `react-native-audio-recorder-player`, and `@react-navigation/native`.
+2. **Auth, Recovery & Linked Devices**: Implement mobile Sign Up, Login, Forgot Password OTP flow, and build the QR scanner in Linked Devices connecting to `/api/auth/qr-login/scan`.
+3. **Storage Pipeline**: Initialize `mediaStorageService.ts` to manage the `/Kapota/Media/` directory tree and connect auto-download rules to `authUser.mediaSettings`.
+4. **Chat, Groups & Voice Notes**: Build the chat room with FlashList, swipe-to-reply gesture, audio waveform playback, reaction picker, shared post cards, group seen receipts, and group admin manager.
+5. **WebRTC Calling**: Implement the incoming call modal and active video/audio call screen with camera switch, mute, and PiP view.
+6. **Explore Reels Feed & Creator**: Build the vertical paging reel viewer with viewport-based video recycling, comments sheet, share post dialog, and multi-media post creator with crop/filters/location.
+7. **Settings & Profile**: Build My Profile editor (15-char name, 30-char bio, avatars), User Profile view (3-column grid), and Settings hub with Media & Storage manager.
+8. **Verification**: Verify 60/120 FPS scrolling and gesture responsiveness on both Android and iOS devices.
