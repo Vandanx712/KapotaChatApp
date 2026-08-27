@@ -7,6 +7,7 @@ import "react-photo-view/dist/react-photo-view.css";
 import { getPostDetail, postLiked, sendMessage } from "../lib/axios";
 import { formatMessageTime } from "../lib/utils";
 import { useChatStore } from "../store/useChatStore";
+import { useAuthStore } from "../store/useAuthStore";
 import { AppPage, PageHeader } from "../components/layout/AppPage";
 import { Avatar, Button, EmptyState, Spinner } from "../components/ui";
 import LoadableImage from "../components/common/LoadableImage";
@@ -16,6 +17,7 @@ function PostDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams();
+  const { socket, authUser } = useAuthStore();
   const { conversations, getConversation } = useChatStore();
   const sharedPost = location.state?.sharedPost || null;
 
@@ -63,24 +65,74 @@ function PostDetail() {
   }, [id]);
 
   useEffect(() => {
+    if (!socket || !id) return undefined;
+    socket.emit("joinPost", id);
+
+    const handleLikeUpdate = ({ postId, userId, liked, likesCount, likesCountChange }) => {
+      if (postId !== id) return;
+      setPost((current) => {
+        if (!current) return current;
+        const currentUserId = authUser?._id ? authUser._id.toString() : "";
+        const isCurrentUserAction = userId && currentUserId && userId === currentUserId;
+        const newLikesCount =
+          typeof likesCount === "number"
+            ? likesCount
+            : Math.max(0, (current.likesCount || 0) + (likesCountChange ?? (liked ? 1 : -1)));
+        return {
+          ...current,
+          isLiked: isCurrentUserAction ? liked : current.isLiked,
+          likesCount: newLikesCount,
+        };
+      });
+    };
+
+    socket.on("postLiked", handleLikeUpdate);
+
+    return () => {
+      socket.emit("leavePost", id);
+      socket.off("postLiked", handleLikeUpdate);
+    };
+  }, [socket, id, authUser?._id]);
+
+  useEffect(() => {
     if (sharePost && conversations.length === 0) getConversation();
   }, [sharePost, conversations.length, getConversation]);
 
   const handleLike = async () => {
     if (!post?._id || likeLoading) return;
+    const previousPost = { ...post };
+    const nextLiked = !post.isLiked;
+
+    // Optimistic update
+    setPost((current) =>
+      current
+        ? {
+            ...current,
+            isLiked: nextLiked,
+            likesCount: Math.max(0, (current.likesCount || 0) + (nextLiked ? 1 : -1)),
+          }
+        : current,
+    );
+
     try {
       setLikeLoading(true);
       const response = await postLiked(post._id);
-      setPost((current) =>
-        current
-          ? {
-            ...current,
-            isLiked: response.liked,
-            likesCount: current.likesCount + (response.liked ? 1 : -1),
-          }
-          : current,
-      );
+      if (response && typeof response.liked === "boolean") {
+        setPost((current) =>
+          current
+            ? {
+                ...current,
+                isLiked: response.liked,
+                likesCount:
+                  typeof response.likesCount === "number"
+                    ? response.likesCount
+                    : current.likesCount,
+              }
+            : current,
+        );
+      }
     } catch (error) {
+      setPost(previousPost);
       toast.error(error.response?.data?.message || "Failed to like post");
     } finally {
       setLikeLoading(false);

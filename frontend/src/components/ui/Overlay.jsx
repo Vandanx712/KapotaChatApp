@@ -230,16 +230,25 @@ export function Disclosure({
   title,
   description,
   defaultOpen = false,
+  open: controlledOpen,
+  onToggle,
   children,
   className = "",
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const openState = controlledOpen !== undefined ? controlledOpen : isOpen;
 
   return (
     <details
       className={cn("group/disclosure border-b border-line", className)}
-      open={isOpen}
-      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+      open={openState}
+      onToggle={(event) => {
+        const nextOpen = event.currentTarget.open;
+        if (controlledOpen === undefined) {
+          setIsOpen(nextOpen);
+        }
+        onToggle?.(event, nextOpen);
+      }}
     >
       <summary className="flex cursor-pointer list-none items-center gap-3 px-1 py-4 marker:content-none">
         {Icon && (

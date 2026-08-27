@@ -78,9 +78,34 @@ function AddPost() {
     landscape: "min(100%, calc((100vh - 260px) * 1.7778), 780px)",
   };
 
-  useEffect(() => {
-    loadSuggestions();
-  }, []);
+  const activeSearchQueryRef = useRef("");
+  const hasLoadedSuggestionsRef = useRef(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+
+  const loadPlaceDetail = async (location) => {
+    if (location.address) return undefined;
+    try {
+      const response = await getPlaceDetail(location.placeId);
+      return response?.detail;
+    } catch (error) {
+      console.log(error);
+      return null;
+    }
+  };
+
+  const loadSuggestions = async () => {
+    if (isLoadingSuggestions || hasLoadedSuggestionsRef.current) return;
+    setIsLoadingSuggestions(true);
+    try {
+      const response = await getSuggestion();
+      setLocationSuggestions(response.places || []);
+      hasLoadedSuggestionsRef.current = true;
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
 
   useEffect(() => {
     if (locationQuery.trim()) return;
@@ -105,59 +130,55 @@ function AddPost() {
     };
   }, [selectedLocation]);
 
-  const loadSuggestions = async () => {
-    try {
-      const response = await getSuggestion();
-      setLocationSuggestions(response.places || []);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
   const runLocationSearch = async (query) => {
     const trimmedQuery = query.trim();
-    if (!trimmedQuery) {
+    if (!trimmedQuery || trimmedQuery.length < 3) {
       setSearchSuggestions([]);
       setIsSearchingLocations(false);
       return;
     }
 
+    activeSearchQueryRef.current = trimmedQuery;
     setIsSearchingLocations(true);
     try {
       const response = await searchLocation(trimmedQuery);
-      setSearchSuggestions(response.results || []);
+      if (activeSearchQueryRef.current === trimmedQuery) {
+        setSearchSuggestions(response.results || []);
+      }
     } catch (error) {
       console.log(error);
-      setSearchSuggestions([]);
+      if (activeSearchQueryRef.current === trimmedQuery) {
+        setSearchSuggestions([]);
+      }
     } finally {
-      setIsSearchingLocations(false);
+      if (activeSearchQueryRef.current === trimmedQuery) {
+        setIsSearchingLocations(false);
+      }
     }
   };
 
   useEffect(() => {
-    if (!locationQuery.trim()) return undefined;
+    const trimmed = locationQuery.trim();
+    if (!trimmed || trimmed.length < 3) {
+      setSearchSuggestions([]);
+      setIsSearchingLocations(false);
+      return undefined;
+    }
+
     if (skipAutoSearchRef.current) {
       skipAutoSearchRef.current = false;
       return undefined;
     }
 
-    const timeoutId = setTimeout(() => runLocationSearch(locationQuery), 350);
+    const timeoutId = setTimeout(() => {
+      runLocationSearch(locationQuery);
+    }, 500);
+
     return () => clearTimeout(timeoutId);
   }, [locationQuery]);
 
   const handleSearch = async () => {
     await runLocationSearch(locationQuery);
-  };
-
-  const loadPlaceDetail = async (location) => {
-    if (location.address) return undefined;
-    try {
-      const response = await getPlaceDetail(location.placeId);
-      return response?.detail;
-    } catch (error) {
-      console.log(error);
-      return null;
-    }
   };
 
   const resolvedSelectedLocation = useMemo(() => {
@@ -401,7 +422,7 @@ function AddPost() {
                 <EmptyState
                   icon={ImagePlus}
                   title="Upload a photo to begin"
-                  description="JPG, PNG, or WebP up to 9 MB."
+                  description="JPG, PNG, or WebP up to 250 MB."
                   action={<Button variant="primary" onClick={() => fileInputRef.current?.click()}>Choose image</Button>}
                   className="h-full"
                 />
@@ -470,7 +491,16 @@ function AddPost() {
             <p className="mt-1.5 text-right text-xs text-muted">{caption.length}/2,000</p>
           </Disclosure>
 
-          <Disclosure icon={MapPin} title="Location" description="Attach an optional place">
+          <Disclosure
+            icon={MapPin}
+            title="Location"
+            description="Attach an optional place"
+            onToggle={(_event, isOpen) => {
+              if (isOpen && !hasLoadedSuggestionsRef.current && !locationQuery.trim()) {
+                loadSuggestions();
+              }
+            }}
+          >
             <Input
               icon={MapPin}
               type="text"
@@ -509,14 +539,18 @@ function AddPost() {
               </div>
               <div className="ui-scrollbar max-h-64 overflow-y-auto">
                 <SectionLoader
-                  loading={isSearchingLocations}
-                  label="Searching locations..."
+                  loading={isSearchingLocations || isLoadingSuggestions}
+                  label={isSearchingLocations ? "Searching locations..." : "Loading suggestions..."}
                   minHeight={120}
                   className="rounded-none border-0 bg-transparent"
                 >
                   {locations.length === 0 ? (
                     <p className="px-3 py-5 text-sm text-muted">
-                      {locationQuery.trim() ? "No search results found." : "No nearby suggestions available."}
+                      {locationQuery.trim().length > 0 && locationQuery.trim().length < 3
+                        ? "Type at least 3 characters to search locations..."
+                        : locationQuery.trim()
+                          ? "No search results found."
+                          : "No nearby suggestions available."}
                     </p>
                   ) : (
                     <ul className="divide-y divide-line">

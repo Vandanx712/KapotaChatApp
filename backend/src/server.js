@@ -12,9 +12,27 @@ import { handleError } from "./util/apierror.js";
 dotenv.config();
 const port = process.env.PORT;
 
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.RN_URL,
+  "http://127.0.0.1:2026",
+]
+  .filter(Boolean)
+  .map((url) => url.trim().replace(/\/+$/, ""));
+
 app.use(
   cors({
-    origin: [process.env.FRONTEND_URL, process.env.RN_URL],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const cleanOrigin = origin.trim().replace(/\/+$/, "");
+      if (
+        allowedOrigins.includes(cleanOrigin) ||
+        process.env.NODE_ENV !== "production"
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Not allowed by CORS: ${origin}`));
+    },
     credentials: true,
   }),
 );

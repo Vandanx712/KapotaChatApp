@@ -17,7 +17,7 @@ function Explore() {
   const loadMoreRef = useRef(null);
   const joinedPostsRef = useRef(new Set());
 
-  const { socket } = useAuthStore();
+  const { socket, authUser } = useAuthStore();
   const { conversations, getConversation } = useChatStore();
 
   const [posts, setPosts] = useState([]);
@@ -105,32 +105,72 @@ function Explore() {
 
   useEffect(() => {
     if (!socket) return undefined;
-    const handleLikeUpdate = ({ postId, likesCountChange }) => {
+    const handleLikeUpdate = ({ postId, userId, liked, likesCount, likesCountChange }) => {
       if (!visiblePostIds.has(postId)) return;
       setPosts((current) =>
-        current.map((post) =>
-          post._id === postId
-            ? {
-              ...post,
-              isLiked: likesCountChange !== -1,
-              likesCount: post.likesCount + likesCountChange,
-            }
-            : post,
-        ),
+        current.map((post) => {
+          if (post._id !== postId) return post;
+          const currentUserId = authUser?._id ? authUser._id.toString() : "";
+          const isCurrentUserAction = userId && currentUserId && userId === currentUserId;
+          const newLikesCount =
+            typeof likesCount === "number"
+              ? likesCount
+              : Math.max(0, (post.likesCount || 0) + (likesCountChange ?? (liked ? 1 : -1)));
+          return {
+            ...post,
+            isLiked: isCurrentUserAction ? liked : post.isLiked,
+            likesCount: newLikesCount,
+          };
+        }),
       );
     };
     socket.on("postLiked", handleLikeUpdate);
     return () => socket.off("postLiked", handleLikeUpdate);
-  }, [socket, visiblePostIds]);
+  }, [socket, visiblePostIds, authUser?._id]);
 
   useEffect(() => {
     if (sharePost && conversations.length === 0) getConversation();
   }, [sharePost, conversations.length, getConversation]);
 
   const handleLike = async (id) => {
+    let previousPost = null;
+    setPosts((current) =>
+      current.map((post) => {
+        if (post._id !== id) return post;
+        previousPost = { ...post };
+        const nextLiked = !post.isLiked;
+        return {
+          ...post,
+          isLiked: nextLiked,
+          likesCount: Math.max(0, (post.likesCount || 0) + (nextLiked ? 1 : -1)),
+        };
+      }),
+    );
+
     try {
-      await postLiked(id);
+      const response = await postLiked(id);
+      if (response && typeof response.liked === "boolean") {
+        setPosts((current) =>
+          current.map((post) =>
+            post._id === id
+              ? {
+                  ...post,
+                  isLiked: response.liked,
+                  likesCount:
+                    typeof response.likesCount === "number"
+                      ? response.likesCount
+                      : post.likesCount,
+                }
+              : post,
+          ),
+        );
+      }
     } catch (error) {
+      if (previousPost) {
+        setPosts((current) =>
+          current.map((post) => (post._id === id ? previousPost : post)),
+        );
+      }
       toast.error(error.response?.data?.message || "Unable to like post");
     }
   };

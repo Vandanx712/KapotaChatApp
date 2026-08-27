@@ -10,6 +10,8 @@ class ApiError extends Error {
 }
 
 const handleError = (err, req, res, next) => {
+  console.error("API Error:", err?.response?.data || err?.message || err);
+
   if (err instanceof ApiError) {
     return res.status(err.statusCode).json({
       success: err.success,
@@ -17,10 +19,25 @@ const handleError = (err, req, res, next) => {
       errors: err.errors,
     });
   }
+
+  if (err?.isAxiosError) {
+    const status = err.response?.status || 500;
+    const errorMsg =
+      err.response?.data?.message ||
+      err.response?.data?.error ||
+      err.message ||
+      "External API error";
+    return res.status(status).json({
+      success: false,
+      message: `Location Service Error: ${errorMsg}`,
+      errors: [errorMsg],
+    });
+  }
+
   // Fallback to general error
   return res.status(500).json({
     success: false,
-    message: "Internal server error",
+    message: err?.message || "Internal server error",
   });
 };
 

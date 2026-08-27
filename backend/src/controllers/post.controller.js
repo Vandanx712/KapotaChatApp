@@ -20,7 +20,7 @@ import {
   processPaginationResults,
 } from "../util/pagination.js";
 
-const NEARBY_MAX_DISTANCE_METERS = 5000;
+const NEARBY_MAX_DISTANCE_METERS = process.env.RADIUS || 5000;
 const EARTH_RADIUS_METERS = 6378137;
 
 export const createPost = asynchandller(async (req, res) => {
@@ -350,34 +350,60 @@ export const postFeed = asynchandller(async (req, res) => {
 export const postLiked = asynchandller(async (req, res) => {
   const { id } = req.params;
   const { _id } = req.user;
-  if (!id) throw new ApiError(401, "Select one post");
+  if (!id) throw new ApiError(400, "Select one post");
+
+  const post = await Post.findById(id);
+  if (!post) throw new ApiError(404, "Post not found");
 
   const existing = await Like.findOne({
     user: _id,
     post: id,
   });
 
+  let isLiked = false;
+  let updatedPost = null;
+
   if (existing) {
     await Like.deleteOne({ _id: existing._id });
-    await Post.findByIdAndUpdate(id, { $inc: { likesCount: -1 } });
-    return res.status(200).json({ liked: false });
+    updatedPost = await Post.findByIdAndUpdate(
+      id,
+      { $inc: { likesCount: -1 } },
+      { new: true },
+    );
+    if (updatedPost && updatedPost.likesCount < 0) {
+      updatedPost.likesCount = 0;
+      await Post.findByIdAndUpdate(id, { $set: { likesCount: 0 } });
+    }
+    isLiked = false;
+  } else {
+    await Like.create({
+      user: _id,
+      post: id,
+    });
+    updatedPost = await Post.findByIdAndUpdate(
+      id,
+      { $inc: { likesCount: 1 } },
+      { new: true },
+    );
+    isLiked = true;
   }
 
-  await Like.create({
-    user: _id,
-    post: id,
-  });
+  const finalLikesCount = Math.max(0, updatedPost?.likesCount ?? 0);
 
-  await Post.findByIdAndUpdate(id, { $inc: { likesCount: 1 } });
-
+  // Broadcast real-time like/unlike update to everyone in the post room
   io.to(id).emit("postLiked", {
     postId: id,
     id,
-    likesCountChange: existing ? -1 : 1,
+    userId: _id.toString(),
+    liked: isLiked,
+    likesCount: finalLikesCount,
+    likesCountChange: isLiked ? 1 : -1,
   });
 
   return res.status(200).json({
-    liked: true,
+    success: true,
+    liked: isLiked,
+    likesCount: finalLikesCount,
   });
 });
 
