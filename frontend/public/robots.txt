@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /setting
+Disallow: /addpost
+
+Sitemap: https://kapota.app/sitemap.xml

@@ -5,4 +5,17 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   server: { port: 2026 },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-icons": ["lucide-react"],
+          "vendor-socket": ["socket.io-client"],
+          "vendor-utils": ["axios", "zustand", "qrcode.react"],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
+  },
 });

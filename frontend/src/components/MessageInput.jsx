@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
 import { FileText, Paperclip, Send, SmileIcon, X } from "lucide-react";
 import toast from "react-hot-toast";
-import EmojiPicker from "emoji-picker-react";
 import { Button, Tooltip } from "./ui";
 import { useThemeStore } from "../store/useThemeStore";
 import { uploadMedia } from "../hooks/uploadMedia";
 import { saveMediaToCache } from "../lib/mediaCache";
+
+const EmojiPicker = lazy(() => import("emoji-picker-react"));
 
 const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 const ACCEPTED_TYPES = new Set([
@@ -292,14 +293,22 @@ function MessageInput() {
             onClick={() => setShowPicker(false)}
           />
           <div className="absolute bottom-[68px] left-4 z-[70] overflow-hidden rounded-app border border-line bg-surface-raised shadow-overlay animate-ui-in">
-            <EmojiPicker
-              onEmojiClick={(emojiData) => onEmojiClick(emojiData)}
-              theme={theme}
-              autoFocusSearch={true}
-              width={350}
-              height={400}
-              lazyLoadEmojis={true}
-            />
+            <Suspense
+              fallback={
+                <div className="flex h-[400px] w-[350px] items-center justify-center bg-surface">
+                  <div className="size-6 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+                </div>
+              }
+            >
+              <EmojiPicker
+                onEmojiClick={(emojiData) => onEmojiClick(emojiData)}
+                theme={theme}
+                autoFocusSearch={true}
+                width={350}
+                height={400}
+                lazyLoadEmojis={true}
+              />
+            </Suspense>
           </div>
         </>
       )}
