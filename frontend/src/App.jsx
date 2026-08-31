@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useLayoutEffect } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import CallManager from "./components/CallManager";
 import { useAuthStore } from "./store/useAuthStore";
@@ -18,6 +18,16 @@ const Profile = lazy(() => import("./pages/Profile"));
 const UserProfile = lazy(() => import("./pages/UserProfile"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
+const ROUTE_TITLES = {
+  "/": "Messages | Kapota",
+  "/login": "Log In | Kapota",
+  "/forget-password": "Reset Password | Kapota",
+  "/addpost": "Create Post | Kapota",
+  "/explore": "Explore Moments | Kapota",
+  "/setting": "Settings | Kapota",
+  "/profile": "My Profile | Kapota",
+};
+
 const isMobileDevice = () => {
   if (typeof navigator === "undefined") return false;
   if (navigator.userAgentData?.mobile) return true;
@@ -35,11 +45,25 @@ function App() {
   const checkAuth = useAuthStore((state) => state.checkAuth);
   const isCheckingAuth = useAuthStore((state) => state.isCheckingAuth);
   const { theme } = useThemeStore();
+  const location = useLocation();
   const mobileDevice = isMobileDevice();
 
   useEffect(() => {
     if (!mobileDevice) checkAuth();
   }, [checkAuth, mobileDevice]);
+
+  useEffect(() => {
+    const pathname = location.pathname;
+    if (ROUTE_TITLES[pathname]) {
+      document.title = ROUTE_TITLES[pathname];
+    } else if (pathname.startsWith("/post/")) {
+      document.title = "Post | Kapota";
+    } else if (pathname.startsWith("/profile/")) {
+      document.title = "User Profile | Kapota";
+    } else {
+      document.title = "Kapota — Real-Time Messaging & Moments";
+    }
+  }, [location.pathname]);
 
   useLayoutEffect(() => {
     document.documentElement.setAttribute("data-kapota-theme", theme);
@@ -56,6 +80,7 @@ function App() {
         </div>
       </div>
     );
+
   return (
     <div className="min-h-screen bg-canvas text-ink">
       {authUser && <Navbar />}

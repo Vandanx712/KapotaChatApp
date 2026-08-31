@@ -49,11 +49,14 @@ export const createPost = asynchandller(async (req, res) => {
 
   let userlocation = location;
   if (location == null) {
-    userlocation = {
-      name: "",
-      type: "Point",
-      coordinates: [user.location.lng, user.location.lat],
-    };
+    userlocation =
+      user?.location?.lng != null && user?.location?.lat != null
+        ? {
+            name: user.location.name || "",
+            type: "Point",
+            coordinates: [user.location.lng, user.location.lat],
+          }
+        : null;
   }
 
   const path = StoragePath("", {
@@ -273,7 +276,11 @@ export const postFeed = asynchandller(async (req, res) => {
     MAX_POSTS_LIMIT,
   );
 
-  const coordinates = [user.location.lng, user.location.lat];
+  const hasCoordinates =
+    user?.location?.lng != null && user?.location?.lat != null;
+  const coordinates = hasCoordinates
+    ? [user.location.lng, user.location.lat]
+    : null;
 
   const baseQuery = {
     isArchived: false,
@@ -284,21 +291,24 @@ export const postFeed = asynchandller(async (req, res) => {
     baseQuery._id = { $lt: cursor };
   }
 
-  const nearByPosts = await Post.find({
-    ...baseQuery,
-    location: {
-      $geoWithin: {
-        $centerSphere: [
-          coordinates,
-          NEARBY_MAX_DISTANCE_METERS / EARTH_RADIUS_METERS,
-        ],
+  let nearByPosts = [];
+  if (hasCoordinates) {
+    nearByPosts = await Post.find({
+      ...baseQuery,
+      location: {
+        $geoWithin: {
+          $centerSphere: [
+            coordinates,
+            NEARBY_MAX_DISTANCE_METERS / EARTH_RADIUS_METERS,
+          ],
+        },
       },
-    },
-  })
-    .sort({ _id: -1 })
-    .limit(safeLimit + 1)
-    .populate("user", "fullname profilePic")
-    .lean();
+    })
+      .sort({ _id: -1 })
+      .limit(safeLimit + 1)
+      .populate("user", "fullname profilePic")
+      .lean();
+  }
 
   const nearbyIds = nearByPosts.map((post) => post._id);
   const globalQuery = {

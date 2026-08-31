@@ -2,6 +2,9 @@ import jwt from "jsonwebtoken";
 import { TrustedDevice } from "../models/trustedDevice.model.js";
 import { ApiError } from "../util/apierror.js";
 
+const isProduction = process.env.NODE_ENV === "production";
+const sameSitePolicy = isProduction ? "none" : "lax";
+
 export const generateToken = (userId, sessionId, res) => {
   const token = jwt.sign({ userId, sessionId }, process.env.JWT_SECRET, {
     expiresIn: "15d",
@@ -9,8 +12,8 @@ export const generateToken = (userId, sessionId, res) => {
 
   res.cookie("token", token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: isProduction,
+    sameSite: sameSitePolicy,
     maxAge: 15 * 24 * 60 * 60 * 1000,
   });
 
@@ -23,8 +26,8 @@ export const TRUSTED_DEVICE_COOKIE = "trustedDeviceId";
 export const setTrustedDeviceCookie = (res, trustedDeviceId) => {
   res.cookie(TRUSTED_DEVICE_COOKIE, trustedDeviceId.toString(), {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: isProduction,
+    sameSite: sameSitePolicy,
     maxAge: 365 * 24 * 60 * 60 * 1000,
   });
 };
@@ -32,8 +35,8 @@ export const setTrustedDeviceCookie = (res, trustedDeviceId) => {
 export const clearTrustedDeviceCookie = (res) => {
   res.clearCookie(TRUSTED_DEVICE_COOKIE, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: isProduction,
+    sameSite: sameSitePolicy,
   });
 };
 
