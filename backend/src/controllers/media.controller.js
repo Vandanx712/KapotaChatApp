@@ -75,6 +75,21 @@ const expectedFormats = {
     "audio/wav": ["wav"],
 };
 
+const getPurposeFolder = (purpose) => {
+    switch (purpose) {
+        case "post":
+            return "kapota/posts";
+        case "avatar":
+            return "kapota/profilepic";
+        case "chat_background":
+            return "kapota/conversationPic";
+        case "chat_attachment":
+            return "kapota/messagepic";
+        default:
+            return `kapota/${purpose}`;
+    }
+};
+
 const mediaForClient = (media) => ({
     _id: media._id,
     purpose: media.purpose,
@@ -155,10 +170,11 @@ export const prepareMediaUpload = asynchandller(async (req, res) => {
         status: "pending",
     });
 
+    const targetFolder = getPurposeFolder(purpose);
     const extension = resourceType === "raw" ? rawExtensions[mimeType] : null;
 
     media.publicId = [
-        `kapota/${purpose}/${media._id}`,
+        `${targetFolder}/${media._id}`,
         extension ? `.${extension}` : "",
     ].join("");
     await media.save();
@@ -168,6 +184,7 @@ export const prepareMediaUpload = asynchandller(async (req, res) => {
     const uploadParams = {
         timestamp,
         public_id: media.publicId,
+        asset_folder: targetFolder,
         type: deliveryType,
         overwrite: false,
     };

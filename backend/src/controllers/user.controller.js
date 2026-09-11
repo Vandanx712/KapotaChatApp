@@ -71,11 +71,16 @@ export const updateProfilePic = asynchandller(async (req, res) => {
       includeMessageFolder: false,
     });
     pic = await uploadChatPic(path, profilePic);
-    if (oldkey.length > 0) {
+    const isSharedAvatar = !oldkey || oldkey.includes("avatar") || oldkey.includes("avatars");
+    if (oldkey && !isSharedAvatar) {
       await deleteImage(oldkey);
     }
   } else if (picUrl) {
     pic = picUrl;
+    const isSharedAvatar = !oldkey || oldkey.includes("avatar") || oldkey.includes("avatars");
+    if (oldkey && !isSharedAvatar) {
+      await deleteImage(oldkey);
+    }
   }
 
   const user = await User.findByIdAndUpdate(

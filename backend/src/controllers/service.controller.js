@@ -2,11 +2,30 @@ import axios from "axios";
 // import { getGoogleUrl } from "../lib/googleUrl.js";
 import { getGeoapifyUrl } from "../lib/googleUrl.js";
 import { asynchandller } from "../util/asynchandller.js";
-
-// 1. Nearby Surrounding Places 
+import { User } from "../models/user.model.js";
 
 export const getSuggestion = asynchandller(async (req, res) => {
-  const location = req.user?.location;
+  let location = req.user?.location;
+  const queryLat = req.query.lat ? parseFloat(req.query.lat) : null;
+  const queryLng = req.query.lng ? parseFloat(req.query.lng) : null;
+
+  if (queryLat != null && queryLng != null && !isNaN(queryLat) && !isNaN(queryLng)) {
+    location = { lat: queryLat, lng: queryLng };
+    if (req.user?._id) {
+      reverseGeocoding(location)
+        .then((locName) => {
+          User.findByIdAndUpdate(req.user._id, {
+            location: {
+              name: locName || "",
+              lat: location.lat,
+              lng: location.lng,
+            },
+          }).exec();
+        })
+        .catch(() => {});
+    }
+  }
+
   const radius = process.env.RADIUS || 5000;
 
   // If user has not set coordinates or location is null, return empty places gracefully

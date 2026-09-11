@@ -37,12 +37,20 @@ export const uploadChatPic = async (path, pic) => {
 }
 
 export const deleteImage = async (oldkey) => {
-  try {
-    await cloudinary.uploader.destroy(oldkey)
-  } catch (error) {
-    console.log(`Error in deletePic: ${error}`)
+  if (!oldkey || typeof oldkey !== "string") return;
+
+  // Protect shared system avatars and preset avatars from accidental deletion
+  if (oldkey.includes("avatar") || oldkey.includes("avatars")) {
+    console.log(`[Cloudinary Guard] Prevented deletion of shared avatar: ${oldkey}`);
+    return;
   }
-}
+
+  try {
+    await cloudinary.uploader.destroy(oldkey);
+  } catch (error) {
+    console.log(`Error in deletePic: ${error}`);
+  }
+};
 
 export const deleteCloudinaryAsset = async ({
   publicId,

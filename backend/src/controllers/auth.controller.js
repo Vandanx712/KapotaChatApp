@@ -17,7 +17,7 @@ import { createOtp, verifyOtp } from "../lib/otp.js";
 import { sendOtpMail } from "../lib/mail.js";
 import { TrustedDevice } from "../models/trustedDevice.model.js";
 import { enforceSessionLimit } from "../lib/sessionLimit.js";
-import { createQrLoginRequest, getQrLoginRequest, saveQrLoginRequest, verifyBrowserSecret, verifyQrToken, withQrLoginLock } from "../lib/qrLogin.js";
+import { COMPLETED_LOGIN_TTL_SECONDS, createQrLoginRequest, getQrLoginRequest, saveQrLoginRequest, verifyBrowserSecret, verifyQrToken, withQrLoginLock } from "../lib/qrLogin.js";
 
 const getDeviceInfo = (ua = "") => {
   const osMap = {
@@ -654,6 +654,6 @@ export const completeQrLogin = asynchandller(async (req, res) => {
     status: "completed",
     trustedDeviceId:
       result.trustedDevice._id.toString(),
-    user: formatUser(result.user),
+    user: result.user,
   });
 })
