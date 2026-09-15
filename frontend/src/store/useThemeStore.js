@@ -1,15 +1,36 @@
 import { create } from "zustand";
 
+const applyThemeDOM = (theme) => {
+  try {
+    document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.setAttribute("data-kapota-theme", theme);
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  } catch {
+    /* ignore theme application errors in non-browser environments */
+  }
+};
+
 const getInitialTheme = () => {
-  const savedTheme = localStorage.getItem("kapota-theme");
-  if (savedTheme === "light" || savedTheme === "dark") return savedTheme;
+  try {
+    const savedTheme = localStorage.getItem("chat-theme") || localStorage.getItem("kapota-theme");
+    if (savedTheme === "light" || savedTheme === "dark") {
+      applyThemeDOM(savedTheme);
+      return savedTheme;
+    }
+  } catch {
+    /* ignore localStorage errors */
+  }
 
-  const legacyTheme = localStorage.getItem("chat-theme");
-  if (legacyTheme === "light" || legacyTheme === "dark") return legacyTheme;
-
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  const prefersDark =
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+  const initial = prefersDark ? "dark" : "dark"; // Default dark
+  applyThemeDOM(initial);
+  return initial;
 };
 
 export const useThemeStore = create((set) => ({
@@ -63,13 +84,17 @@ export const useThemeStore = create((set) => ({
     `,
   },
   setTheme: (theme) => {
+    localStorage.setItem("chat-theme", theme);
     localStorage.setItem("kapota-theme", theme);
+    applyThemeDOM(theme);
     set({ theme });
   },
   toggleTheme: () =>
     set((state) => {
       const theme = state.theme === "dark" ? "light" : "dark";
+      localStorage.setItem("chat-theme", theme);
       localStorage.setItem("kapota-theme", theme);
+      applyThemeDOM(theme);
       return { theme };
     }),
 }));

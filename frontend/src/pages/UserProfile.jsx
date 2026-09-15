@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { contactDetail } from "../lib/axios";
 import toast from "react-hot-toast";
@@ -17,6 +17,7 @@ import { mergeUniqueById } from "../lib/utils";
 import { AppPage, PageHeader, PageSection } from "../components/layout/AppPage";
 import { Avatar, Badge, Button, EmptyState, Spinner } from "../components/ui";
 import LoadableImage from "../components/common/LoadableImage";
+import { useUserProfileQuery } from "../hooks/useQueries";
 
 function UserProfile() {
   const navigate = useNavigate();
@@ -26,33 +27,35 @@ function UserProfile() {
 
   const [user, setUser] = useState(null);
   const [posts, setPosts] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMorePosts, setIsLoadingMorePosts] = useState(false);
   const [isStartingChat, setIsStartingChat] = useState(false);
   const [postsCursor, setPostsCursor] = useState(null);
   const [hasMorePosts, setHasMorePosts] = useState(false);
 
+  const {
+    data: profileData,
+    isLoading: isProfileLoading,
+    error: profileError,
+  } = useUserProfileQuery(id);
+
   useEffect(() => {
-    loadUserProfile();
-  }, [id]);
-
-  const loadUserProfile = useEffectEvent(async () => {
-    if (!id) return;
-
-    setIsLoading(true);
-    try {
-      const resdata = await contactDetail(id, { limit: 12 });
-      setUser(resdata.user || null);
-      setPosts(resdata.user?.posts || []);
-      setPostsCursor(resdata.nextCursor ?? null);
-      setHasMorePosts(Boolean(resdata.hasMore));
-    } catch (error) {
-      console.log(error);
-      toast.error(error.response?.data?.message || "Failed to load profile");
-    } finally {
-      setIsLoading(false);
+    if (profileData?.user) {
+      setUser(profileData.user);
+      setPosts(profileData.user.posts || []);
+      setPostsCursor(profileData.nextCursor ?? null);
+      setHasMorePosts(Boolean(profileData.hasMore));
     }
-  });
+  }, [profileData]);
+
+  useEffect(() => {
+    if (profileError) {
+      toast.error(
+        profileError.response?.data?.message || "Failed to load profile",
+      );
+    }
+  }, [profileError]);
+
+  const isLoading = isProfileLoading && !user;
 
   const loadMorePosts = async () => {
     if (!id || !postsCursor || !hasMorePosts || isLoadingMorePosts) return;

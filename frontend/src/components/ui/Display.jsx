@@ -18,6 +18,8 @@ export function Avatar({
   status,
   className = "",
   fallback,
+  loading = "lazy",
+  fetchPriority = "auto",
 }) {
   return (
     <span className={cn("relative inline-flex shrink-0 rounded-full", avatarSizes[size], className)}>
@@ -34,7 +36,12 @@ export function Avatar({
             </span>
           )
         }
-        imgProps={{ loading: "lazy", decoding: "async" }}
+        imgProps={{
+          loading,
+          decoding: "async",
+          fetchpriority: fetchPriority,
+          fetchPriority,
+        }}
       />
       {status && (
         <span

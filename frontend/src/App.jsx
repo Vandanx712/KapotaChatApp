@@ -6,6 +6,7 @@ import { useAuthStore } from "./store/useAuthStore";
 import { useThemeStore } from "./store/useThemeStore";
 import { Spinner, ToastViewport } from "./components/ui";
 import MobileAppRequired from "./pages/MobileAppRequired";
+import { useOfflineSync } from "./hooks/useOfflineSync";
 
 const Home = lazy(() => import("./pages/Home"));
 const Login = lazy(() => import("./pages/Login"));
@@ -48,9 +49,23 @@ function App() {
   const location = useLocation();
   const mobileDevice = isMobileDevice();
 
+  useOfflineSync();
+
   useEffect(() => {
     if (!mobileDevice) checkAuth();
   }, [checkAuth, mobileDevice]);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      const { authUser, logout } = useAuthStore.getState();
+      if (authUser) {
+        logout?.();
+      }
+    };
+    window.addEventListener("kapota:unauthorized", handleUnauthorized);
+    return () =>
+      window.removeEventListener("kapota:unauthorized", handleUnauthorized);
+  }, []);
 
   useEffect(() => {
     const pathname = location.pathname;
@@ -66,7 +81,13 @@ function App() {
   }, [location.pathname]);
 
   useLayoutEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
     document.documentElement.setAttribute("data-kapota-theme", theme);
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
   }, [theme]);
 
   if (mobileDevice) return <MobileAppRequired />;

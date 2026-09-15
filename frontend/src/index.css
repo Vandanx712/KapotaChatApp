@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 :root,
-[data-kapota-theme="light"] {
+[data-kapota-theme="light"],
+[data-theme="light"] {
   color-scheme: light;
   --color-canvas: 242 245 244;
   --color-surface: 255 255 255;
@@ -33,7 +34,9 @@
   --shadow-overlay: 0 24px 70px rgb(5 18 14 / 0.24);
 }
 
-[data-kapota-theme="dark"] {
+[data-kapota-theme="dark"],
+[data-theme="dark"],
+.dark {
   color-scheme: dark;
   --color-canvas: 13 20 18;
   --color-surface: 20 29 26;

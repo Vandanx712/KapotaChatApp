@@ -184,7 +184,9 @@ export default function MediaAttachment({ media, reserveTime = false }) {
                             <img
                                 src={localUrl}
                                 alt={media.originalName || "Attachment"}
-                                className="max-h-[360px] max-w-[min(360px,42vw)] cursor-pointer rounded-control object-contain"
+                                loading="lazy"
+                                decoding="async"
+                                className="aspect-square min-h-[160px] min-w-[160px] max-h-[360px] max-w-[min(360px,42vw)] cursor-pointer rounded-control object-contain"
                             />
                         </PhotoView>
                     </PhotoProvider>
@@ -195,7 +197,7 @@ export default function MediaAttachment({ media, reserveTime = false }) {
                         src={localUrl}
                         controls
                         preload="metadata"
-                        className="max-h-[360px] max-w-[min(360px,42vw)] rounded-control bg-black"
+                        className="aspect-video min-h-[160px] min-w-[240px] max-h-[360px] max-w-[min(360px,42vw)] rounded-control bg-black"
                     />
                 )}
 

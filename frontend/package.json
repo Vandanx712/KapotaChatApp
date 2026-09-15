@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.102.8",
+    "@tanstack/react-query-devtools": "^5.102.8",
     "autoprefixer": "^10.4.23",
     "axios": "^1.13.4",
     "emoji-picker-react": "^4.18.0",

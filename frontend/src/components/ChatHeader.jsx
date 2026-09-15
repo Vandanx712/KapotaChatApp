@@ -143,6 +143,8 @@ const ChatHeader = ({ onToggleSearch, onStartCall, showSearch }) => {
                 src={selectedConversation.isgroup ? selectedConversation.groupdetail?.groupIcon?.url : selectedConversation?.profilePic?.url}
                 alt={selectedConversation.isgroup ? selectedConversation.groupdetail?.groupname : selectedConversation.name}
                 size="md"
+                loading="eager"
+                fetchPriority="high"
               />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold text-ink">

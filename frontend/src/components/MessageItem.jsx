@@ -1,8 +1,10 @@
 import { memo, useRef, useState } from "react";
 import { cn, formatMessageTime } from "../lib/utils";
 import {
+  AlertCircle,
   Check,
   CheckCheck,
+  Clock,
   CopyIcon,
   Edit2,
   EllipsisVerticalIcon,
@@ -53,6 +55,7 @@ const MessageItem = memo(
     const messageDelete = useChatStore((state) => state.messageDelete);
     const reactToMessage = useChatStore((state) => state.reactToMessage);
     const setReplyingTo = useChatStore((state) => state.setReplyingTo);
+    const retryMessage = useChatStore((state) => state.retryMessage);
     const [openUp, setOpenUp] = useState(false);
     const dropdownRef = useRef(null);
     const theme = useThemeStore((state) => state.theme);
@@ -457,11 +460,39 @@ const MessageItem = memo(
                   )}
                 >
                   {formatMessageTime(m.createdAt)}
-                  {isSentByMe && (m.isSeen ? (
-                    <CheckCheck className={cn("size-3.5", showTimeOverMedia ? "text-sky-300" : "text-brand-strong")} />
-                  ) : (
-                    <Check className="size-3.5" />
-                  ))}
+                  {isSentByMe &&
+                    (m.status === "pending" || m.status === "sending" ? (
+                      <Clock
+                        className="size-3.5 text-muted animate-pulse"
+                        title="Waiting to send"
+                        aria-label="Pending"
+                      />
+                    ) : m.status === "failed" ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          retryMessage(m.tempId || m._id);
+                        }}
+                        title="Click to retry"
+                        aria-label="Click to retry"
+                        className="inline-flex cursor-pointer items-center gap-0.5 text-danger hover:underline"
+                      >
+                        <AlertCircle className="size-3.5 text-danger" />
+                        <span className="text-[9px] font-semibold text-danger">Retry</span>
+                      </button>
+                    ) : m.isSeen ? (
+                      <CheckCheck
+                        className={cn(
+                          "size-3.5",
+                          showTimeOverMedia
+                            ? "text-sky-300"
+                            : "text-brand-strong",
+                        )}
+                      />
+                    ) : (
+                      <Check className="size-3.5" />
+                    ))}
                 </time>
               </div>
 
@@ -671,6 +702,69 @@ const MessageItem = memo(
       </>
     );
   },
+  areMessagePropsEqual,
 );
+
+function areMessagePropsEqual(prev, next) {
+  const prevM = prev.m;
+  const nextM = next.m;
+  if (!prevM && !nextM) return true;
+  if (!prevM || !nextM) return false;
+
+  // Key identity
+  if (prevM._id !== nextM._id) return false;
+  if (prevM.tempId !== nextM.tempId) return false;
+
+  // Message content and delivery status
+  if (prevM.text !== nextM.text) return false;
+  if (prevM.status !== nextM.status) return false;
+  if (prevM.isSeen !== nextM.isSeen) return false;
+  if (prevM.updatedAt !== nextM.updatedAt) return false;
+  if (prevM.deleted !== nextM.deleted) return false;
+  if (prevM.deletedForEveryone !== nextM.deletedForEveryone) return false;
+
+  // Media references
+  if (prevM.media?._id !== nextM.media?._id) return false;
+  if (prevM.image?.url !== nextM.image?.url) return false;
+
+  // Reactions comparison
+  const prevReactions = prevM.reactions;
+  const nextReactions = nextM.reactions;
+  if (prevReactions !== nextReactions) {
+    if (!prevReactions || !nextReactions) return false;
+    const prevKeys = Object.keys(prevReactions);
+    const nextKeys = Object.keys(nextReactions);
+    if (prevKeys.length !== nextKeys.length) return false;
+    for (const key of prevKeys) {
+      const prevUsers = prevReactions[key];
+      const nextUsers = nextReactions[key];
+      if (Array.isArray(prevUsers) && Array.isArray(nextUsers)) {
+        if (prevUsers.length !== nextUsers.length) return false;
+      } else if (prevUsers !== nextUsers) {
+        return false;
+      }
+    }
+  }
+
+  // Highlight status
+  const prevHighlighted = Boolean(prev.highlightId && prevM._id === prev.highlightId);
+  const nextHighlighted = Boolean(next.highlightId && nextM._id === next.highlightId);
+  if (prevHighlighted !== nextHighlighted) return false;
+
+  // Sequence layout flags
+  if (prev.isSequenceStart !== next.isSequenceStart) return false;
+  if (prev.isSequenceEnd !== next.isSequenceEnd) return false;
+
+  // Identity checks
+  if (prev.authUser?._id !== next.authUser?._id) return false;
+  if (
+    prev.selectedConversation?.conversationId !==
+    next.selectedConversation?.conversationId
+  ) {
+    return false;
+  }
+
+  return true;
+}
 
 export default MessageItem;
