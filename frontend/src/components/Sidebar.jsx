@@ -23,8 +23,10 @@ import {
   Input,
   SegmentedControl,
 } from "./ui";
+import { useConversationsQuery } from "../hooks/useQueries";
 
 function Sidebar() {
+  const { isLoading: isConversationsQueryLoading } = useConversationsQuery();
   const {
     getConversation,
     conversations,

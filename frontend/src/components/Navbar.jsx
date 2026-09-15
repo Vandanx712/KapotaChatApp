@@ -80,6 +80,8 @@ const Navbar = () => {
               src={authUser?.profilePic?.url}
               alt={authUser?.fullname || "Profile"}
               size="md"
+              loading="eager"
+              fetchPriority="high"
             />
           </NavLink>
         </Tooltip>

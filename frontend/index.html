@@ -3,6 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function() {
+        try {
+          var savedTheme = localStorage.getItem('chat-theme') || localStorage.getItem('kapota-theme') || 'dark';
+          document.documentElement.setAttribute('data-theme', savedTheme);
+          document.documentElement.setAttribute('data-kapota-theme', savedTheme);
+          if (savedTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <title>Kapota — Real-Time Messaging & Moments</title>
     <meta
       name="description"

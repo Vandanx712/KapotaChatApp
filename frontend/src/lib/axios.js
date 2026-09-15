@@ -5,6 +5,90 @@ const api = axios.create({
   withCredentials: true,
 });
 
+/**
+ * Exponential backoff retry helper for safe GET queries during spotty Wi-Fi / cell hotspot tethering.
+ */
+export async function withExponentialBackoff(
+  fn,
+  { maxRetries = 3, baseDelay = 500, backoffFactor = 2 } = {},
+) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempt++;
+      const isNetworkError =
+        !error.response ||
+        error.code === "ERR_NETWORK" ||
+        error.message === "Network Error" ||
+        error.code === "ECONNABORTED";
+      const isServerError = error.response && error.response.status >= 500;
+
+      const shouldRetry = (isNetworkError || isServerError) && attempt < maxRetries;
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      const jitter = Math.random() * 200;
+      const delay = baseDelay * Math.pow(backoffFactor, attempt - 1) + jitter;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
+// Axios Response Interceptor with Network Resilience & Graceful 401
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const config = error.config;
+    const isGet = config?.method?.toLowerCase() === "get";
+    const isNetworkError =
+      !error.response ||
+      error.code === "ERR_NETWORK" ||
+      error.message === "Network Error" ||
+      error.code === "ECONNABORTED";
+    const isServerError = error.response && error.response.status >= 500;
+
+    // Exponential backoff retry for safe GET queries during network drops
+    if (isGet && (isNetworkError || isServerError) && config) {
+      config.__retryCount = config.__retryCount || 0;
+      const maxRetries = config.maxRetries ?? 3;
+      if (config.__retryCount < maxRetries) {
+        config.__retryCount += 1;
+        const delay = Math.min(
+          500 * Math.pow(2, config.__retryCount - 1) + Math.random() * 200,
+          5000,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return api(config);
+      }
+    }
+
+    // 1. Network disconnect: do NOT log out or clear tokens!
+    if (isNetworkError) {
+      error.isNetworkError = true;
+      return Promise.reject(error);
+    }
+
+    // 2. 401 Unauthorized: only redirect to /login or reset authUser if NOT /auth/check
+    const isAuthCheck =
+      config?.url?.includes("/auth/check") ||
+      config?.url?.endsWith("/auth/check");
+
+    if (error.response?.status === 401 && !isAuthCheck) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("kapota:unauthorized"));
+        if (window.location.pathname !== "/login") {
+          window.location.replace("/login");
+        }
+      }
+    }
+
+    return Promise.reject(error);
+  },
+);
+
 const buildParams = (params = {}) =>
   Object.fromEntries(
     Object.entries(params).filter(

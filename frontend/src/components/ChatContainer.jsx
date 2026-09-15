@@ -416,9 +416,11 @@ function ChatContainer() {
           computeItemKey={(index, item) => item.message._id}
           atBottomThreshold={120}
           atBottomStateChange={setIsAtBottom}
-          followOutput="smooth"
-          firstItemIndex={100000 - message.length}
-          initialTopMostItemIndex={message.length > 0 ? message.length - 1 : 0}
+          followOutput={(isAtBottom) => (isAtBottom ? "smooth" : false)}
+          initialTopMostItemIndex={
+            virtuosoData.length > 0 ? virtuosoData.length - 1 : 0
+          }
+          increaseViewportBy={{ top: 400, bottom: 400 }}
           components={{
             Header: () =>
               hasMoreMessages || isMoreMessagesLoading ? (

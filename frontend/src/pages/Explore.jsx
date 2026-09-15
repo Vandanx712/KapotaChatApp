@@ -11,6 +11,7 @@ import { AppPage, PageHeader } from "../components/layout/AppPage";
 import { Avatar, Button, EmptyState, Spinner } from "../components/ui";
 import LoadableImage from "../components/common/LoadableImage";
 import SharePostDialog from "../components/posts/SharePostDialog";
+import { useExploreFeedQuery } from "../hooks/useQueries";
 
 function Explore() {
   const ref = useRef({});
@@ -24,6 +25,16 @@ function Explore() {
   const [loading, setLoading] = useState(false);
   const [cursor, setCursor] = useState(null);
   const [hasMore, setHasMore] = useState(true);
+
+  const { data: initialFeed } = useExploreFeedQuery();
+
+  useEffect(() => {
+    if (initialFeed?.posts && posts.length === 0) {
+      setPosts(initialFeed.posts);
+      setCursor(initialFeed.nextCursor ?? null);
+      setHasMore(Boolean(initialFeed.hasMore));
+    }
+  }, [initialFeed, posts.length]);
   const [visiblePostIds, setVisiblePostIds] = useState(new Set());
   const [sharePost, setSharePost] = useState(null);
   const [shareSearch, setShareSearch] = useState("");

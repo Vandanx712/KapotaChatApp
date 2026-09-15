@@ -12,7 +12,6 @@ import {
   getOtherUsers,
   getSurroundUsers,
   reactToMessage as reactToMessageRequest,
-  sendMessage,
   updateConBgimage,
   updateGroupDetail,
   updateMembers,
@@ -24,6 +23,12 @@ import {
   deleteMediaFromCache,
   deleteMultipleMediaFromCache,
 } from "../lib/mediaCache";
+import {
+  addToOutbox,
+  drainOutboxQueue,
+  getOutboxQueue,
+  retryOutboxMessage,
+} from "../lib/outboxQueue";
 
 const MESSAGE_PAGE_LIMIT = 30;
 const USER_PAGE_LIMIT = 30;
@@ -119,8 +124,32 @@ export const useChatStore = create((set, get) => ({
         return msg;
       });
 
+      const queuedOutbox = getOutboxQueue()
+        .filter(
+          (item) =>
+            item.conversationId === conversationId && item.status !== "sent",
+        )
+        .map((item) => ({
+          _id: item.tempId,
+          tempId: item.tempId,
+          conversationId: item.conversationId,
+          sender: authUser?._id,
+          text: item.text,
+          media: item.media,
+          mediaId: item.mediaId,
+          replyingTo: item.replyingTo,
+          replyTo: item.replyToId,
+          createdAt: item.createdAt,
+          status: item.status,
+          seenBy: authUser?._id ? [authUser._id] : [],
+          isSeen: false,
+        }));
+
       set((state) => ({
-        message: mergeUniqueById(updatedMessages, state.message),
+        message: mergeUniqueById(
+          mergeUniqueById(updatedMessages, state.message),
+          queuedOutbox,
+        ),
         messageCursor: resdata.nextCursor ?? null,
         hasMoreMessages: Boolean(resdata.hasMore),
       }));
@@ -280,22 +309,91 @@ export const useChatStore = create((set, get) => ({
     const { selectedConversation } = get();
     if (!selectedConversation?.conversationId) return false;
     const conversationId = selectedConversation.conversationId;
+    const authUser = useAuthStore.getState().authUser;
 
-    try {
-      const resdata = await sendMessage(
-        conversationId,
-        messageData,
-      );
-      if (get().selectedConversation?.conversationId === conversationId) {
-        set((state) => ({
-          message: mergeUniqueById(state.message, [resdata.newMessage]),
-        }));
-      }
-      return true;
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to send message");
-      return false;
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const createdAt = new Date().toISOString();
+
+    const optimisticMessage = {
+      _id: tempId,
+      tempId,
+      conversationId,
+      sender: authUser?._id,
+      text: messageData.text || "",
+      media:
+        messageData.media ||
+        (messageData.mediaId ? { _id: messageData.mediaId } : null),
+      mediaId: messageData.mediaId || null,
+      replyingTo: messageData.replyingTo || get().replyingTo || null,
+      replyTo: messageData.replyToId || get().replyingTo?._id || null,
+      createdAt,
+      status: "pending",
+      seenBy: authUser?._id ? [authUser._id] : [],
+      isSeen: false,
+    };
+
+    // Optimistically append to active message state and update conversations list preview
+    set((state) => ({
+      message: [...state.message, optimisticMessage],
+      conversations: state.conversations.map((c) =>
+        c.conversationId === conversationId
+          ? {
+              ...c,
+              lastmessage: optimisticMessage,
+              updatedAt: createdAt,
+            }
+          : c,
+      ),
+    }));
+
+    // Save to outbox queue in localStorage
+    addToOutbox(optimisticMessage);
+
+    // If online, dispatch immediately
+    const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
+    if (isOnline) {
+      drainOutboxQueue();
     }
+
+    return true;
+  },
+
+  replaceOptimisticMessage: (tempId, confirmedMessage) => {
+    set((state) => ({
+      message: state.message.map((msg) =>
+        msg._id === tempId || msg.tempId === tempId
+          ? { ...confirmedMessage, tempId, status: "sent" }
+          : msg,
+      ),
+      conversations: state.conversations.map((c) =>
+        c.lastmessage?._id === tempId || c.lastmessage?.tempId === tempId
+          ? {
+              ...c,
+              lastmessage: { ...confirmedMessage, status: "sent" },
+            }
+          : c,
+      ),
+    }));
+  },
+
+  updateOptimisticMessageStatus: (tempId, status) => {
+    set((state) => ({
+      message: state.message.map((msg) =>
+        msg._id === tempId || msg.tempId === tempId ? { ...msg, status } : msg,
+      ),
+      conversations: state.conversations.map((c) =>
+        c.lastmessage?._id === tempId || c.lastmessage?.tempId === tempId
+          ? {
+              ...c,
+              lastmessage: { ...c.lastmessage, status },
+            }
+          : c,
+      ),
+    }));
+  },
+
+  retryMessage: (tempId) => {
+    retryOutboxMessage(tempId);
   },
 
   onlineToMessage: (newmsg) => {
