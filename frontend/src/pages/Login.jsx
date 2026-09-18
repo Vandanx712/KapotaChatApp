@@ -296,12 +296,12 @@ function Login() {
                   </Field>
 
                   <div className="flex items-center justify-between gap-4">
-                    <Link
+                    {/* <Link
                       to="/forget-password"
                       className="text-sm font-semibold text-brand-strong hover:underline"
                     >
                       Forgot password?
-                    </Link>
+                    </Link> */}
                     <Button type="submit" variant="primary" loading={isLoggingIn}>
                       Log in
                     </Button>

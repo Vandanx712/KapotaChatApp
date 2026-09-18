@@ -1,0 +1,83 @@
+services:
+  # 1. Redis: In-memory store for BullMQ Queues & Caching
+  redis:
+    image: redis:7-alpine
+    container_name: kapota-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - kapota-network
+    # Health check ensures Redis is ready before backend boots:
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    
+  # 2. Backend API & Real-Time Socket.io Server 
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kapota-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "5001:5001"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - kapota-network
+
+  # 3. BullMQ Background Worker (Same image, Worker command) 
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kapota-worker
+    restart: unless-stopped
+    # Overrides default CMD to run the worker process instead of server.js:
+    command: ["node", "src/lib/worker.js"]
+    env_file:
+      - ./backend/.env
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - kapota-network
+
+  # 4. Frontend Web Application (Vite React served by Nginx) 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kapota-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - kapota-network
+
+# Persistent Storage Volumes  
+volumes:
+  redis_data:
+    driver: local
+
+# Isolated Container Bridge Network
+networks:
+  kapota-network:
+    driver: bridge

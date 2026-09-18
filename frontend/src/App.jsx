@@ -10,7 +10,7 @@ import { useOfflineSync } from "./hooks/useOfflineSync";
 
 const Home = lazy(() => import("./pages/Home"));
 const Login = lazy(() => import("./pages/Login"));
-const ForgetPassword = lazy(() => import("./pages/ForgetPassword"));
+// const ForgetPassword = lazy(() => import("./pages/ForgetPassword"));
 const AddPost = lazy(() => import("./pages/AddPost"));
 const Explore = lazy(() => import("./pages/Explore"));
 const PostDetail = lazy(() => import("./pages/PostDetail"));
@@ -22,7 +22,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const ROUTE_TITLES = {
   "/": "Messages | Kapota",
   "/login": "Log In | Kapota",
-  "/forget-password": "Reset Password | Kapota",
+  // "/forget-password": "Reset Password | Kapota",
   "/addpost": "Create Post | Kapota",
   "/explore": "Explore Moments | Kapota",
   "/setting": "Settings | Kapota",
@@ -117,7 +117,7 @@ function App() {
             path="/login"
             element={!authUser ? <Login /> : <Navigate to="/" />}
           />
-          <Route path="/forget-password" element={<ForgetPassword />} />
+          {/* <Route path="/forget-password" element={<ForgetPassword />} /> */}
 
           <Route
             path="/"

@@ -10,10 +10,14 @@ const connectDb = async () => {
 
     const connectionInstance = await mongoose.connect(dbUrl, {
       dbName: "kapotaChat",
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000
     });
-    console.log(`MongoDB connected on ${connectionInstance.connection.host}`);
+    console.log(`MongoDB connected :${connectionInstance.connection.host}`);
   } catch (error) {
-    console.error(`MongoDB connection error: ${error}`);
+    console.error(`Database connection failed: ${error.message}`);
+    process.exit(1);
   }
 };
 
