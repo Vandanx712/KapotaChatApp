@@ -17,7 +17,7 @@ COPY . .
 USER node
                                                                                                     
 # 7. Document the port Express runs on
-EXPOSE 5001 
+EXPOSE 4833
 
 # 8. Start the Express + Socket.IO API server
 CMD ["node","src/server.js"]
