@@ -31,7 +31,7 @@ services:
       - REDIS_PORT=6379
       - FRONTEND_URL=http://localhost
     ports:
-      - "5001:5001"
+      - "4833:4833"
     depends_on:
       redis:
         condition: service_healthy
@@ -65,7 +65,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_BACKEND_URL=http://localhost:5001
+        - VITE_BACKEND_URL=http://localhost:4833
     container_name: kapota-frontend
     restart: unless-stopped
     ports:

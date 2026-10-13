@@ -13,7 +13,7 @@ RUN npm ci
 COPY . .
 
 #Accept build argument from docker-compose and expose to vite
-ARG BACKEND_URL=http://localhost:5001
+ARG BACKEND_URL=http://localhost:4833
 ENV VITE_BACKEND_URL=$BACKEND_URL
 
 # Compile JSX/TSX and CSS into the optimized /app/dist directory
