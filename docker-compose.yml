@@ -29,9 +29,9 @@ services:
       - NODE_ENV=production
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - FRONTEND_URL=http://localhost
+      - FRONTEND_URL=https://kapotachat.duckdns.org #for local it's localurl
     ports:
-      - "4833:4833"
+      - "127.0.0.1:4833:4833" #for local it's "4833:4833"
     depends_on:
       redis:
         condition: service_healthy
@@ -65,11 +65,11 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_BACKEND_URL=http://localhost:4833
+        - VITE_BACKEND_URL=https://kapotachat.duckdns.org  #for local it's local url
     container_name: kapota-frontend
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "127.0.0.1:3000:80" #for local it's "80:80"
     depends_on:
       - backend
     networks:
