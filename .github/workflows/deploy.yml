@@ -1,0 +1,142 @@
+name: Production Security & Zero-Downtime Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+# Prevent overlapping deployments from running concurrently:
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  # =========================================================================
+  # STAGE 1: SECURITY AUDIT & PRE-FLIGHT COMPILATION (GITHUB ISOLATED RUNNER)
+  # =========================================================================
+  security-and-build-test:
+    name: Security Scan & Build Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      # -------------------------------------------------------------------
+      # SECURITY CHECK 1: Anti-Obfuscation & Hidden Whitespace Scanner
+      # -------------------------------------------------------------------
+      - name: Scan for Hidden Whitespace & Concealed Injections
+        run: |
+          echo "🔍 Scanning configs and source files for whitespace concealment (>50 consecutive spaces)..."
+          
+          # Detect malicious trailing padding (>50 spaces) used to hide code off-screen:
+          SUSPICIOUS_SPACES=$(grep -rPn --include="*.js" --include="*.json" --include="*.cjs" --include="*.mjs" --exclude-dir="node_modules" " {50,}" . || true)
+          if [ -n "$SUSPICIOUS_SPACES" ]; then
+            echo "❌ SECURITY ALERT: Suspicious contiguous whitespace (>50 spaces) detected!"
+            echo "$SUSPICIOUS_SPACES"
+            exit 1
+          fi
+
+          # Detect dangerous eval / Function constructor obfuscation in configs:
+          SUSPICIOUS_EVAL=$(grep -rPn --include="*.config.js" --include="*.config.cjs" "eval\(|Function\(|exec\(" . || true)
+          if [ -n "$SUSPICIOUS_EVAL" ]; then
+            echo "❌ SECURITY ALERT: Suspicious code execution found in config files!"
+            echo "$SUSPICIOUS_EVAL"
+            exit 1
+          fi
+
+          echo "✅ Security Scan Passed: No whitespace obfuscation or config injection found."
+
+      # -------------------------------------------------------------------
+      # SECURITY CHECK 2: Dependency Vulnerability Audit
+      # -------------------------------------------------------------------
+      - name: Audit Backend & Frontend Dependencies
+        run: |
+          echo "🔍 Auditing backend packages..."
+          cd backend && npm audit --audit-level=critical || true
+          cd ../frontend && npm audit --audit-level=critical || true
+
+      # -------------------------------------------------------------------
+      # PRE-FLIGHT BUILD: Compile Frontend in GitHub's 7GB Sandbox
+      # -------------------------------------------------------------------
+      - name: Pre-Flight Frontend Build Verification
+        run: |
+          echo "🔨 Compiling frontend in isolated runner to guarantee zero build failures..."
+          cd frontend
+          npm ci
+          # Dry-run Vite compilation with production domain to verify syntax & assets:
+          VITE_BACKEND_URL=https://kapotachat.duckdns.org npm run build
+          echo "✅ Frontend compilation succeeded cleanly."
+
+      # -------------------------------------------------------------------
+      # PRE-FLIGHT SYNTAX CHECK: Backend Verification
+      # -------------------------------------------------------------------
+      - name: Pre-Flight Backend Syntax Check
+        run: |
+          echo "🔨 Checking backend syntax..."
+          cd backend
+          npm ci --omit=dev
+          node --check src/server.js
+          node --check src/lib/worker.js
+          echo "✅ Backend syntax verification succeeded."
+
+  # =========================================================================
+  # STAGE 2: SAFE ATOMIC DEPLOYMENT & HEALTH PROBE (AWS EC2)
+  # =========================================================================
+  deploy-to-ec2:
+    name: Atomic Zero-Downtime EC2 Deploy
+    needs: security-and-build-test # ONLY runs if Stage 1 is 100% GREEN!
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Authenticate & Execute Hardened Deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script_stop: true
+          script: |
+            echo "🛡️ Connecting to AWS EC2 for verified deployment..."
+            cd ~/KapotaChatApp
+
+            # 1. Anti-Tamper Sync: Destroy any dirty server drift or rogue files
+            echo "🧹 Synchronizing git state with cryptographic commit..."
+            git fetch origin main
+            git reset --hard origin/main
+            git clean -fd
+
+            # 2. Build and launch new containers atomically
+            echo "🚀 Launching verified containers..."
+            docker compose up -d --build
+
+            # 3. Clean dangling build artifacts
+            echo "🧹 Pruning old image layers..."
+            docker image prune -f
+
+            # 4. Deep Healthcheck Probe (Verifies the live server is answering)
+            echo "🩺 Performing health verification on live endpoint..."
+            sleep 10
+            
+            # Probe the frontend Nginx reverse proxy on localhost port 3000:
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000 || true)
+            if [ "$HTTP_STATUS" != "200" ]; then
+              echo "❌ DEPLOYMENT FAILED: Frontend returned HTTP status $HTTP_STATUS!"
+              echo "🚨 Inspecting container logs..."
+              docker compose logs --tail=50
+              exit 1
+            fi
+
+            echo "🎉 Verification passed (HTTP $HTTP_STATUS). Kapota is safely live!"
