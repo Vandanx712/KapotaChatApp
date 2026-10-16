@@ -1,4 +1,6 @@
 import { Server } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { redis } from "./redis.js";
 import express from "express";
 import http from "http";
 import jwt from "jsonwebtoken";
@@ -18,6 +20,18 @@ const io = new Server(server, {
     credentials: true,
   },
 });
+
+// Configure horizontal scaling via Redis Pub/Sub adapter
+try {
+  const pubClient = redis.duplicate();
+  const subClient = redis.duplicate();
+  pubClient.on("error", (err) => console.error("Socket.io Redis PubClient Error:", err.message));
+  subClient.on("error", (err) => console.error("Socket.io Redis SubClient Error:", err.message));
+  io.adapter(createAdapter(pubClient, subClient));
+  console.log("Socket.io Redis adapter connected for multi-instance horizontal scaling.");
+} catch (err) {
+  console.warn("Socket.io running with default in-memory adapter:", err.message);
+}
 
 // used for online users. one user can have multiple socket connections (multiple tabs/devices).
 const userSocketMap = new Map();

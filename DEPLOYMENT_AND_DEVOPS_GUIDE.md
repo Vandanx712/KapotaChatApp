@@ -82,6 +82,35 @@
 
 ---
 
+### PART IV: Junior DevOps Local Containerization & Validation Playbook (Path 1)
+18. [Junior DevOps Local Containerization & Validation Playbook](#18-junior-devops-local-containerization--validation-playbook)
+   - [Understanding the Container Runtime on Developer Machines](#181-understanding-the-container-runtime-on-developer-machines)
+   - [Pre-Flight Configuration Linting & Environment Management](#182-pre-flight-configuration-linting--environment-management)
+   - [Build & Run Execution Mastery (Flags, Layers & BuildKit)](#183-build--run-execution-mastery-flags-layers--buildkit)
+   - [The 6 Must-Know Jr. DevOps Observability & Triaging Commands](#184-the-6-must-know-jr-devops-observability--triaging-commands)
+   - [In-Container Network & Connectivity Diagnostics](#185-in-container-network--connectivity-diagnostics)
+   - [The 6 Classic Junior DevOps Gotchas & Root-Cause Fixes](#186-the-6-classic-junior-devops-gotchas--root-cause-fixes)
+   - [Container Teardown, Volume Retention & Disk Garbage Collection](#187-container-teardown-volume-retention--disk-garbage-collection)
+
+---
+
+### PART V: Enterprise Production Operations & High Availability (Path 2)
+20. [The Complete Domain & SSL/TLS Engineering Guide (From DNS to Let's Encrypt)](#20-the-complete-domain--ssltls-engineering-guide-from-dns-to-lets-encrypt)
+   - [How to Get a Domain Name (Free Subdomains vs Custom Domains)](#201-how-to-get-a-domain-name-free-subdomains-vs-custom-domains)
+   - [DNS Records Deep Dive (A, AAAA, CNAME, TTL, Apex vs Subdomain)](#202-dns-records-deep-dive-a-aaaa-cname-ttl-apex-vs-subdomain)
+   - [How SSL/TLS Encryption & PKI Work Under the Hood](#203-how-ssltls-encryption--pki-work-under-the-hood)
+   - [The ACME Protocol & How Let's Encrypt / Certbot Work](#204-the-acme-protocol--how-lets-encrypt--certbot-work)
+   - [Host Nginx Reverse Proxy Architecture & WebSocket Upgrades](#205-host-nginx-reverse-proxy-architecture--websocket-upgrades)
+   - [Step-by-Step SSL Automation & Zero-Downtime Auto-Renewal](#206-step-by-step-ssl-automation--zero-downtime-auto-renewal)
+   - [Alternative: Cloudflare Free SSL & CDN Proxying](#207-alternative-cloudflare-free-ssl--cdn-proxying)
+21. [Production Disk Safety: Docker Log Rotation & Cron Pruning](#21-production-disk-safety-docker-log-rotation--cron-pruning)
+22. [Hardened Enterprise CI/CD Pipeline (Anti-Obfuscation Scanner & Health Gate)](#22-hardened-enterprise-cicd-pipeline-anti-obfuscation-scanner--health-gate)
+23. [Production SRE Observability: Deep Health Checks & 24/7 Uptime Alerting](#23-production-sre-observability-deep-health-checks--247-uptime-alerting)
+24. [Horizontal Scaling: Multi-Instance Socket.io with Redis Pub/Sub & Nginx Sticky Sessions](#24-horizontal-scaling-multi-instance-socketio-with-redis-pubsub--nginx-sticky-sessions)
+25. [Production Architecture Blueprint & Resume / Portfolio Showcase](#25-production-architecture-blueprint--resume--portfolio-showcase)
+
+---
+
 # PART I: The Universal Deployment & Architecture Decision Engine
 ### How to Analyze Any Project and Choose the Best-Fit Stack
 
@@ -2080,5 +2109,625 @@ KapotaChatApp/
 
 ---
 
-> [!TIP]
-> Keep this document as your conceptual handbook. Whenever you feel ready to start actual implementation, let me know, and we will take it step-by-step!
+# PART IV: Junior DevOps Local Playbook & Troubleshooting Compendium (Path 1)
+### Hands-on Validation, Daily Commands, Internal Networking & Disaster Triage
+
+---
+
+## 18. Junior DevOps Local Containerization & Validation Playbook
+
+Path 1 is the crucial bridge between local development and cloud production. If a multi-service distributed app cannot run cleanly inside local containers, it will **never** survive in production on an AWS EC2 instance. Both environments share the exact same container engine (`containerd`/Docker Engine).
+
+---
+
+### 18.1 Understanding the Container Runtime on Developer Machines
+
+#### The Client-Server Architecture of Docker
+Docker is not a single monolith. It consists of two separate entities:
+1. **Docker CLI (`docker`)**: The command-line interface tool you run in your terminal. It does not execute containers. It sends HTTP REST commands over a socket to the daemon.
+2. **Docker Daemon (`dockerd`)**: The background engine managing containers, images, virtual networks, and storage volumes.
+
+```mermaid
+flowchart LR
+    CLI["Docker CLI (docker compose up)"] -- "REST API over Socket/Pipe" --> Daemon["Docker Daemon (dockerd)"]
+    Daemon --> containerd["containerd (OCI Runtime)"]
+    containerd --> C1["Backend Container"]
+    containerd --> C2["Redis Container"]
+    containerd --> C3["Worker Container"]
+    containerd --> C4["Frontend Container"]
+```
+
+#### How Docker Runs on Windows (WSL2 vs. Linux Native)
+Containers rely on Linux kernel features (**Namespaces** for process isolation and **cgroups** for resource limits). Because Windows does not have a native Linux kernel:
+- **Docker Desktop on Windows** spins up a lightweight, highly optimized Linux virtual machine via **WSL2 (Windows Subsystem for Linux 2)**.
+- The Docker Daemon runs inside this WSL2 VM.
+- Docker Desktop automatically binds localhost ports (e.g. `localhost:4833` or `localhost:80`) from the Windows host into the WSL2 VM.
+
+#### Verifying Engine Health:
+Before running any compose commands, always verify the Docker engine is alive:
+```powershell
+docker version
+docker info
+```
+
+---
+
+### 18.2 Pre-Flight Configuration Linting & Environment Management
+
+Never run `docker compose up` blindly on a project without validating the configuration first.
+
+#### The Dry-Run Parser: `docker compose config`
+This command parses all YAML files, resolves indentation, validates schemas, substitutes all environment variables, and prints the **effective configuration** that Docker will execute:
+```bash
+docker compose config
+```
+
+#### Environment Variable Resolution Order
+Docker Compose resolves environment variables using a strict hierarchy:
+1. **In-line CLI variables**: `PORT=8000 docker compose up` (Highest priority)
+2. **Shell environment variables**: Variables set in your host OS terminal
+3. **Environment file (`.env`)**: Located in the same directory as `docker-compose.yml`
+4. **Compose file defaults**: `${PORT:-4833}` (Lowest priority fallback)
+
+---
+
+### 18.3 Build & Run Execution Mastery (Flags, Layers & BuildKit)
+
+```bash
+docker compose up -d --build
+```
+
+#### Breaking Down Every Flag:
+- **`up`**: Builds, (re)creates, starts, and attaches to containers for a service.
+- **`-d` (Detached Mode)**: Runs containers in the background as system daemons and returns control of the terminal to you.
+- **`--build`**: Forces Docker to rebuild images from Dockerfiles before starting containers. Essential when application code changes!
+- **`--no-cache`**: Disables Docker layer caching completely. Used when package downloads or dependencies fail due to corrupt cached layers.
+- **`--force-recreate`**: Recreates containers even if their image and configuration have not changed.
+
+---
+
+### 18.4 The 6 Must-Know Jr. DevOps Observability & Triaging Commands
+
+```mermaid
+flowchart TD
+    Up["docker compose up -d --build"] --> StatusCheck["1. docker compose ps\n(Check health & status codes)"]
+    StatusCheck -->|All Up / Healthy| Metrics["2. docker stats\n(Audit CPU & RAM usage)"]
+    StatusCheck -->|Restarting / Exited| Logs["3. docker compose logs -f --tail=100\n(Diagnose crash stack trace)"]
+    Logs --> Shell["4. docker exec -it <service> sh\n(Jump inside to test network & files)"]
+    Shell --> Inspect["5. docker inspect <container_id>\n(Deep inspect IPs & mounts)"]
+    Metrics --> Top["6. docker compose top\n(Audit host processes)"]
+```
+
+1. **`docker compose ps`**: Inspects container lifecycle states (`healthy`, `Restarting`, `Exited (137)`).
+2. **`docker compose logs -f --tail=100 <service>`**: Streams real-time logs with `--timestamps` option.
+3. **`docker stats`**: Live CPU %, RAM consumption, and network I/O dashboard (spotting memory leaks).
+4. **`docker inspect <container>`**: Dumps low-level JSON configuration, IP addresses, and healthcheck history.
+5. **`docker exec -it <container> sh`**: Drops an interactive shell inside the container (default to `sh` on Alpine!).
+6. **`docker compose top`**: Audits host operating system processes created by containers.
+
+---
+
+### 18.5 In-Container Network & Connectivity Diagnostics
+
+#### The Container Isolation Rule
+Every container has its **own network namespace** and its **own `localhost` (127.0.0.1)**.
+- If `backend` attempts to connect to `127.0.0.1:6379`, it attempts to connect to port 6379 **inside itself**, resulting in `ECONNREFUSED`.
+- Inside `kapota-network`, Docker runs an **embedded DNS server at 127.0.0.11**.
+- Connecting to `redis:6379` resolves automatically to the internal IP of the Redis container.
+
+#### Diagnostic Commands Inside Alpine Containers:
+```sh
+# 1. Test TCP port reachability to Redis:
+nc -zv redis 6379
+
+# 2. Test internal HTTP health endpoint:
+wget -qO- http://localhost:4833/api/health
+
+# 3. Verify DNS resolution of another service:
+getent hosts redis
+```
+
+---
+
+### 18.6 The 6 Classic Junior DevOps Gotchas & Root-Cause Fixes
+
+1. **`bind: address already in use`**: Another host process is already listening on that port. Find with `Get-NetTCPConnection -LocalPort <PORT>` on Windows or `lsof -i :<PORT>` on Linux, and kill with `Stop-Process -Id <PID>`.
+2. **Exit Code 137 (`OOMKilled`)**: Container exceeded RAM limit or host ran out of memory, triggering the Linux kernel Out-Of-Memory killer. Fixed by adding Swap space or optimizing memory.
+3. **Exit Code 127 (`command not found`)**: `CMD` or `ENTRYPOINT` points to an executable not present in the base image (e.g., trying to run `bash` on Alpine).
+4. **Windows Line Endings (`\r: command not found`)**: Windows Git converted LF to CRLF. Shell scripts fail on invisible `\r`. Fixed via `dos2unix` or `git config --global core.autocrlf input`.
+5. **The Connection Refused Trap (Binding to `127.0.0.1` vs `0.0.0.0`)**: Servers inside Docker must listen on `0.0.0.0` (all interfaces), otherwise incoming traffic from host port forwarding is rejected.
+6. **Vite Build-Time Variable Failure**: React SPAs compiled by Vite bake environment variables into JS bundles during `npm run build`. If not passed as a Docker build `ARG`, `import.meta.env` evaluates to `undefined`.
+
+---
+
+### 18.7 Container Teardown, Volume Retention & Disk Garbage Collection
+
+| Command | What It Destroys | What It Preserves | Safety Level |
+| :--- | :--- | :--- | :--- |
+| `docker compose stop` | Nothing (only freezes processes) | Containers, networks, volumes | 100% Safe |
+| `docker compose down` | Containers and custom networks | **Named volumes (Redis data preserved)** | Safe for Daily Use |
+| `docker compose down -v` | Containers, networks, **AND VOLUMES** | Nothing (Wipes Redis/DB data!) | **DANGER: Data Loss** |
+
+#### Disk Maintenance:
+```powershell
+docker system df           # View disk consumption
+docker system prune -f     # Safe cleanup of stopped containers and dangling layers
+docker system prune -af    # Deletes all unused images and build caches
+```
+
+---
+
+# PART V: Enterprise Production Operations & High Availability (Path 2)
+### Cloud Architecture, Security Gates, Zero-Downtime CI/CD & Scaling
+
+---
+
+## 19. AWS Cloud Architecture & The 1GB RAM Optimization
+
+Running a modern distributed full-stack application (Vite React + Express API + Socket.io + BullMQ Worker + Redis) on AWS Free Tier (`t2.micro` or `t3.micro` with 1GB RAM) requires professional memory engineering.
+
+### The Memory Math:
+* **Runtime Usage**: OS + containerd (~150MB) + Nginx (~20MB) + Redis (~30MB) + Express API (~100MB) + Worker (~80MB) = **~380MB active RAM**.
+* **The Crash Point**: Compiling React + Tailwind CSS with Vite requires **~1.2GB RAM for 20 seconds** during `npm run build`. Without virtual memory, the 1GB RAM ceiling triggers an instant Linux kernel `OOMKilled` crash.
+
+### The 2GB Swap Space Solution:
+Using 2GB of free SSD storage as virtual memory:
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+sudo sysctl vm.swappiness=10
+echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.conf
+```
+* Result: 1GB physical RAM + 2GB Swap = **3GB effective memory for $0**.
+
+---
+
+## 20. The Complete Domain & SSL/TLS Engineering Guide (From DNS to Let's Encrypt)
+
+A production web application cannot survive with raw IP addresses like `http://3.110.47.54`. Modern browsers physically block **Camera and Microphone access** (`navigator.mediaDevices.getUserMedia`), restrict cookies, and flag plain HTTP connections with red security warnings.
+
+This section covers how to acquire a domain, configure DNS records, and automate free, enterprise-grade **SSL/TLS encryption**.
+
+---
+
+### 20.1 How to Get a Domain Name (Free Subdomains vs Custom Domains)
+
+```mermaid
+flowchart TD
+    Choice{"What is your goal?"}
+    Choice -->|Free / Testing / Portfolio| Free["Option 1: Free Developer Subdomains ($0)"]
+    Choice -->|Production / Business / Brand| Custom["Option 2: Custom Commercial Domain ($8 - $12/yr)"]
+
+    Free --> DuckDNS["DuckDNS (yourname.duckdns.org)\n- 100% Free Forever\n- Supports Let's Encrypt SSL\n- Updates via simple curl API"]
+    Free --> Sslip["sslip.io (3.110.47.54.sslip.io)\n- Zero Signup Required\n- Instant Wildcard DNS to your IP"]
+
+    Custom --> CloudflareReg["Cloudflare Registrar (Recommended)\n- At-cost pricing (Zero markup: $9.77/yr for .com)\n- Free WHOIS Privacy\n- Built-in DDoS protection & DNS"]
+    Custom --> Namecheap["Namecheap\n- Beginner-friendly UI\n- Free lifetime WhoisGuard\n- Wide variety of TLDs"]
+    Custom --> Route53["AWS Route 53\n- Native AWS integration\n- Slightly higher price ($14/yr)"]
+```
+
+#### Option 1: Free Developer Subdomains ($0 Forever)
+* **DuckDNS (`yourname.duckdns.org`)**:
+  1. Open [duckdns.org](https://www.duckdns.org/) and sign in with GitHub.
+  2. Type your preferred subdomain (e.g. `kapotachat`).
+  3. Enter your server's Public IPv4 address (`3.110.47.54`).
+  4. Click **add domain** $\rightarrow$ Active globally within 60 seconds!
+* **sslip.io (`3.110.47.54.sslip.io`)**:
+  * An automated public DNS service that maps any hostname containing an IP address back to that IP.
+  * No account or configuration needed: `3.110.47.54.sslip.io` immediately resolves to `3.110.47.54`.
+
+#### Option 2: Custom Commercial Domains ($8 – $12 / year)
+When buying a custom domain for a production project:
+
+| Registrar | Typical `.com` Price | WHOIS Privacy | Recommendation | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Cloudflare Registrar** | **~$9.77 / year** | **Free Lifetime** | ⭐️ **Best Value** | At-cost wholesale pricing with zero markup; fastest DNS globally. |
+| **Namecheap** | ~$10 – $13 / year | Free Lifetime | ⭐️ **Best for Beginners** | Great live support, simple checkout, free WhoisGuard. |
+| **AWS Route 53** | ~$14.00 / year | Free | Good for AWS purists | Managed directly inside your AWS console alongside EC2. |
+| **GoDaddy** | ~$12 first yr, then **$22+ renewal!** | Often Paid Extra | ❌ **Avoid** | Known for aggressive upsells, hidden renewal price hikes. |
+
+> **Junior DevOps Tip on TLDs**: 
+> Domains ending in `.dev` or `.app` are owned by Google and included in the **HSTS Preload List**. This means web browsers **physically refuse to connect over plain HTTP**—they force HTTPS from day one!
+
+---
+
+### 20.2 DNS Records Deep Dive (How to Point Your Domain to Your Server)
+
+DNS (Domain Name System) is the global, distributed hierarchical phonebook of the internet. It translates human-friendly names (`kapotachat.duckdns.org`) into machine-routable IP addresses (`3.110.47.54`).
+
+```mermaid
+flowchart LR
+    Browser["Client Browser"] -- "1. Where is kapotachat.duckdns.org?" --> DNS["DNS Resolver (8.8.8.8 / ISP)"]
+    DNS -- "2. A Record: 3.110.47.54" --> Browser
+    Browser -- "3. TCP Connect Port 443" --> EC2["AWS EC2 Server (3.110.47.54)"]
+```
+
+#### Core DNS Record Types You Must Know:
+
+| Record Type | What It Does | Example Host | Example Target Value | Use Case |
+| :--- | :--- | :--- | :--- | :--- |
+| **A Record** | Maps a domain directly to an **IPv4 address** | `@` (root) or `chat` | `3.110.47.54` | Pointing your website to your EC2 instance |
+| **AAAA Record** | Maps a domain directly to an **IPv6 address** | `@` | `2600:1f18:...` | Modern IPv6 routing |
+| **CNAME** | Creates an **alias** pointing one domain to another | `www` | `yourdomain.com` | Aliasing `www.yourdomain.com` to root domain |
+| **TXT Record** | Holds arbitrary text verification strings | `@` | `v=spf1 ...` or ACME token | Domain ownership verification (Google, Let's Encrypt) |
+| **MX Record** | Directs incoming emails to mail servers | `@` | `mail.yourdomain.com` | Email delivery (Google Workspace, Zoho, Proton) |
+
+#### Understanding the Apex Domain (`@`) vs Subdomain:
+* **Apex / Root Domain (`@`)**: The bare domain without any prefix: `kapota.com`.
+* **Subdomain**: A prefix under your root domain: `api.kapota.com` or `chat.kapota.com`.
+* **The CNAME Apex Rule**: RFC 1034 forbids placing a `CNAME` record on the root apex domain (`@`) because CNAME cannot coexist with mandatory `SOA` and `NS` records. Always use an **A Record** on your root domain!
+
+#### TTL (Time To Live):
+TTL is the number of seconds intermediate DNS resolvers (like your ISP or Google `8.8.8.8`) cache the DNS record before asking the authoritative server again.
+* **During Migration / Setup**: Set TTL to **`60 seconds`** or **`300 seconds`** (5 minutes). If you change an IP, the world sees the update immediately.
+* **In Stable Production**: Set TTL to **`3600 seconds`** (1 hour) or **`86400 seconds`** (24 hours) to reduce DNS lookup latency.
+
+#### Verifying DNS Resolution from Terminal:
+```bash
+# On Linux / Mac:
+dig +short kapotachat.duckdns.org
+
+# On Windows (PowerShell):
+Resolve-DnsName kapotachat.duckdns.org
+```
+
+---
+
+### 20.3 How SSL/TLS Encryption & PKI Work Under the Hood
+
+When you visit `http://` (unencrypted), every router, internet service provider, and public Wi-Fi hotspot between your device and the server can intercept passwords, cookies, and chat messages in plaintext.
+
+**SSL (Secure Sockets Layer)** was the original protocol, now superseded by **TLS (Transport Layer Security v1.3)**.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Web Browser
+    participant Server as Nginx Server (EC2)
+    participant CA as Let's Encrypt (Root CA)
+
+    Client->>Server: 1. ClientHello (Supported TLS Ciphers)
+    Server-->>Client: 2. ServerHello + Public Certificate (fullchain.pem)
+    Note over Client: 3. Browser verifies Certificate signature<br/>against pre-installed Root CAs
+    Client->>Server: 4. Key Exchange (ECDHE Diffie-Hellman)
+    Note over Client,Server: 5. Both derive matching Symmetric Session Key
+    Client->>Server: 6. Encrypted HTTPS / WSS Communication (AES-GCM-256)
+```
+
+#### Why Self-Signed Certificates Fail:
+If you generate a certificate yourself using `openssl req -x509`, your server is technically encrypted, but browsers will display a giant red warning: `NET::ERR_CERT_AUTHORITY_INVALID`.
+* **Reason**: Operating systems maintain a strict **Root Trust Store** (Mozilla NSS, Apple Keychain, Windows Certificate Store) containing ~150 globally audited Certificate Authorities (CAs). If a certificate is not signed by a recognized CA, browsers block camera/mic permissions, service workers, and payment APIs.
+
+---
+
+### 20.4 The ACME Protocol & How Let's Encrypt / Certbot Work
+
+**Let's Encrypt** revolutionized the web by providing free, globally trusted SSL/TLS certificates through an automated protocol called **ACME (Automated Certificate Management Environment, RFC 8555)**.
+
+#### How the HTTP-01 Challenge Proves Domain Ownership:
+When you run `sudo certbot --nginx -d kapotachat.duckdns.org`:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Certbot as Certbot (EC2 Host)
+    participant ACME as Let's Encrypt ACME Server
+    participant Nginx as Host Nginx
+    
+    Certbot->>ACME: "I want an SSL certificate for kapotachat.duckdns.org"
+    ACME-->>Certbot: "Prove it. Place token 'ABC123XYZ' at /.well-known/acme-challenge/ABC123XYZ"
+    Certbot->>Nginx: Temporarily injects route for /.well-known/acme-challenge/
+    ACME->>Nginx: HTTP GET http://kapotachat.duckdns.org/.well-known/acme-challenge/ABC123XYZ
+    Nginx-->>ACME: Returns token 'ABC123XYZ' (HTTP 200 OK)
+    ACME-->>Certbot: Ownership confirmed! Here is your signed SSL certificate (fullchain.pem)
+    Certbot->>Nginx: Configures SSL directives and reloads server
+```
+
+> **🚨 The Golden DevOps Firewall Rule**: 
+> Port `80` (HTTP) must **NEVER be closed in your AWS Security Group**, even if your website only serves traffic over `443` (HTTPS)! Let's Encrypt *strictly* contacts port 80 to complete the HTTP-01 challenge during renewals!
+
+#### The Certificate Files (`/etc/letsencrypt/live/yourdomain/`):
+* **`fullchain.pem`**: The public certificate bundle containing your server's public key and the Let's Encrypt Intermediate CA signature. Sent to every browser during the TLS handshake.
+* **`privkey.pem`**: Your **secret private key**. It must be kept strictly protected (`chmod 600`) and owned by root. **Never share, expose, or commit this file to Git!**
+
+---
+
+### 20.5 Host Nginx Reverse Proxy Architecture & WebSocket Upgrades
+
+Here is the complete, hardened Nginx configuration that ties your domain, SSL certificates, React frontend, Express API, and WebSockets together:
+
+File location: `/etc/nginx/sites-available/kapotachat`
+
+```nginx
+# 1. HTTP Server Block: Enforces HTTP-to-HTTPS Redirection
+server {
+    listen 80;
+    listen [::]:80;
+    server_name kapotachat.duckdns.org;
+
+    # Allow Let's Encrypt ACME challenge verification:
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    # Redirect all other HTTP traffic to encrypted HTTPS:
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# 2. HTTPS Server Block: Encrypted Production Traffic
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name kapotachat.duckdns.org;
+
+    # SSL Certificate Paths (Managed automatically by Certbot)
+    ssl_certificate /etc/letsencrypt/live/kapotachat.duckdns.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/kapotachat.duckdns.org/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # -------------------------------------------------------------
+    # ROUTE 1: Frontend Web Application (Vite / React)
+    # -------------------------------------------------------------
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # -------------------------------------------------------------
+    # ROUTE 2: Backend REST API
+    # -------------------------------------------------------------
+    location /api/ {
+        proxy_pass http://127.0.0.1:4833/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # -------------------------------------------------------------
+    # ROUTE 3: Real-Time WebSockets (Socket.IO Upgrade Handshake)
+    # -------------------------------------------------------------
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:4833/socket.io/;
+        proxy_http_version 1.1;
+
+        # Protocol Upgrade Headers:
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Client Identity Forwarding:
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Keep-Alive Timeouts (Prevents premature WebSocket drops):
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+}
+```
+
+---
+
+### 20.6 Step-by-Step SSL Automation & Zero-Downtime Auto-Renewal
+
+#### 1. Install Certbot on Ubuntu 24.04:
+```bash
+sudo apt update
+sudo apt install certbot python3-certbot-nginx -y
+```
+
+#### 2. Request & Bind the Certificate:
+```bash
+sudo certbot --nginx -d kapotachat.duckdns.org
+```
+* Certbot automatically analyzes your Nginx configuration, fulfills the HTTP-01 challenge with Let's Encrypt, downloads the certificates to `/etc/letsencrypt/live/`, and edits your Nginx configuration to enable SSL and automatic HTTP $\to$ HTTPS redirection!
+
+#### 3. How Automatic Renewal Works:
+Let's Encrypt certificates expire every **90 days**. Certbot installs a systemd background timer (`certbot.timer`) that wakes up twice every day, checks all installed certificates, and automatically renews any certificate within 30 days of expiration!
+
+```bash
+# Verify the automatic renewal timer is running:
+sudo systemctl status certbot.timer
+
+# Simulate a renewal test to verify it will succeed without human intervention:
+sudo certbot renew --dry-run
+```
+
+---
+
+### 20.7 Alternative: Cloudflare Free SSL & CDN Proxying
+
+Another popular enterprise architecture is placing **Cloudflare** in front of your domain:
+
+```mermaid
+flowchart LR
+    Client["Browser"] -- "HTTPS (Cloudflare Edge Cert)" --> CF["Cloudflare Global CDN (DDoS Shield)"]
+    CF -- "HTTPS (Origin Cert / Let's Encrypt)" --> Nginx["AWS EC2 Host Nginx"]
+```
+
+#### The 3 Cloudflare SSL Modes:
+1. **Flexible (Insecure - Do NOT Use)**:
+   * Client $\to$ Cloudflare is encrypted (`https://`), but Cloudflare $\to$ EC2 is plaintext HTTP (`http://`).
+   * Vulnerable to man-in-the-middle packet sniffing on AWS infrastructure!
+2. **Full**:
+   * Encrypted on both legs, but Cloudflare accepts self-signed or unverified certificates on your origin.
+3. **Full (Strict) - Production Standard**:
+   * Encrypted on both legs and strictly validates that your EC2 server presents a legitimate, valid certificate (such as our Let's Encrypt certificate).
+   * Highest security grade possible.
+
+---
+
+---
+
+## 21. Production Disk Safety: Docker Log Rotation & Cron Pruning
+
+### The Unlimited JSON Log Trap:
+Docker defaults to unlimited JSON logging. On active chat applications, logs grow to 10GB+ within weeks, exhausting the 20GB disk and freezing the server.
+
+### Log Rotation in `docker-compose.yml`:
+```yaml
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+Caps logging to a strict maximum of 30MB per container.
+
+### Automated Weekly Disk Garbage Collection:
+In crontab (`crontab -e`):
+```bash
+0 0 * * 0 docker system prune -f > /dev/null 2>&1
+```
+
+---
+
+## 22. Hardened Enterprise CI/CD Pipeline (Anti-Obfuscation Scanner & Health Gate)
+
+### Flaws of Basic CI/CD:
+* Running `git pull && docker compose up --build` directly on production risks broken code killing live containers.
+* Malicious code concealed via **Whitespace Padding (>50 spaces)** or obfuscated configs (`vite.config.js`, `postcss.config.js`) executing arbitrary child processes on the host.
+
+### The Enterprise Architecture:
+```mermaid
+flowchart TD
+    Push["git push origin main"] --> CI["GitHub Runner (7GB RAM Sandbox)"]
+    CI --> Scan["1. Whitespace Obfuscation Scanner (>50 spaces)"]
+    Scan --> Audit["2. npm audit security gate"]
+    Audit --> PreBuild["3. Isolated Vite build & syntax check"]
+    PreBuild -->|Failure| Abort["ABORT (EC2 Never Touched)"]
+    PreBuild -->|Success| SSH["4. SSH into EC2"]
+    SSH --> Reset["5. Anti-Tamper git reset --hard"]
+    Reset --> Deploy["6. docker compose up -d --build"]
+    Deploy --> Probe["7. Health Probe (curl http://127.0.0.1:3000)"]
+    Probe --> Done["✅ Verified Live"]
+```
+
+---
+
+## 23. Production SRE Observability: Deep Health Checks & 24/7 Uptime Alerting
+
+### Deep Dependency Health Probe (`/api/health`):
+Actively validates internal connections to MongoDB Atlas and Redis before returning `HTTP 200`:
+```json
+{
+  "status": "healthy",
+  "timestamp": "2026-10-16T09:00:00.000Z",
+  "uptimeSeconds": 1420,
+  "checkLatencyMs": 5,
+  "dependencies": {
+    "database": {
+      "status": "up",
+      "latencyMs": 4
+    },
+    "redis": {
+      "status": "up",
+      "latencyMs": 1
+    }
+  },
+  "system": {
+    "rssMb": "88.24",
+    "heapUsedMb": "42.10"
+  }
+}
+```
+* Returns `HTTP 503` if MongoDB or Redis fails.
+* Integrated with **UptimeRobot** for 24/7 automated monitoring, SSL expiration alerts, and instant phone notifications.
+
+---
+
+## 24. Horizontal Scaling: Multi-Instance Socket.io with Redis Pub/Sub & Nginx Sticky Sessions
+
+### The Split-Brain WebSocket Problem:
+When multiple backend replicas run behind a load balancer, clients connected to different server instances cannot receive direct messages because local in-memory socket maps are isolated.
+
+### The Redis Pub/Sub Adapter Architecture:
+```mermaid
+flowchart TD
+    ClientA["👩 User A"] --> Nginx["Nginx (Sticky Sessions: ip_hash)"]
+    ClientB["👨 User B"] --> Nginx
+
+    Nginx --> B1["Backend Replica 1"]
+    Nginx --> B2["Backend Replica 2"]
+
+    B1 <-->|Pub/Sub Bus| Redis["Redis In-Memory Adapter\n(@socket.io/redis-adapter)"]
+    B2 <-->|Pub/Sub Bus| Redis
+```
+
+#### Node.js Implementation in `backend/src/lib/socket.js`:
+```javascript
+import { Server } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { redis } from "./redis.js";
+
+const io = new Server(server, { cors: { origin: [process.env.FRONTEND_URL] } });
+
+// Attach Redis Pub/Sub adapter for seamless horizontal scaling across instances:
+try {
+  const pubClient = redis.duplicate();
+  const subClient = redis.duplicate();
+  pubClient.on("error", (err) => console.error("Socket.io Redis PubClient Error:", err.message));
+  subClient.on("error", (err) => console.error("Socket.io Redis SubClient Error:", err.message));
+  io.adapter(createAdapter(pubClient, subClient));
+  console.log("Socket.io Redis adapter connected for multi-instance horizontal scaling.");
+} catch (err) {
+  console.warn("Socket.io running with default in-memory adapter:", err.message);
+}
+```
+
+#### Nginx Load Balancing with Sticky Sessions (`ip_hash`):
+```nginx
+upstream backend_cluster {
+    ip_hash; # Sticky sessions required for WebSocket polling-to-upgrade handshake
+    server 127.0.0.1:4833;
+    server 127.0.0.1:4834;
+}
+```
+
+---
+
+## 25. Production Architecture Blueprint & Resume / Portfolio Showcase
+
+### Full Master Architecture Diagram:
+
+```mermaid
+flowchart TD
+    Users["👥 Clients (Web, iOS, Android)"] -- "HTTPS :443 / WSS" --> Nginx["Host Nginx Reverse Proxy\n(Let's Encrypt SSL, Gzip, Sticky Sessions)"]
+    
+    subgraph Host_EC2 ["AWS EC2 Ubuntu 24.04 (3.110.47.54) | 1GB RAM + 2GB Swap"]
+        Nginx -- "Path /" --> Frontend["Frontend Container (Port 3000)\nNginx:Alpine serving Vite React SPA"]
+        Nginx -- "Path /api & /socket.io" --> Backend["Backend Container (Port 4833)\nNode.js Express + Socket.IO API"]
+        
+        subgraph Docker_Bridge ["kapota-network (Isolated Bridge)"]
+            Backend <-->|BullMQ Jobs & Cache| Redis["Redis 7 Alpine (:6379)\n(AOF Persistence & noeviction)"]
+            Worker["BullMQ Worker Container"] <-->|Process Async Jobs| Redis
+        end
+    end
+
+    Backend <-->|Mongoose Connection Pool| Mongo["MongoDB Atlas (Cloud Cluster)"]
+    Backend <-->|Media Uploads & CDN| Cloudinary["Cloudinary Object CDN"]
+    
+    GitHub["GitHub Actions CI/CD"] -- "Automated SSH Deploy" --> Host_EC2
+    UptimeRobot["UptimeRobot (24/7 SRE)"] -- "Probes /api/health every 5m" --> Nginx
+```
+
+### Professional Resume Bullet Points (DevOps & Full-Stack):
+
+* **Architected & Deployed Full-Stack Distributed Cloud Infrastructure**: Containerized a real-time chat and WebRTC video calling application using Docker, multi-stage Alpine images, and Docker Compose orchestration across 4 isolated microservices.
+* **Engineered Zero-Downtime CI/CD Pipeline with GitHub Actions**: Built an enterprise CI/CD pipeline featuring pre-flight security scanners (detecting whitespace obfuscation and malicious config injections), isolated dry-run compilation, and post-deployment health check probes with automated rollback.
+* **High-Availability WebSocket & Queue Architecture**: Implemented real-time Socket.io horizontal scaling using Redis Pub/Sub adapters (`@socket.io/redis-adapter`) and Nginx sticky sessions (`ip_hash`), coupled with BullMQ persistent background workers.
+* **Linux System Optimization & Cost Efficiency**: Overcame AWS 1GB RAM constraints on EC2 by engineering a 2GB Linux swapfile architecture, enabling reliable production builds for $0.
+* **Production Security & SRE Observability**: Configured automated Let's Encrypt SSL/TLS certificates via Certbot, implemented deep healthcheck probes (`/api/health`) measuring database and Redis latency, and integrated 24/7 multi-region uptime alerting with UptimeRobot.
+
