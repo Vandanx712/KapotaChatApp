@@ -6,9 +6,11 @@ import userRoute from "./user.route.js";
 import serviceRoute from "./service.route.js";
 import postRoute from "./post.route.js";
 import mediaRoute from "./media.route.js";
+import healthRoute from "./health.route.js";
 
 const indexRoute = Router();
 
+indexRoute.use('/health',healthRoute)
 indexRoute.use('/auth',authRouter)
 indexRoute.use('/user',userRoute)
 indexRoute.use('/conversation',conversationRoute)
