@@ -37,14 +37,23 @@ export function addToOutbox(item) {
   const queue = getOutboxQueue();
   // Ensure no duplicate tempId
   const filtered = queue.filter((q) => q.tempId !== item.tempId);
+  const resolvedReplyToId =
+    item.replyToId ||
+    item.replyingTo?._id ||
+    (typeof item.replyTo === "string"
+      ? item.replyTo
+      : item.replyTo?.messageId || item.replyTo?._id) ||
+    null;
+
   filtered.push({
     tempId: item.tempId,
     conversationId: item.conversationId,
     text: item.text || "",
     mediaId: item.mediaId || null,
     media: item.media || null,
-    replyToId: item.replyToId || null,
+    replyToId: resolvedReplyToId,
     replyingTo: item.replyingTo || null,
+    replyTo: item.replyTo || null,
     createdAt: item.createdAt || new Date().toISOString(),
     status: item.status || "pending",
   });
@@ -99,10 +108,18 @@ export async function drainOutboxQueue() {
       useChatStore.getState().updateOptimisticMessageStatus?.(item.tempId, "sending");
 
       try {
+        const resolvedReplyToId =
+          item.replyToId ||
+          item.replyingTo?._id ||
+          (typeof item.replyTo === "string"
+            ? item.replyTo
+            : item.replyTo?.messageId || item.replyTo?._id) ||
+          undefined;
+
         const payload = {
           text: item.text,
           mediaId: item.mediaId || undefined,
-          replyToId: item.replyToId || undefined,
+          replyToId: resolvedReplyToId,
         };
 
         const resdata = await sendMessageApi(item.conversationId, payload);

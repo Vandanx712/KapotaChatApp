@@ -137,8 +137,31 @@ export const useChatStore = create((set, get) => ({
           text: item.text,
           media: item.media,
           mediaId: item.mediaId,
+          replyToId:
+            item.replyToId ||
+            item.replyingTo?._id ||
+            (typeof item.replyTo === "string"
+              ? item.replyTo
+              : item.replyTo?.messageId || item.replyTo?._id) ||
+            null,
           replyingTo: item.replyingTo,
-          replyTo: item.replyToId,
+          replyTo:
+            (typeof item.replyTo === "object" && item.replyTo !== null)
+              ? item.replyTo
+              : item.replyingTo
+                ? {
+                    messageId: item.replyingTo._id,
+                    sender: item.replyingTo.sender,
+                    preview:
+                      item.replyingTo.text?.trim() ||
+                      (item.replyingTo.media
+                        ? "Attachment"
+                        : item.replyingTo.image
+                          ? "Photo"
+                          : "Message"),
+                    deleted: Boolean(item.replyingTo.deleted),
+                  }
+                : null,
           createdAt: item.createdAt,
           status: item.status,
           seenBy: authUser?._id ? [authUser._id] : [],
@@ -314,6 +337,32 @@ export const useChatStore = create((set, get) => ({
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     const createdAt = new Date().toISOString();
 
+    const replyTarget = messageData.replyingTo || get().replyingTo || null;
+    const replyToId =
+      messageData.replyToId ||
+      replyTarget?._id ||
+      (typeof messageData.replyTo === "string"
+        ? messageData.replyTo
+        : messageData.replyTo?._id) ||
+      null;
+
+    const replySnapshot = replyTarget
+      ? {
+          messageId: replyTarget._id,
+          sender: replyTarget.sender,
+          preview:
+            replyTarget.text?.trim() ||
+            (replyTarget.media
+              ? "Attachment"
+              : replyTarget.image
+                ? "Photo"
+                : "Message"),
+          deleted: Boolean(replyTarget.deleted),
+        }
+      : typeof messageData.replyTo === "object" && messageData.replyTo !== null
+        ? messageData.replyTo
+        : null;
+
     const optimisticMessage = {
       _id: tempId,
       tempId,
@@ -324,8 +373,9 @@ export const useChatStore = create((set, get) => ({
         messageData.media ||
         (messageData.mediaId ? { _id: messageData.mediaId } : null),
       mediaId: messageData.mediaId || null,
-      replyingTo: messageData.replyingTo || get().replyingTo || null,
-      replyTo: messageData.replyToId || get().replyingTo?._id || null,
+      replyToId,
+      replyingTo: replyTarget,
+      replyTo: replySnapshot,
       createdAt,
       status: "pending",
       seenBy: authUser?._id ? [authUser._id] : [],
